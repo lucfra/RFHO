@@ -370,3 +370,28 @@ class MergedVariable:
 def flatten_list(lst):
     from itertools import chain
     return list(chain(*lst))
+
+
+class GlobalStep:
+    """
+    Helper for global step (probably would be present also in tensorflow)
+    """
+
+    def __init__(self, start_from=0):
+        self._var = tf.Variable(start_from, trainable=False, name='global_step')
+        self.increase = self.var.assign_add(1)
+        self.decrease = self.var.assign_sub(1)
+
+    def eval(self, auto_initialize=True):
+        if not auto_initialize:
+            return self.var.eval()
+        else:
+            try:
+                return self.var.eval()
+            except tf.errors.FailedPreconditionError:
+                tf.variables_initializer([self.var]).run()
+                return self.var.eval()
+
+    @property
+    def var(self):
+        return self._var
