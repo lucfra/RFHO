@@ -42,8 +42,8 @@ N_ex = len(data.train.data)
 
 flipped = np.sort(np.random.permutation(list(range(N_ex)))[:num_flip])  # could take also firt num_flip examples....
 unflipped = list(set(range(N_ex)) - set(flipped))
-print('flipped', flipped)
-print('flipped length', len(flipped))
+print('flipped:', flipped)
+print('flipped length:', len(flipped))
 print(data.train.target[flipped][:10])
 
 for fl in flipped:
@@ -57,7 +57,7 @@ print(data.train.target[flipped][:10])
 # plt.matshow(imgs)
 # plt.grid()
 # plt.show()
-print([np.argmax(e) for e in data.train.target[flipped][:10]])
+# print([np.argmax(e) for e in data.train.target[flipped][:10]])
 
 # MODEL
 
@@ -184,7 +184,7 @@ with tf.Session(config=config):
         ts1.run(feed_dict=baseline_supplier())
     baseline_test_accuracy = accuracy2.eval(feed_dict=test_supplier())
 
-    print(baseline_test_accuracy)
+    print("baseline accuracy: {}".format(baseline_test_accuracy))
 
 # Oracle Execution
 
@@ -196,7 +196,7 @@ with tf.Session(config=config):
         ts2.run(feed_dict=oracle_supplier())
     oracle_test_accuracy = accuracy2.eval(feed_dict=test_supplier())
 
-    print(oracle_test_accuracy)
+    print("oracle test accuracy: {}".format(oracle_test_accuracy))
 
 # saving
 

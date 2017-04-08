@@ -77,13 +77,11 @@ class ReverseHyperGradient:
                         any([isinstance(v, MergedVariable) for v in self.w.var_list(Vl_Mode.RAW)]):
                     state_components = self.w.var_list(Vl_Mode.TENSOR)
 
-                    # equation (8) why the gradient involves alpha (p)?
-                    # tf.gradients(dot( tf.gradients(ve, self.w_t), self.tr_dynamics), state_components)
+                    # equation (8)
                     self.p_dynamics = {ve: tf.concat(tf.gradients(lagrangian, state_components), 0)
                                        for ve, lagrangian in self.lagrangians_dict.items()}
                 else:
-                    # equation (8) why the gradient involves alpha (p)?
-                    # tf.gradients(dot( tf.gradients(ve, self.w_t), self.tr_dynamics), self.w_t)
+                    # equation (8)
                     self.p_dynamics = {ve: tf.gradients(lagrangian, self.w_t)[0]
                                        for ve, lagrangian in self.lagrangians_dict.items()}  # equation (7)
 
@@ -96,8 +94,7 @@ class ReverseHyperGradient:
                 self.back_hist_op = self.w.assign(self._w_placeholder)
 
             with tf.name_scope('hyper_derivatives'):
-                # equation (10) without summation... why the gradient involves alpha (p) -> look below for expansion
-                # tf.gradients(dot( tf.gradients(ve, self.w_t)), self.tr_dynamics), lambda)
+                # equation (10) without summation.
                 self.hyper_derivatives = [
                     (self.val_error_dict[ve], tf.gradients(lagrangian, self.val_error_dict[ve])) for ve, lagrangian in
                     self.lagrangians_dict.items()
