@@ -4,7 +4,8 @@ from rfho.models import LinearModel, vectorize_model
 from rfho.utils import cross_entropy_loss, stepwise_pu, unconditional_pu, PrintUtils, binary_cross_entropy,\
     simple_name, Vl_Mode
 from rfho.save_and_load import save_obj, settings, load_obj
-from rfho.doh import Doh, adam_dynamics, momentum_dynamics, print_hyper_gradients
+from rfho.hyper_gradients import ReverseHyperGradient, adam_dynamics, print_hyper_gradients
+from rfho.optimizers import momentum_dynamics, adam_dynamics
 
 import matplotlib.pyplot as plt
 
@@ -175,7 +176,7 @@ def main_experiment(name_of_experiment, datasets,
         'eta only': {err_train: eta}
     }
 
-    doh = Doh(w, dynamics_dict, val_err_dict=val_err_dict[hyper_parameter_optimizer_strategy])
+    doh = ReverseHyperGradient(dynamics_dict, hyper_dict=val_err_dict[hyper_parameter_optimizer_strategy])
 
     # noinspection PyUnusedLocal
     def tr_s(step=None): return {x: datasets.train.data, y: datasets.train.target}
@@ -281,7 +282,7 @@ def main_experiment(name_of_experiment, datasets,
                               validation_suppliers=val_supp_possibility_dict[hyper_parameter_optimizer_strategy],
                               after_forward_su=acc_printer)
 
-            collected_hyper_gradients = Doh.std_collect_hyper_gradients(res)
+            collected_hyper_gradients = ReverseHyperGradient.std_collect_hyper_gradients(res)
 
             print('hyper gradients')
             print_hyper_gradients(collected_hyper_gradients)

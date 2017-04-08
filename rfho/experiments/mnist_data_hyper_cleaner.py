@@ -1,9 +1,9 @@
-from rfho.models import *
-from rfho.utils import *
-from rfho.save_and_load import *
-from rfho.doh import *
-
 from rfho.datasets import *
+from rfho.hyper_gradients import *
+from rfho.models import *
+from rfho.optimizers import gradient_descent, adam_dynamics
+from rfho.save_and_load import *
+from rfho.utils import *
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -84,7 +84,7 @@ val_err_dict = {error: [gamma]}
 
 dynamics = gradient_descent(w, lr=lr, loss=weighted_error)
 
-doh = Doh(w, dynamics, val_err_dict)
+doh = ReverseHyperGradient(dynamics, val_err_dict)
 
 
 # ev = ExampleVisiting(data, batch_size, 100)
@@ -229,7 +229,7 @@ with tf.Session(config=config).as_default() as ss:
 
         print('end, updating hyperparameters')
 
-        collected_hyper_gradients = Doh.std_collect_hyper_gradients(res)
+        collected_hyper_gradients = ReverseHyperGradient.std_collect_hyper_gradients(res)
 
         print('hyper gradients')
         print_hyper_gradients(collected_hyper_gradients)

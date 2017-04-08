@@ -6,7 +6,8 @@ from time import time
 from copy import deepcopy
 
 from rfho.datasets import ExampleVisiting
-from rfho.doh import adam_dynamics, DirectDoh, momentum_dynamics, ZMergedMatrix
+from rfho.hyper_gradients import adam_dynamics, ForwardHyperGradient, ZMergedMatrix
+from rfho.optimizers import momentum_dynamics, adam_dynamics
 from rfho.models import vectorize_model, FFNN, ffnn_layer
 from rfho.save_and_load import save_obj, settings
 from rfho.utils import cross_entropy_loss, stepwise_pu, PrintUtils, Vl_Mode, simple_name
@@ -113,7 +114,7 @@ def main_experiment(name_of_experiment, ev_data,
         if gamma_0:
             hyper_dict[primary_error].append((gamma, d_gamma))
 
-        direct_doh = DirectDoh(w=w, dynamics_dict=dynamics_dict, hyper_dict=hyper_dict)
+        direct_doh = ForwardHyperGradient(optimizer=dynamics_dict, hyper_dict=hyper_dict)
 
         training_supplier = ev_data.training_supplier(x, y)
 

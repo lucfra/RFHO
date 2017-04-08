@@ -1,6 +1,8 @@
-import tensorflow as tf
-from rfho.utils import dot, var_or_merged, MergedVariable, Vl_Mode, as_list, hvp, simple_name
 import numpy as np
+import tensorflow as tf
+
+from rfho.optimizers import Optimizer
+from rfho.utils import dot, var_or_merged, MergedVariable, Vl_Mode, as_list, simple_name
 
 
 class GlobalStep:
@@ -28,32 +30,49 @@ class GlobalStep:
         return self._var
 
 
-class Doh:
+class ReverseHyperGradient:
 
     # noinspection SpellCheckingInspection
-    def __init__(self, w, dynamics_dict, val_err_dict, w_hist=None, global_step=None):
-        # TODO rename val_err_dict into hyper_dict...
+    def __init__(self, optimizer, hyper_dict, state_history=None, global_step=None):
+        """
+        Creates a new object that computes the hyper-gradient of validation errors in reverse mode.
+        See section 3.1 of Forward and Reverse Gradient-Based Hyperparameter Optimization
+        (https://arxiv.org/abs/1703.01785)
+        Note that this class only computes the hyper-gradient and does not perform hyperparameter optimization.
 
-        self.w = w  # might be variable or MergedVariable  # TODO check if it works also with w as simple Variable
-        self.w_t = var_or_merged(w)  # this is always a tensor
+        :param optimizer: insance of Optimizer class, which represent the dynamics with which the model parameters are
+                            updated
+        :param hyper_dict: A dictionary of `{validation_error: hyperparameter or list_of_hyperparameters}` where
+                            `validation_error` is a scalar tensor and `list_of_hyperparameters` is a list
+                            of tensorflow variables that represents the hyperparameters
+        :param state_history: (default: empty list) state history manager:
+                                should implement methods `clear`, `append`, `__getitem__`
+        :param global_step: optional instance of GlobalStep class
+        """
 
-        self.tr_dynamics = dynamics_dict.dynamics
-        assert isinstance(val_err_dict, dict), '%s not allowed type. Should be a dict of' \
-                                               '(tf.Tensor, hyperparameters)' % val_err_dict
-        self.val_error_dict = val_err_dict
+        assert isinstance(optimizer, Optimizer)
+
+        self.w = optimizer.w  # might be variable or MergedVariable
+        #  TODO check if it works also with w as simple Variable
+        self.w_t = var_or_merged(self.w)  # this is always a tensor
+
+        self.tr_dynamics = optimizer.dynamics
+        assert isinstance(hyper_dict, dict), '%s not allowed type. Should be a dict of' \
+                                               '(tf.Tensor, hyperparameters)' % hyper_dict
+        self.val_error_dict = hyper_dict
 
         self.hyper_list = []
-        for k, v in val_err_dict.items():
+        for k, v in hyper_dict.items():
             self.hyper_list += as_list(v)
             self.val_error_dict[k] = as_list(v)  # be sure that are all lists
 
-        self.w_hist = w_hist or []
+        self.w_hist = state_history or []
 
         with self.w_t.graph.as_default():
             # global step
             self.global_step = global_step or GlobalStep()
 
-            self._fw_ops = dynamics_dict.assign_ops  # TODO add here when hyper-parameters are sequence
+            self._fw_ops = optimizer.assign_ops  # TODO add here when hyper-parameters are sequence
 
             # backward assign ops
             with tf.name_scope('backward'):
@@ -98,9 +117,9 @@ class Doh:
                                 for ve in self.val_error_dict]  # TODO add here when hp are sequ.
 
             with tf.name_scope('w_history_ops'):
-                self._w_placeholder = tf.placeholder(self.w_t.dtype)  # TODO sounds like an hack
+                self._w_placeholder = tf.placeholder(self.w_t.dtype)
 
-                self.back_hist_op = self.w.assign(self._w_placeholder)  # TODO put better here (class for history)
+                self.back_hist_op = self.w.assign(self._w_placeholder)
 
             with tf.name_scope('hyper_derivatives'):
                 # equation (10) without summation... why the gradient involves alpha (p) -> look below for expansion
@@ -136,7 +155,7 @@ class Doh:
         :param summary_utils:
         :return:
         """
-        #  TODO add to signature ,check_for_zeros=False):
+
         if not training_supplier:
             # noinspection PyUnusedLocal
             def training_supplier(step=None): return None
@@ -161,7 +180,7 @@ class Doh:
 
             # revert w_t to w_(t-1), why not using _ -1?
             ss.run(self.back_hist_op,
-                   feed_dict={self._w_placeholder: self.w_hist[self.global_step.eval() - 1]}  # TODO sounds like an hack
+                   feed_dict={self._w_placeholder: self.w_hist[self.global_step.eval() - 1]}
                    )
 
             fds = training_supplier(_)
@@ -227,27 +246,30 @@ class Doh:
     def std_collect_hyper_gradients(cls, row_gradients):
         return {hyp: sum([r for r in res[1:]], res[0]) for hyp, res in row_gradients.items()}
 
-# TODO add function to do true HO
 
+class ForwardHyperGradient:
 
-class DirectDoh:
-
-    def __init__(self, w, dynamics_dict, hyper_dict, global_step=None):
+    def __init__(self, optimizer, hyper_dict, global_step=None):
         """
-        Instantiate Forward-HO
+        Creates a new object that computes the hyper-gradient of validation errors in forward mode.
+        See section 3.2 of Forward and Reverse Gradient-Based Hyperparameter Optimization
+        (https://arxiv.org/abs/1703.01785)
+        Note that this class only computes the hyper-gradient and does not perform hyperparameter optimization.
 
-        :param w: MergedVariable that contains the weights and eventually auxiliary optimization variables for the the
-                  model
-        :param dynamics_dict: subclass of OptDict,  dictionary for the optimization dynamics
-        :param hyper_dict: hyperparameter dictionary (validation_error: list of couples
-                           (hyper-parameter, d_dynamics_d_hyper)
-        :param global_step: (optional) instance of GlobalStep to keep track of the optimization step
+        :param optimizer: instance of Optimizer class, which represent the dynamics with which the model parameters are
+                            updated
+        :param hyper_dict: A dictionary of `{validation_error: hyper_pairs_list}` where
+                            `validation_error` is a scalar tensor and `hyper_pairs_list` is single or a list of
+                            pairs (hyperparameter, derivative_of_dynamics_w.r.t hyperparameter)
+                            (matrix B_t in the paper). Unfortunately tensorflow does not computes Jacobians
+                            efficiently yet (suggestions or pointer are welcomed)
+        :param global_step: (optional) instance of `GlobalStep` to keep track of the optimization step
         """
 
-        self.w = w  # might be variable or MergedVariable (never tested on Variables actually) ...
-        self.w_t = var_or_merged(w)  # this is always a tensor
+        self.w = optimizer.w  # might be variable or MergedVariable (never tested on Variables actually) ...
+        self.w_t = var_or_merged(self.w)  # this is always a tensor
 
-        self.tr_dynamics = dynamics_dict.dynamics
+        self.tr_dynamics = optimizer.dynamics
 
         assert isinstance(hyper_dict, dict), '%s not allowed type. Should be a dict of (tf.Tensor,' \
                                              'list[(hyper-parameter, d_dynamics_d_hyper-parameter)]' % hyper_dict
@@ -290,7 +312,7 @@ class DirectDoh:
                 '''
                 self.zs = [self._create_z(hyp) for hyp in self.hyper_list]
 
-                self.zs_dynamics = [dynamics_dict.jac_z(z) + dd_dh
+                self.zs_dynamics = [optimizer.jac_z(z) + dd_dh
                                     for z, dd_dh in zip(self.zs, self.d_dynamics_d_hypers)]
 
                 print('z dynamics', self.zs_dynamics[0])
@@ -366,7 +388,8 @@ class DirectDoh:
 
         :param new_mode:
         :param validation_suppliers: single  supplier or list of suppliers for the examples in the validation set
-        :return: Dictionary: {hyper-parameter: hyper-gradient}
+
+        :return: Dictionary: {hyper-parameter: hyper-gradient} or None in new_mode
         """
         if not isinstance(validation_suppliers, dict) and len(self.hyper_list) == 1:  # fine if there is only 1 hyper
             validation_suppliers = {self.hyper_list[0]: validation_suppliers}
@@ -432,7 +455,7 @@ class RealTimeHO:
     def __init__(self, direct_doh, hyper_opt_dicts, hyper_projections=None, hyper_step=None):
         self.direct_doh = direct_doh
 
-        assert isinstance(hyper_opt_dicts, (list, OptDict)), "hyper_opt_dicts should be a single OptDict or a " \
+        assert isinstance(hyper_opt_dicts, (list, Optimizer)), "hyper_opt_dicts should be a single OptDict or a " \
                                                              "list of OptDict. Instead is %s" % hyper_opt_dicts
         self.hyper_opt_dicts = as_list(hyper_opt_dicts)
 
@@ -476,7 +499,8 @@ def hyper_opt_dict(direct_doh, dynamics, **dynamics_kw_args):
     """
     assert callable(dynamics), '%s should be an optimization dynamics generator' % dynamics
     # TODO make changes in Doh so that it follows the same structure as DirectDoh
-    assert isinstance(direct_doh, DirectDoh), 'This should ideally work also for Doh, but is not implemented yet..'
+    assert isinstance(direct_doh, ForwardHyperGradient), \
+        'This should ideally work also for Doh, but is not implemented yet..'
     return [dynamics(hyp, **dynamics_kw_args, grad=hg, w_is_state=False)
             for hyp, hg in zip(direct_doh.hyper_list, direct_doh.hyper_gradient_vars)]
 
@@ -488,268 +512,3 @@ def positivity(hyper_list):
 def print_hyper_gradients(hyper_gradient_dict):
     for k, v in hyper_gradient_dict.items():
         print(k.name, v)
-
-
-class OptDict:
-
-    def __init__(self, w, assign_ops, dynamics, jac_z, learning_rate, gradient):
-        self.w = w
-        self.assign_ops = assign_ops
-        self.dynamics = dynamics
-        self.jac_z = jac_z
-        self.learning_rate = learning_rate
-        self.gradient = gradient
-
-    def support_variables_initializer(self):
-        return tf.variables_initializer(self.get_support_variables())
-
-    def get_support_variables(self):
-        return []
-
-    def get_optimization_hyperparameters(self):
-        return [self.learning_rate]
-
-    def increase_global_step(self):
-        pass
-
-    def d_dynamics_d_learning_rate(self):
-        """
-
-        :return: Partial derivative of dynamics w.r.t. learning rate
-        """
-        return ZMergedMatrix(-self.gradient)
-
-    def d_dynamics_d_linear_loss_term(self, grad_loss_term):
-        """
-        Helper function for building the partial derivative of the dynamics w.r.t. an hyperparameter that
-        multiplies a loss term that concur in an additive way in forming the training error function.
-        E.g.: L + gamma R
-
-        :param grad_loss_term: should be \nabla R
-        :return: Partial derivative of dynamics w.r.t. weighting hyperparameter (e.g. gamma)
-        """
-        return ZMergedMatrix(-self.learning_rate*grad_loss_term)
-
-
-def gradient_descent(w, lr, loss=None, grad=None, name='GradientDescent'):
-    # TODO put this method the same way as the others
-    """
-    Just gradient descent dynamics.
-    :param loss: (optional) scalar loss
-    :param w: must be a single variable or a tensor (use models.vectorize_model). No lists here!
-    :param lr:
-    :param name:
-    :param grad: (optional) gradient Tensor
-    :return: tf.Tensor for gradient descent dynamics
-    """
-    assert grad is not None or loss is not None, "One between grad or loss must be given"
-    with tf.name_scope(name):
-        if grad is None:
-            grad = tf.gradients(loss, var_or_merged(w))[0]
-        dynamics = var_or_merged(w) - lr * grad
-        if loss is not None:
-            # TODO add type checking for w (should work only with vectors...)
-            integral = tf.reduce_sum(var_or_merged(w)**2)/2. - lr*loss
-
-            def jac_z(z):
-                return ZMergedMatrix(hvp(integral, var_or_merged(w), z.tensor))
-        else:
-            jac_z = None
-
-        return OptDict(w=var_or_merged(w),
-                       assign_ops=[w.assign(dynamics)],  # TODO complete here...
-                       dynamics=dynamics,
-                       jac_z=jac_z,
-                       gradient=grad,
-                       learning_rate=lr)
-
-
-class MomentumDict(OptDict):
-
-    def __init__(self, w, m, assign_ops, dynamics, jac_z, gradient, learning_rate, momentum_factor):
-        super(MomentumDict, self).__init__(w=w, assign_ops=assign_ops, dynamics=dynamics, jac_z=jac_z,
-                                           learning_rate=learning_rate, gradient=gradient)
-        self.m = m
-        self.momentum_factor = momentum_factor
-
-    def get_support_variables(self):
-        return [self.m]
-
-    def get_optimization_hyperparameters(self):
-        return super().get_optimization_hyperparameters() + [self.momentum_factor]
-
-    def d_dynamics_d_learning_rate(self):
-        return ZMergedMatrix([- self.momentum_factor * self.m + self.gradient,
-                              tf.zeros(self.m.get_shape())
-                              ])
-
-    def d_dynamics_d_momentum_factor(self):
-        return ZMergedMatrix([- (self.learning_rate * self.m), self.m])
-
-    def d_dynamics_d_linear_loss_term(self, grad_loss_term):
-        return ZMergedMatrix([
-            - self.learning_rate*grad_loss_term,
-            grad_loss_term
-        ])
-
-
-def momentum_dynamics(w, lr, mu, loss=None, grad=None, w_is_state=True, name='Momentum'):
-    """
-    Adam optimizer.
-    :param mu:
-    :param w:
-    :param lr:
-    :param loss:
-    :param grad:
-    :param w_is_state:
-    :param name:
-    :return:
-    """
-    # beta1_pow = tf.Variable(beta1)  # for the moment skip the implementation of this optimization.
-    assert grad is not None or loss is not None, "One between grad or loss must be given"
-    with tf.name_scope(name):
-        if w_is_state:
-
-            assert isinstance(w, MergedVariable), "%s is not instance of MergedVariable" % w
-            assert len(w.var_list(Vl_Mode.TENSOR)) == 2, "%s is not augmented correctly, len of w.var_list(" \
-                                                         "Vl_Mode.TENSOR should be 2, but is " \
-                                                         "%d" % (w, len(w.var_list(Vl_Mode.TENSOR)))
-
-            w_base, m = w.var_list(Vl_Mode.TENSOR)
-        else:
-            w_base = w
-            m = tf.Variable(tf.zeros(w.get_shape()))
-        if grad is None:
-            grad = tf.gradients(loss, w_base)[0]
-
-        w_base_k = w_base - lr * (mu * m + grad)   # * (mu * m + (1. - mu) * grad)   old
-        m_k = mu * m + grad  # * (1. - mu)
-
-        def jac_z(z):
-            r, u = z.var_list(Vl_Mode.TENSOR)
-
-            assert loss is not None, 'Should specify loss to use jac_z'
-
-            hessian_r_product = hvp(loss=loss, w=w_base, v=r)
-
-            print('hessian_r_product', hessian_r_product)
-
-            res = [
-                r - lr*mu*u - lr*hessian_r_product,
-                hessian_r_product + mu*u
-            ]
-
-            print('res', res)
-
-            return ZMergedMatrix(res)
-
-        dynamics = tf.concat([w_base_k, m_k], 0) if w_base_k.get_shape().ndims != 0 \
-            else tf.stack([w_base_k, m_k], 0)  # for scalar w
-
-        print(w)
-
-        if w_is_state: w_base_mv, m_mv = w.var_list(Vl_Mode.RAW)
-        else: w_base_mv, m_mv = w_base, m
-
-        return MomentumDict(
-            w=w_base,
-            m=m,
-            assign_ops=[w_base_mv.assign(w_base_k), m_mv.assign(m_k)],
-            dynamics=dynamics,
-            jac_z=jac_z, gradient=grad, learning_rate=lr, momentum_factor=mu
-        )
-
-
-class AdamDict(MomentumDict):
-
-    def __init__(self, w, m, v, assign_ops, global_step, dynamics, jac_z, gradient, learning_rate,
-                 momentum_factor, second_momentum_factor):
-        super().__init__(w=w, m=m, assign_ops=assign_ops, dynamics=dynamics, jac_z=jac_z, gradient=gradient,
-                         learning_rate=learning_rate, momentum_factor=momentum_factor)
-        self.v = v
-        self.global_step = global_step
-        self.second_momentum_factor = second_momentum_factor
-
-    def support_variables_initializer(self):
-        return tf.variables_initializer([self.m, self.v, self.global_step.var])
-
-    def increase_global_step(self):
-        self.global_step.increase.eval()
-
-    def get_optimization_hyperparameters(self):
-        return super().get_optimization_hyperparameters() + [self.second_momentum_factor]  # could be also epsilon?
-
-    def d_dynamics_d_momentum_factor(self):
-        raise NotImplementedError()  # TODO
-
-    def d_dynamics_d_learning_rate(self):
-        raise NotImplementedError()  # TODO
-
-    def d_dynamics_d_second_momentum_factor(self):
-        raise NotImplementedError()  # TODO
-
-    def d_dynamics_d_linear_loss_term(self, grad_loss_term):
-        raise NotImplementedError()  # TODO
-
-
-# noinspection PyTypeChecker
-def adam_dynamics(w, lr=1.e-3, beta1=.9, beta2=.999, eps=1.e-8, global_step=None,
-                  loss=None, grad=None, w_is_state=True, name='Adam'):  # FIXME rewrite this
-    """
-    Adam optimizer.
-    :param w:
-    :param lr:
-    :param beta1:
-    :param beta2:
-    :param eps:
-    :param global_step:
-    :param loss:
-    :param grad:
-    :param w_is_state:
-    :param name:
-    :return:
-    """
-    # beta1_pow = tf.Variable(beta1)  # for the moment skip the implementation of this optimization.
-    assert grad is not None or loss is not None, "One between grad or loss must be given"
-    with tf.name_scope(name):
-        if w_is_state:
-
-            assert isinstance(w, MergedVariable), "%s is not instance of MergedVariable" % w
-            assert len(w.var_list(Vl_Mode.TENSOR)) == 3, "%s is not augmented correctly, len of w.var_list(" \
-                                                         "Vl_Mode.TENSOR should be 3, but is " \
-                                                         "%d" % (w, len(w.var_list(Vl_Mode.TENSOR)))
-
-            w_base, m, v = w.var_list(Vl_Mode.TENSOR)
-        else:
-            w_base = w
-            m = tf.Variable(tf.zeros(w.get_shape()))
-            v = tf.Variable(tf.zeros(w.get_shape()))
-        if grad is None:
-            grad = tf.gradients(loss, w_base)[0]
-        if global_step is None:
-            global_step = GlobalStep()
-
-        m_k = beta1 * m + (1. - beta1) * grad
-        v_k = beta2 * v + (1. - beta2) * grad ** 2
-
-        lr_k = lr * tf.sqrt(1. - tf.pow(beta2, tf.to_float(global_step.var + 1))) / (
-            1. - tf.pow(beta1, tf.to_float(global_step.var + 1)))
-        w_base_k = w_base - lr_k * (beta1 * m + (1. - beta1) * grad) / tf.sqrt(
-            beta2 * v + (1. - beta2) * grad ** 2 + eps)
-
-        jac_z = None  # TODO!!!!!
-
-        # noinspection PyUnresolvedReferences
-        dynamics = tf.concat([w_base_k, m_k, v_k], 0) if w_base_k.get_shape().ndims != 0 \
-            else tf.stack([w_base_k, m_k, v_k], 0)  # scalar case
-
-        if w_is_state: w_base_mv, m_mv, v_mv = w.var_list(Vl_Mode.RAW)
-        else: w_base_mv, m_mv, v_mv = w_base, m, v
-
-        return AdamDict(
-            w=w_base,
-            m=m, v=v, global_step=global_step,
-            assign_ops=[w_base_mv.assign(w_base_k), m_mv.assign(m_k), v_mv.assign(v_k)],
-            dynamics=dynamics,
-            jac_z=jac_z, gradient=grad, learning_rate=lr, momentum_factor=beta1, second_momentum_factor=beta2
-        )

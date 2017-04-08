@@ -2,7 +2,8 @@ import numpy as np
 import unittest
 from rfho.experiments.mac_laurin_sec_3_2 import build_model
 from rfho.datasets import load_iris, load_mnist
-from rfho.doh import Doh, gradient_descent, adam_dynamics, momentum_dynamics
+from rfho.hyper_gradients import ReverseHyperGradient, adam_dynamics, momentum_dynamics
+from rfho.optimizers import gradient_descent, momentum_dynamics, adam_dynamics
 from rfho.models import *
 from rfho.utils import dot, SummaryUtil, SummaryUtils as SSU, PrintUtils, norm, stepwise_pu, MergedUtils
 
@@ -31,8 +32,7 @@ class TestD(unittest.TestCase):
                 tr_error = error + l2_factor * dot(net_w, net_w)
 
                 hyper_list = [l2_factor, eta]
-                doh = Doh(net_w, gradient_descent(net_w, eta, loss=tr_error),
-                          hyper_list, error, [])
+                doh = ReverseHyperGradient(gradient_descent(net_w, eta, loss=tr_error), hyper_list, error, [])
 
                 T = 2000
 
@@ -111,8 +111,7 @@ class TestD(unittest.TestCase):
 
                 # hyper_list = [l2_factor, eta]
                 hyper_list = [eta]  # , gamma]
-                doh = Doh(net_w, gradient_descent(net_w, eta, loss=tr_error),
-                          hyper_list, error, [])
+                doh = ReverseHyperGradient(gradient_descent(net_w, eta, loss=tr_error), hyper_list, error, [])
 
                 pn = norm(doh.p_dict)  # monitor for the norm of costate
 
@@ -187,7 +186,7 @@ class TestD(unittest.TestCase):
 
         def training_supplier(step): return {x: bxs[step], y: bys[step]}
 
-        doh = Doh(all_w, gradient_descent(all_w, .1, loss=error), [], error, [])
+        doh = ReverseHyperGradient(gradient_descent(all_w, .1, loss=error), [], error, [])
 
         with tf.Session().as_default():
             doh.forward(1000, training_supplier, summary_utils=psu)

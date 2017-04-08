@@ -5,7 +5,8 @@ import numpy as np
 from rfho.models import LinearModel, vectorize_model
 from rfho.utils import cross_entropy_loss, stepwise_pu, unconditional_pu, PrintUtils, norm, Vl_Mode
 from rfho.datasets import load_iris, ExampleVisiting
-from rfho.doh import gradient_descent, Doh, DirectDoh, momentum_dynamics, ZMergedMatrix
+from rfho.hyper_gradients import ReverseHyperGradient, ForwardHyperGradient, momentum_dynamics, ZMergedMatrix
+from rfho.optimizers import gradient_descent, momentum_dynamics
 import unittest
 
 
@@ -38,13 +39,13 @@ class TestDohDirectDoh(unittest.TestCase):
         eta = tf.Variable(lr, name='eta')
         dynamics_dict = gradient_descent(w, lr=eta, loss=error)
 
-        doh = Doh(w, dynamics_dict, val_err_dict={error: eta})
+        doh = ReverseHyperGradient(dynamics_dict, hyper_dict={error: eta})
 
         grad = tf.gradients(error, w.tensor)[0]
 
         hyper_dict = {error: (eta, -grad)}
 
-        direct_doh = DirectDoh(w, dynamics_dict, hyper_dict=hyper_dict)
+        direct_doh = ForwardHyperGradient(dynamics_dict, hyper_dict=hyper_dict)
 
         # noinspection PyUnusedLocal
         def all_training_supplier(step=None): return {x: iris.train.data, y: iris.train.target}
@@ -94,7 +95,7 @@ class TestDohDirectDoh(unittest.TestCase):
                 res = doh.run_all(T, training_supplier=training_supplier, after_forward_su=after_forward_su,
                                   validation_suppliers=training_supplier, forward_su=psu, backward_su=psu2)
 
-                collected_hyper_gradients = list(Doh.std_collect_hyper_gradients(res).values())
+                collected_hyper_gradients = list(ReverseHyperGradient.std_collect_hyper_gradients(res).values())
                 [ss.run(hyper_upd_ops[j],
                         feed_dict={delta_hyper: hyper_learning_rate * collected_hyper_gradients[j]})
                  for j in range(len(doh.hyper_list))]
@@ -126,7 +127,7 @@ class TestDohDirectDoh(unittest.TestCase):
                 res = doh.run_all(T, training_supplier=training_supplier, after_forward_su=after_forward_su,
                                   validation_suppliers=all_training_supplier, forward_su=psu, backward_su=psu2)
 
-                collected_hyper_gradients = list(Doh.std_collect_hyper_gradients(res).values())
+                collected_hyper_gradients = list(ReverseHyperGradient.std_collect_hyper_gradients(res).values())
                 [ss.run(hyper_upd_ops[j],
                         feed_dict={delta_hyper: hyper_learning_rate * collected_hyper_gradients[j]})
                  for j in range(len(doh.hyper_list))]
@@ -173,9 +174,9 @@ class TestDohDirectDoh(unittest.TestCase):
             dynamics_dict = gradient_descent(w, lr=eta, loss=training_error)
 
         if momentum:
-            doh = Doh(w, dynamics_dict, val_err_dict={training_error: [eta, mu], error: [gamma]})
+            doh = ReverseHyperGradient(dynamics_dict, hyper_dict={training_error: [eta, mu], error: [gamma]})
         else:
-            doh = Doh(w, dynamics_dict, val_err_dict={training_error: [eta], error: [gamma]})
+            doh = ReverseHyperGradient(dynamics_dict, hyper_dict={training_error: [eta], error: [gamma]})
 
         # In[8]:
         true_w = w.var_list(Vl_Mode.TENSOR)[0]
@@ -209,11 +210,11 @@ class TestDohDirectDoh(unittest.TestCase):
         if momentum:
             hyper_dict = {training_error: [(eta, grad), (mu, grad_mu)],
                           error: (gamma, grad_reg)}
-            direct_doh = DirectDoh(w, dynamics_dict, hyper_dict=hyper_dict)
+            direct_doh = ForwardHyperGradient(dynamics_dict, hyper_dict=hyper_dict)
         else:
             hyper_dict = {training_error: (eta, -grad),
                           error: (gamma, -grad_reg)}
-            direct_doh = DirectDoh(w, dynamics_dict, hyper_dict=hyper_dict)
+            direct_doh = ForwardHyperGradient(dynamics_dict, hyper_dict=hyper_dict)
 
         # noinspection PyUnusedLocal
         def all_training_supplier(step=None): return {x: iris.train.data, y: iris.train.target}
@@ -269,7 +270,7 @@ class TestDohDirectDoh(unittest.TestCase):
                                   validation_suppliers={error: validation_supplier, training_error: training_supplier},
                                   forward_su=psu, backward_su=psu2)
 
-                collected_hyper_gradients = Doh.std_collect_hyper_gradients(res)
+                collected_hyper_gradients = ReverseHyperGradient.std_collect_hyper_gradients(res)
 
                 [ss.run(hyper_upd_ops[hyp],
                         feed_dict={delta_hyper: hyper_learning_rate * collected_hyper_gradients[hyp]})
