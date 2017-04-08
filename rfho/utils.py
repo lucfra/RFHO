@@ -252,8 +252,7 @@ def reshape_generator(original_var, start, end):
     return lambda merged: wsr(tf.reshape(merged[start:end], original_var.get_shape()))
 
 
-def var_or_merged(v):
-    return v.tensor if isinstance(v, MergedVariable) else v
+
 
 
 Vl_Mode = Enum('Vl_Mode', 'RAW BASE TENSOR')  # allowed modes for MergedVariable.var_list (maybe not that convenient..)
@@ -273,7 +272,7 @@ class MergedVariable:
         """
 
         self._var_list = var_list
-        self.tensor = tf.identity(vectorize_all([var_or_merged(v) for v in var_list]), name=name)
+        self.tensor = tf.identity(vectorize_all([MergedVariable.get_tensor(v) for v in var_list]), name=name)
 
         self.name = name
 
@@ -327,7 +326,7 @@ class MergedVariable:
 
     def _var_list_as_tensors(self):
         if any([isinstance(v, MergedVariable) for v in self._var_list]):
-            return [var_or_merged(v) for v in self._var_list]
+            return [self.get_tensor(v) for v in self._var_list]
         else:
             return [self.tensor]
 
@@ -362,6 +361,10 @@ class MergedVariable:
     @property
     def graph(self):
         return self.tensor.graph
+
+    @classmethod
+    def get_tensor(cls, v):
+        return v.tensor if isinstance(v, MergedVariable) else v
 
 
 def flatten_list(lst):

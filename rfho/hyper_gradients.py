@@ -1,3 +1,5 @@
+import tensorflow as tf
+from rfho.utils import dot, MergedVariable, Vl_Mode, as_list, hvp, simple_name
 import numpy as np
 import tensorflow as tf
 
@@ -49,6 +51,8 @@ class ReverseHyperGradient:
                                 should implement methods `clear`, `append`, `__getitem__`
         :param global_step: optional instance of GlobalStep class
         """
+        self.w = w  # might be variable or MergedVariable  # TODO check if it works also with w as simple Variable
+        self.w_t = MergedVariable.get_tensor(w)  # this is always a tensor
 
         assert isinstance(optimizer, Optimizer)
 
@@ -266,6 +270,8 @@ class ForwardHyperGradient:
         :param global_step: (optional) instance of `GlobalStep` to keep track of the optimization step
         """
 
+        self.w = w  # might be variable or MergedVariable (never tested on Variables actually) ...
+        self.w_t = MergedVariable.get_tensor(w)  # this is always a tensor
         self.w = optimizer.w  # might be variable or MergedVariable (never tested on Variables actually) ...
         self.w_t = var_or_merged(self.w)  # this is always a tensor
 
