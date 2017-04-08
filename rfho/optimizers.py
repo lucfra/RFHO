@@ -58,18 +58,18 @@ def gradient_descent(w, lr, loss=None, grad=None, name='GradientDescent'):
     assert grad is not None or loss is not None, "One between grad or loss must be given"
     with tf.name_scope(name):
         if grad is None:
-            grad = tf.gradients(loss, var_or_merged(w))[0]
-        dynamics = var_or_merged(w) - lr * grad
+            grad = tf.gradients(loss, MergedVariable.get_tensor(w))[0]
+        dynamics = MergedVariable.get_tensor(w) - lr * grad
         if loss is not None:
             # TODO add type checking for w (should work only with vectors...)
-            integral = tf.reduce_sum(var_or_merged(w) ** 2) / 2. - lr * loss
+            integral = tf.reduce_sum(MergedVariable.get_tensor(w) ** 2) / 2. - lr * loss
 
             def jac_z(z):
-                return ZMergedMatrix(hvp(integral, var_or_merged(w), z.tensor))
+                return ZMergedMatrix(hvp(integral, MergedVariable.get_tensor(w), z.tensor))
         else:
             jac_z = None
 
-        return Optimizer(w=var_or_merged(w),
+        return Optimizer(w=MergedVariable.get_tensor(w),
                          assign_ops=[w.assign(dynamics)],  # TODO complete here...
                          dynamics=dynamics,
                          jac_z=jac_z,
