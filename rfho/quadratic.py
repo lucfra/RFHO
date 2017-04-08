@@ -84,11 +84,7 @@ class Projection:
         return _res2
 
 
-def one_hot_accuracy(vec, epsilon):
-    n_examples = vec.shape[0]
-    near_one_hot = np.amax(vec, 1) > 1 - epsilon
-    # print("near_one_hot ({}/{}): {}".format(near_one_hot.size, n_examples, near_one_hot))
-    return np.count_nonzero(near_one_hot)/n_examples
+
 
 
 
