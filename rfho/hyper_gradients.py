@@ -26,7 +26,7 @@ class ReverseHyperGradient:
         """
         assert isinstance(optimizer, Optimizer)
 
-        self.w = optimizer.w  # might be variable or MergedVariable
+        self.w = optimizer.raw_w  # might be variable or MergedVariable
         #  TODO check if it works also with w as simple Variable
         self.w_t = MergedVariable.get_tensor(self.w)  # this is always a tensor
 
@@ -243,7 +243,7 @@ class ForwardHyperGradient:
         """
         assert isinstance(optimizer, Optimizer)
 
-        self.w = optimizer.w  # might be variable or MergedVariable (never tested on Variables actually) ...
+        self.w = optimizer.raw_w  # might be variable or MergedVariable (never tested on Variables actually) ...
         self.w_t = MergedVariable.get_tensor(self.w)  # this is always a tensor
 
         self.tr_dynamics = optimizer.dynamics

@@ -1,11 +1,11 @@
 import tensorflow as tf
 
-from rfho.utils import GlobalStep
 from rfho.utils import hvp, MergedVariable, Vl_Mode, GlobalStep, ZMergedMatrix
 
 
 class Optimizer:
-    def __init__(self, w, assign_ops, dynamics, jac_z, learning_rate, gradient):
+    def __init__(self, raw_w, w, assign_ops, dynamics, jac_z, learning_rate, gradient):
+        self.raw_w = raw_w
         self.w = w
         self.assign_ops = assign_ops
         self.dynamics = dynamics
@@ -69,7 +69,7 @@ def gradient_descent(w, lr, loss=None, grad=None, name='GradientDescent'):
         else:
             jac_z = None
 
-        return Optimizer(w=MergedVariable.get_tensor(w),
+        return Optimizer(raw_w=w, w=MergedVariable.get_tensor(w),
                          assign_ops=[w.assign(dynamics)],  # TODO complete here...
                          dynamics=dynamics,
                          jac_z=jac_z,
@@ -78,8 +78,8 @@ def gradient_descent(w, lr, loss=None, grad=None, name='GradientDescent'):
 
 
 class MomentumOptimizer(Optimizer):
-    def __init__(self, w, m, assign_ops, dynamics, jac_z, gradient, learning_rate, momentum_factor):
-        super(MomentumOptimizer, self).__init__(w=w, assign_ops=assign_ops, dynamics=dynamics, jac_z=jac_z,
+    def __init__(self, raw_w, w, m, assign_ops, dynamics, jac_z, gradient, learning_rate, momentum_factor):
+        super(MomentumOptimizer, self).__init__(raw_w=raw_w, w=w, assign_ops=assign_ops, dynamics=dynamics, jac_z=jac_z,
                                                 learning_rate=learning_rate, gradient=gradient)
         self.m = m
         self.momentum_factor = momentum_factor
@@ -170,15 +170,15 @@ def momentum_dynamics(w, lr, mu, loss=None, grad=None, w_is_state=True, name='Mo
             m=m,
             assign_ops=[w_base_mv.assign(w_base_k), m_mv.assign(m_k)],
             dynamics=dynamics,
-            jac_z=jac_z, gradient=grad, learning_rate=lr, momentum_factor=mu
+            jac_z=jac_z, gradient=grad, learning_rate=lr, momentum_factor=mu, raw_w=w
         )
 
 
 class AdamOptimizer(MomentumOptimizer):
-    def __init__(self, w, m, v, assign_ops, global_step, dynamics, jac_z, gradient, learning_rate,
+    def __init__(self, raw_w, w, m, v, assign_ops, global_step, dynamics, jac_z, gradient, learning_rate,
                  momentum_factor, second_momentum_factor):
         super().__init__(w=w, m=m, assign_ops=assign_ops, dynamics=dynamics, jac_z=jac_z, gradient=gradient,
-                         learning_rate=learning_rate, momentum_factor=momentum_factor)
+                         learning_rate=learning_rate, momentum_factor=momentum_factor, raw_w=raw_w)
         self.v = v
         self.global_step = global_step
         self.second_momentum_factor = second_momentum_factor
@@ -265,5 +265,6 @@ def adam_dynamics(w, lr=1.e-3, beta1=.9, beta2=.999, eps=1.e-8, global_step=None
             m=m, v=v, global_step=global_step,
             assign_ops=[w_base_mv.assign(w_base_k), m_mv.assign(m_k), v_mv.assign(v_k)],
             dynamics=dynamics,
-            jac_z=jac_z, gradient=grad, learning_rate=lr, momentum_factor=beta1, second_momentum_factor=beta2
+            jac_z=jac_z, gradient=grad, learning_rate=lr, momentum_factor=beta1, second_momentum_factor=beta2,
+            raw_w=w
         )

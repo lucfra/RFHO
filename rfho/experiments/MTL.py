@@ -4,7 +4,7 @@ from rfho.models import LinearModel, vectorize_model
 from rfho.utils import cross_entropy_loss, stepwise_pu, unconditional_pu, PrintUtils, binary_cross_entropy,\
     simple_name, Vl_Mode
 from rfho.save_and_load import save_obj, settings, load_obj
-from rfho.hyper_gradients import ReverseHyperGradient, adam_dynamics, print_hyper_gradients
+from rfho.hyper_gradients import ReverseHyperGradient, print_hyper_gradients
 from rfho.optimizers import momentum_dynamics, adam_dynamics
 
 import matplotlib.pyplot as plt
