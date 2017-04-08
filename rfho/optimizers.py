@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from rfho.hyper_gradients import ZMergedMatrix, GlobalStep
-from rfho.utils import hvp, MergedVariable, Vl_Mode
+from rfho.utils import var_or_merged, hvp, MergedVariable, Vl_Mode, GlobalStep
 
 
 class Optimizer:

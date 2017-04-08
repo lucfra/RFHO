@@ -1,33 +1,8 @@
-import tensorflow as tf
 import numpy as np
+import tensorflow as tf
 
 from rfho.optimizers import Optimizer
-from rfho.utils import dot, MergedVariable, Vl_Mode, as_list, simple_name
-
-
-class GlobalStep:
-    """
-    Helper for global step (probably would be present also in tensorflow)
-    """
-
-    def __init__(self, start_from=0):
-        self._var = tf.Variable(start_from, trainable=False, name='global_step')
-        self.increase = self.var.assign_add(1)
-        self.decrease = self.var.assign_sub(1)
-
-    def eval(self, auto_initialize=True):
-        if not auto_initialize:
-            return self.var.eval()
-        else:
-            try:
-                return self.var.eval()
-            except tf.errors.FailedPreconditionError:
-                tf.variables_initializer([self.var]).run()
-                return self.var.eval()
-
-    @property
-    def var(self):
-        return self._var
+from rfho.utils import dot, MergedVariable, Vl_Mode, as_list, simple_name, GlobalStep
 
 
 class ReverseHyperGradient:
@@ -127,6 +102,8 @@ class ReverseHyperGradient:
                     (self.val_error_dict[ve], tf.gradients(lagrangian, self.val_error_dict[ve])) for ve, lagrangian in
                     self.lagrangians_dict.items()
                     ]  # list of couples (hyper_list, list of symbolic hyper_gradients)  (lists are unhashable!)
+
+        # TODO PER RICCARDO: aggiungere self.hyper_gradient_vars
 
     def forward(self, T, feed_dict_supplier=None, summary_utils=None):
         if not feed_dict_supplier:
