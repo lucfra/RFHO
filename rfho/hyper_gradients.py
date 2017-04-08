@@ -1,10 +1,8 @@
 import tensorflow as tf
-from rfho.utils import dot, MergedVariable, Vl_Mode, as_list, hvp, simple_name
 import numpy as np
-import tensorflow as tf
 
 from rfho.optimizers import Optimizer
-from rfho.utils import dot, var_or_merged, MergedVariable, Vl_Mode, as_list, simple_name
+from rfho.utils import dot, MergedVariable, Vl_Mode, as_list, simple_name
 
 
 class GlobalStep:
@@ -51,14 +49,11 @@ class ReverseHyperGradient:
                                 should implement methods `clear`, `append`, `__getitem__`
         :param global_step: optional instance of GlobalStep class
         """
-        self.w = w  # might be variable or MergedVariable  # TODO check if it works also with w as simple Variable
-        self.w_t = MergedVariable.get_tensor(w)  # this is always a tensor
-
         assert isinstance(optimizer, Optimizer)
 
         self.w = optimizer.w  # might be variable or MergedVariable
         #  TODO check if it works also with w as simple Variable
-        self.w_t = var_or_merged(self.w)  # this is always a tensor
+        self.w_t = MergedVariable.get_tensor(self.w)  # this is always a tensor
 
         self.tr_dynamics = optimizer.dynamics
         assert isinstance(hyper_dict, dict), '%s not allowed type. Should be a dict of' \
@@ -269,11 +264,10 @@ class ForwardHyperGradient:
                             efficiently yet (suggestions or pointer are welcomed)
         :param global_step: (optional) instance of `GlobalStep` to keep track of the optimization step
         """
+        assert isinstance(optimizer, Optimizer)
 
-        self.w = w  # might be variable or MergedVariable (never tested on Variables actually) ...
-        self.w_t = MergedVariable.get_tensor(w)  # this is always a tensor
         self.w = optimizer.w  # might be variable or MergedVariable (never tested on Variables actually) ...
-        self.w_t = var_or_merged(self.w)  # this is always a tensor
+        self.w_t = MergedVariable.get_tensor(self.w)  # this is always a tensor
 
         self.tr_dynamics = optimizer.dynamics
 
@@ -462,7 +456,7 @@ class RealTimeHO:
         self.direct_doh = direct_doh
 
         assert isinstance(hyper_opt_dicts, (list, Optimizer)), "hyper_opt_dicts should be a single OptDict or a " \
-                                                             "list of OptDict. Instead is %s" % hyper_opt_dicts
+                                                               "list of OptDict. Instead is %s" % hyper_opt_dicts
         self.hyper_opt_dicts = as_list(hyper_opt_dicts)
 
         self.hyper_projections = hyper_projections or []
