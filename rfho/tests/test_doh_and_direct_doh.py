@@ -3,9 +3,9 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import tensorflow as tf
 import numpy as np
 from rfho.models import LinearModel, vectorize_model
-from rfho.utils import cross_entropy_loss, stepwise_pu, unconditional_pu, PrintUtils, norm, Vl_Mode
+from rfho.utils import cross_entropy_loss, stepwise_pu, unconditional_pu, PrintUtils, norm, Vl_Mode, ZMergedMatrix
 from rfho.datasets import load_iris, ExampleVisiting
-from rfho.hyper_gradients import ReverseHyperGradient, ForwardHyperGradient, momentum_dynamics, ZMergedMatrix
+from rfho.hyper_gradients import ReverseHyperGradient, ForwardHyperGradient, momentum_dynamics
 from rfho.optimizers import gradient_descent, momentum_dynamics
 import unittest
 

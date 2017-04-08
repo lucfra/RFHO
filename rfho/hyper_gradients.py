@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from rfho.optimizers import Optimizer
-from rfho.utils import dot, MergedVariable, Vl_Mode, as_list, simple_name, GlobalStep
+from rfho.utils import dot, MergedVariable, Vl_Mode, as_list, simple_name, GlobalStep, ZMergedMatrix
 
 
 class ReverseHyperGradient:
@@ -394,37 +394,6 @@ class ForwardHyperGradient:
                 return grad[0] if len(sh_grad) == 1 and sh_grad[0] == 1 else grad
 
             return {hyp: cast_to_scalar_if_needed(gdd) for hyp, gdd in zip(self.hyper_list, computations)}
-
-
-class ZMergedMatrix:
-
-    def __init__(self, matrix_list):
-
-        self.components = as_list(matrix_list)
-
-        # assumes that you want matrices and not vectors. This means that eventual vectors are casted to matrices
-        # of dimension (n, 1)
-        for i, c in enumerate(self.components):
-            if len(c.get_shape().as_list()) == 1:
-                self.components[i] = tf.transpose(tf.stack([c]))
-
-        self.tensor = tf.concat(self.components, 0)
-
-    def assign(self, value_list):
-        if isinstance(value_list, ZMergedMatrix):
-            value_list = value_list.components
-        assert len(value_list) == len(self.components), 'the length of value_list and of z, components must coincide'
-        return [c.assign(v) for c, v in zip(self.components, value_list)]
-
-    # noinspection PyUnusedLocal
-    def var_list(self, mode=Vl_Mode.RAW):
-        # if mode == Vl_Mode.RAW or mode == Vl_Mode.TENSOR:
-        return self.components
-
-    def __add__(self, other):
-        assert isinstance(other, ZMergedMatrix)  # TODO make it a little bit more flexible (e.g. case of GD)
-        assert len(other.components) == len(self.components)
-        return ZMergedMatrix([c + v for c, v in zip(self.components, other.components)])
 
 
 class RealTimeHO:

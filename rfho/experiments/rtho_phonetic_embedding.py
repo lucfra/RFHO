@@ -6,11 +6,11 @@ from time import time
 from copy import deepcopy
 
 from rfho.datasets import ExampleVisiting
-from rfho.hyper_gradients import adam_dynamics, ForwardHyperGradient, ZMergedMatrix
+from rfho.hyper_gradients import adam_dynamics, ForwardHyperGradient
 from rfho.optimizers import momentum_dynamics, adam_dynamics
 from rfho.models import vectorize_model, FFNN, ffnn_layer
 from rfho.save_and_load import save_obj, settings
-from rfho.utils import cross_entropy_loss, stepwise_pu, PrintUtils, Vl_Mode, simple_name
+from rfho.utils import cross_entropy_loss, stepwise_pu, PrintUtils, Vl_Mode, simple_name, ZMergedMatrix
 from rfho.experiments.common import save_setting
 
 config = tf.ConfigProto()
