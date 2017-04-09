@@ -1,14 +1,16 @@
-from rfho.datasets import *
-from rfho.hyper_gradients import *
-from rfho.models import *
-from rfho.optimizers import gradient_descent, adam_dynamics
-from rfho.save_and_load import *
-from rfho.utils import *
+import numpy as np
+import tensorflow as tf
+import cvxopt
+from cvxopt import spmatrix, matrix, sparse
+
+import rfho as ho
+
+from rfho.datasets import load_mnist
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 
-settings['NOTEBOOK_TITLE'] = 'lun_30_50_50_RL0'
+ho.settings['NOTEBOOK_TITLE'] = 'lun_30_50_50_RL0'
 
 N_all_ = 20000
 p_train = .25
@@ -31,7 +33,9 @@ def limit_to_N_all(_x, _y, _d, _k):
 
 data = load_mnist(partitions=[p_train, p_valid], filters=limit_to_N_all)
 
-count_digit = lambda digit, dset: sum([1 for e in dset if np.argmax(e) == digit])
+def count_digit(digit, dset):
+    return sum([1 for e in dset if np.argmax(e) == digit])
+
 
 for dss in [data.train.target, data.validation.target, data.test.target]:
     for dg in range(10):
@@ -63,28 +67,28 @@ print(data.train.target[flipped][:10])
 
 x = tf.placeholder(tf.float32, name='x')
 y = tf.placeholder(tf.float32, name='y')
-model = LinearModel(x, 28 * 28, 10)
+model = ho.LinearModel(x, 28 * 28, 10)
 
-res = vectorize_model(model.var_list, model.inp[-1])
+res = ho.vectorize_model(model.var_list, model.inp[-1])
 w = res[0]
 model_out = res[1]
 
-error = tf.reduce_mean(cross_entropy_loss(model_out, y))
+error = tf.reduce_mean(ho.cross_entropy_loss(model_out, y))
 
 correct_prediction = tf.equal(tf.argmax(model_out, 1), tf.argmax(y, 1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
 gamma = tf.Variable(N_unflipped * tf.ones([N_ex]) / N_ex, dtype=tf.float32, name='gamma')
 
-weighted_error = tf.reduce_mean(gamma * cross_entropy_loss(model_out, y), name='train_weighted_error')
+weighted_error = tf.reduce_mean(gamma * ho.cross_entropy_loss(model_out, y), name='train_weighted_error')
 
 # DOH SETTING
 
 val_err_dict = {error: [gamma]}
 
-dynamics = gradient_descent(w, lr=lr, loss=weighted_error)
+dynamics = ho.gradient_descent(w, lr=lr, loss=weighted_error)
 
-doh = ReverseHyperGradient(dynamics, val_err_dict)
+doh = ho.ReverseHyperGradient(dynamics, val_err_dict)
 
 
 # ev = ExampleVisiting(data, batch_size, 100)
@@ -93,33 +97,36 @@ doh = ReverseHyperGradient(dynamics, val_err_dict)
 # validation_supplier = ev.all_validation_supplier(x,y)
 # test_supplier = ev.all_test_supplier(x,y)
 
-def training_supplier(step=None): return {x: data.train.data, y: data.train.target}
+def training_supplier(step=None):
+    return {x: data.train.data, y: data.train.target}
 
 
-def validation_supplier(step=None): return {x: data.validation.data, y: data.validation.target}
+def validation_supplier(step=None):
+    return {x: data.validation.data, y: data.validation.target}
 
 
-def test_supplier(step=None): return {x: data.test.data, y: data.test.target}
+def test_supplier(step=None):
+    return {x: data.test.data, y: data.test.target}
 
 
-def baseline_supplier(step=None): return {x: np.vstack([data.train.data,
-                                                        data.validation.data]),
-                                          y: np.vstack([data.train.target,
-                                                        data.validation.target])}
+def baseline_supplier(step=None):
+    return {x: np.vstack([data.train.data, data.validation.data]),
+            y: np.vstack([data.train.target, data.validation.target])}
 
 
-def oracle_supplier(step=None): return {x: np.vstack([data.train.data[unflipped],
-                                                      data.validation.data]),
-                                        y: np.vstack([data.train.target[unflipped],
-                                                      data.validation.target])}
+def oracle_supplier(step=None):
+    return {x: np.vstack([data.train.data[unflipped],
+                          data.validation.data]),
+            y: np.vstack([data.train.target[unflipped],
+                          data.validation.target])}
 
 
-psu = PrintUtils(stepwise_pu(
+psu = ho.PrintUtils(ho.stepwise_pu(
     lambda ses, step: print('test accuracy', ses.run(accuracy, feed_dict=test_supplier())), T - 1),
-    stepwise_pu(
+    ho.stepwise_pu(
         lambda ses, step: print('validation accuracy', ses.run(accuracy, feed_dict=validation_supplier())), T - 1))
-psu2 = PrintUtils(stepwise_pu(
-    lambda ses, step: print('norm of costate', ses.run(norm_p)), T - 1))
+psu2 = ho.PrintUtils(ho.stepwise_pu(
+    lambda ses, step: print('norm of costate', ses.run(ho.norm_p)), T - 1))
 
 history_test_accuracy = []
 history_validation_accuracy = []
@@ -132,20 +139,18 @@ def save_accuracies(ses, step):
     history_gamma.append(ses.run(gamma))
 
 
-after_forward_su = PrintUtils(unconditional_pu(save_accuracies))
+after_forward_su = ho.PrintUtils(ho.unconditional_pu(save_accuracies))
 
 grad_hyper = tf.placeholder(tf.float32)
 
 collected_hyper_gradients = {}  # DO NOT DELETE!
 
-opt_hyper_dicts = {gamma: adam_dynamics(gamma, lr=hyper_learning_rate, grad=grad_hyper, w_is_state=False)}
+opt_hyper_dicts = {gamma: ho.adam_dynamics(gamma, lr=hyper_learning_rate, grad=grad_hyper, w_is_state=False)}
 
 gamma_assign = gamma.assign(grad_hyper)
 
 # Projection
 
-import cvxopt
-from cvxopt import spmatrix, matrix, sparse
 
 dim = N_ex
 
@@ -171,7 +176,7 @@ def project(gamma):
 
 # BASELINE EXECUTION
 
-error2 = tf.reduce_mean(cross_entropy_loss(model.inp[-1], y))
+error2 = tf.reduce_mean(ho.cross_entropy_loss(model.inp[-1], y))
 
 correct_prediction2 = tf.equal(tf.argmax(model.inp[-1], 1), tf.argmax(y, 1))
 accuracy2 = tf.reduce_mean(tf.cast(correct_prediction2, "float"))
@@ -210,7 +215,7 @@ def save_all():
         'oracle_test_accuracy': oracle_test_accuracy, 'last_round_test_accuracy': last_round_test_accuracy,
         'flipped': flipped
     }
-    save_obj(save_histories, 'save_histories', default_overwrite=True)
+    ho.save_obj(save_histories, 'save_histories', default_overwrite=True)
 
 
 # HyperLearning execution
@@ -229,10 +234,10 @@ with tf.Session(config=config).as_default() as ss:
 
         print('end, updating hyperparameters')
 
-        collected_hyper_gradients = ReverseHyperGradient.std_collect_hyper_gradients(res)
+        collected_hyper_gradients = ho.ReverseHyperGradient.std_collect_hyper_gradients(res)
 
         print('hyper gradients')
-        print_hyper_gradients(collected_hyper_gradients)
+        ho.print_hyper_gradients(collected_hyper_gradients)
 
         for hyp in doh.hyper_list:
             ss.run(opt_hyper_dicts[hyp].assign_ops, feed_dict={grad_hyper: collected_hyper_gradients[hyp]})
