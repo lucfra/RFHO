@@ -11,10 +11,15 @@ from scipy import linalg
 import _pickle as cpickle
 import intervaltree as it
 
-
-PATH = os.path.dirname(__file__)
-DATA_FOLDER = os.path.join(PATH, 'Data')
-print('data folder is', DATA_FOLDER)
+# Bad idea.. this way you pollute the project directories
+# PATH = os.path.dirname(__file__)
+# DATA_FOLDER = os.path.join(PATH, 'Data')
+# print('data folder is', DATA_FOLDER)
+from_env=os.getenv('RFHO_DATA_FOLDER')
+if from_env:
+    DATA_FOLDER=from_env
+else:
+    DATA_FOLDER=os.getcwd()
 
 try:
     from rfho.offline_datasets import *
