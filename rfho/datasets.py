@@ -593,8 +593,9 @@ class ExampleVisiting:
         :param y: placeholder for dependent variable
         :param lambda_feeds: dictionary of placeholders: number_of_example -> substitution
         :param other_feeds: dictionary of other feeds (e.g. dropout factor, ...) to add to the input output
-        feed_dict
-        :return: a function that generates a feed_dict with the right signature for Doh
+                            feed_dict
+        :return: a function that generates a feed_dict with the right signature for Reverse and Forward HyperGradient
+                    classes
         """
 
         if not lambda_feeds:

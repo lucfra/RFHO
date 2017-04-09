@@ -8,5 +8,5 @@ setup(
     license='',
     author='lfranceschi',
     author_email='igor_mio@hotmail.it',
-    description='Gradient based hyperparameter optimization package ', requires=['tensorflow']
+    description='Gradient based hyperparameter optimization package ', requires=['tensorflow', 'matplotlib']
 )
