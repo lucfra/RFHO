@@ -75,8 +75,10 @@ def build_saver(*args):
                                  for pt in processed_args])
 
         if do_print:
-            for key, v in save_dict.items(): print(key, v)
-        if collect_data: save_obj(save_dict, name)
+            for key, v in save_dict.items():
+                print(key, v)
+        if collect_data:
+            save_obj(save_dict, name)
 
         return save_dict
 

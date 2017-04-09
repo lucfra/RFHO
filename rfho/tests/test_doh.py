@@ -1,11 +1,15 @@
 import numpy as np
 import unittest
-from rfho.experiments.mac_laurin_sec_3_2 import build_model
+
+import tensorflow as tf
+
 from rfho.datasets import load_iris, load_mnist
-from rfho.hyper_gradients import ReverseHyperGradient, adam_dynamics, momentum_dynamics
+from rfho.hyper_gradients import ReverseHyperGradient
+from rfho.models import LinearModel, ffnn_lin_out, vectorize_model
 from rfho.optimizers import gradient_descent, momentum_dynamics, adam_dynamics
 from rfho.models import *
-from rfho.utils import dot, SummaryUtil, SummaryUtils as SSU, PrintUtils, norm, stepwise_pu, MergedUtils
+from rfho.utils import dot, SummaryUtil, SummaryUtils as SSU, PrintUtils, norm, stepwise_pu, MergedUtils, \
+    cross_entropy_loss
 
 
 class TestD(unittest.TestCase):
@@ -387,3 +391,22 @@ class TestD(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+def build_model(augment=0, variable_initializer=(tf.zeros, tf.zeros)):
+    mnist = load_mnist()
+    x = tf.placeholder(tf.float32)
+    y = tf.placeholder(tf.float32)
+    lin_model = LinearModel(x, 28 * 28, 10,
+                            active_gen=ffnn_lin_out(variable_initializer[0], variable_initializer[1]))
+
+    all_w, mod_y, mat_w = vectorize_model(lin_model.var_list, lin_model.inp[-1], lin_model.Ws[0], augment=augment)
+
+    error = tf.reduce_mean(
+        cross_entropy_loss(mod_y, y)
+    )
+
+    correct_prediction = tf.equal(tf.argmax(mod_y, 1), tf.argmax(y, 1))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+
+    return mnist, x, y, all_w, mod_y, mat_w, error, accuracy

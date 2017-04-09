@@ -247,10 +247,10 @@ class Network(object):
 
     def std_collections(self):
         self.var_list = self.Ws + self.bs
-        # [tf.add_to_collection(tf.GraphKeys.WEIGHTS, _v) for _v in self.Ws]
-        # [tf.add_to_collection(tf.GraphKeys.BIASES, _v) for _v in self.bs]
-        # [tf.add_to_collection(tf.GraphKeys.GLOBAL_VARIABLES, _v) for _v in self.var_list]
-        # [tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, _v) for _v in self.inp]
+        [tf.add_to_collection(tf.GraphKeys.WEIGHTS, _v) for _v in self.Ws]
+        [tf.add_to_collection(tf.GraphKeys.BIASES, _v) for _v in self.bs]
+        [tf.add_to_collection(tf.GraphKeys.GLOBAL_VARIABLES, _v) for _v in self.var_list]
+        [tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, _v) for _v in self.inp]
 
 
 class LinearModel(Network):
@@ -302,7 +302,7 @@ class FFNN(Network):
 class SimpleConvolutionalOnly(Network):  # TODO STORE ACTIVATION FUNCTIONS
 
     def __init__(self, _input, _dims, conv_gen=relu_conv_layer2x2_max_pool,
-                 name='SimpConv'):
+                 name='Simple_Convolutional'):
         """
 
         :param _input:
