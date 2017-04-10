@@ -3,7 +3,7 @@ from distutils.core import setup
 setup(
     name='RFHO',
     version='0.1',
-    packages=['rfho', 'rfho.tests', 'rfho.experiments'],
+    packages=['rfho'],
     url='',
     license='',
     author='lfranceschi',
