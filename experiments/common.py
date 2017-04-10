@@ -1,6 +1,6 @@
 from rfho.save_and_load import save_obj, load_obj
-from rfho.utils import as_list, flatten_list
-from rfho.experiments.greek_alphabet import greek_alphabet
+from rfho.utils import as_list, flatten_list, merge_dicts
+from experiments.greek_alphabet import greek_alphabet
 
 import time
 import threading
@@ -27,7 +27,11 @@ def generate_setting_dict(local_variables, excluded=None):
     :return: A dictionary
     """
     excluded = as_list(excluded) or []
-    return {k: v.setting() if hasattr(v, 'setting') else v for k, v in local_variables.items() if v not in excluded}
+    setting_dict = {k: v.setting() if hasattr(v, 'setting') else v
+                    for k, v in local_variables.items() if v not in excluded}
+    import datetime
+    setting_dict['datetime'] = str(datetime.datetime.now())
+    return setting_dict
 
 
 def save_setting(local_variables, excluded=None, default_overwrite=False):
@@ -93,11 +97,56 @@ def process_name(name):
     return name
 
 
-def standard_plotter(ax, stream_dict, **kwargs):
-    ax.clear()
-    [ax.plot(v, label=k, **kwargs) for k, v in stream_dict.items()]
-    if len(stream_dict) > 2:
-        ax.legend(loc=4)
+def standard_plotter(**plot_kwargs):
+    """
+    This is a standard plotter that would do for most of the occasions, when there are stream dict are
+    matrices of values that represents scalar measures. If the relative stream_dict has more than one key
+    then standard_plotter will automatically add a legend.
+
+    :return: A callable, internally called by instances of OnlinePlotStream
+    """
+
+    def intern(ax, stream_dict, **kwargs):
+
+        ax.clear()
+        [ax.plot(v, label=k, **merge_dicts(kwargs, plot_kwargs)) for k, v in stream_dict.items()]
+        if len(stream_dict) > 2:
+            ax.legend(loc=0)
+    return intern
+
+
+def scalar_value_gradient_plotter(value_color, gradient_color, value_kwargs=None, grad_kwargs=None):
+    """
+    This is a plotter thought for stream_dict that contains hyperparameters values and hyper-gradients.
+    Will plot these two scalar sequences on different scales.
+
+    :param grad_kwargs:
+    :param value_kwargs:
+    :param value_color:
+    :param gradient_color:
+    :return:
+    """
+    value_kwargs = value_kwargs or {}
+    grad_kwargs = grad_kwargs or {}
+
+    ax2 = None
+
+    def intern(ax, stream_dict, **kwargs):
+        nonlocal ax2
+
+        ax.clear()
+        if ax2 is None:
+            ax2 = ax.twinx()
+        ax2.clear()
+
+        data = list(stream_dict.values())[0]
+        val = [c[0] for c in data]
+        grad = [c[1] for c in data]
+
+        val_line, = ax.plot(val, color=value_color, **merge_dicts(kwargs, value_kwargs))
+        grad_line, = ax2.plot(grad, color=gradient_color, **merge_dicts(kwargs, grad_kwargs))
+        ax.legend((val_line, grad_line), ('Value', 'Gradient'), loc=0)
+    return intern
 
 
 class OnlineReadStream:
@@ -117,7 +166,7 @@ class OnlinePlotStream(OnlineReadStream):
         self.ax = ax
         self.ax_settings = ax_settings or []
         self._swap_names = swap_names or {}
-        self.plotter = plotter or standard_plotter
+        self.plotter = plotter or standard_plotter()
         self.kwargs = kwargs
         self.title = title
 
@@ -181,6 +230,8 @@ class ReadSaveDictThread(threading.Thread):
         self._stop_at = stop_at
         self.read_count = start_from
 
+        self.exc = []
+
     def clear(self):  # TODO implement this (should clear plot_streams)
         pass
 
@@ -207,11 +258,12 @@ class ReadSaveDictThread(threading.Thread):
         self._fig.canvas.draw()
 
     def run(self):
-        while self.is_alive():
-            self.read_data()
-            self.do_plots()
-            time.sleep(self._delay)
-
-
-if __name__ == '__main__':
-    print(process_name('rho_si'))
+        import sys
+        # noinspection PyBroadException
+        try:
+            while self.is_alive():
+                self.read_data()
+                self.do_plots()
+                time.sleep(self._delay)
+        except Exception:
+            self.exc.append(sys.exc_info())
