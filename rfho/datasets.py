@@ -5,33 +5,48 @@ from tensorflow.contrib.learn.python.learn.datasets.base import Datasets
 from tensorflow.examples.tutorials.mnist.input_data import read_data_sets
 import os
 from rfho.utils import as_list, np_normalize_data
-import pandas as pd
-import scipy.io
-from scipy import linalg
-import _pickle as cpickle
-import intervaltree as it
 
-# Bad idea.. this way you pollute the project directories
-# PATH = os.path.dirname(__file__)
-# DATA_FOLDER = os.path.join(PATH, 'Data')
-# print('data folder is', DATA_FOLDER)
-from_env=os.getenv('RFHO_DATA_FOLDER')
+import sys
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+    print(sys.exc_info())
+    print('pands not found. Some load function might not work')
+try:
+    import scipy.io as scio
+    from scipy import linalg
+except ImportError:
+    scio, linalg = None, None
+    print(sys.exc_info())
+    print('scipy not found. Some load function might not work')
+
+try:
+    import intervaltree as it
+except ImportError:
+    it = None
+    print(sys.exc_info())
+    print('intervaltree not found. WindowedData will not work. (You can get intervaltree with pip!)')
+
+import _pickle as cpickle
+
+
+from_env = os.getenv('RFHO_DATA_FOLDER')
 if from_env:
     DATA_FOLDER=from_env
 else:
+    print('Environment variable RFHO_DATA_FOLDER not found.')
+    print('You can crate it to specify root folder in which you store various datasets')
+    print("Bash command is: export RFHO_DATA_FOLDER='absolute/path/to/dataset/folder'")
+    print()
+    print('You can also skip this step...')
+    print('In that case all load_* methods take a FOLDER path as first argument.')
+    print('Bye.')
     DATA_FOLDER=os.getcwd()
 
-try:
-    from rfho.offline_datasets import *
-    print('offline_datasets.py found!')
-except ImportError:
-    print('offline_datasets.py file not found. You can crate it to specify folders for'
-          'path for the datasets')
-    print('TIMIT_DIR, XRMB_DIR')
-    print('Otherwise the relative load_functions take as first argument the dataset folder.')
-    print('Bye.')
-    TIMIT_DIR = None
-    XRMB_DIR = None
+
+TIMIT_DIR = os.path.join(DATA_FOLDER, 'timit4python')
+XRMB_DIR = os.path.join(DATA_FOLDER, 'XRMB')
 
 IRIS_TRAINING = os.path.join(DATA_FOLDER, 'iris', "training.csv")
 IRIS_TEST = os.path.join(DATA_FOLDER, 'iris', "test.csv")
@@ -400,7 +415,7 @@ def load_mnist(one_hot=True, partitions=None, filters=None, maps=None):
 
 
 def load_caltech101_30(tiny_problem=False):
-    caltech = scipy.io.loadmat(CALTECH101_30_DIR + '/caltech101-30.matlab')
+    caltech = scio.loadmat(CALTECH101_30_DIR + '/caltech101-30.matlab')
     k_train, k_test = caltech['Ktrain'], caltech['Ktest']
     label_tr, label_te = caltech['tr_label'], caltech['te_label']
     file_tr, file_te = caltech['tr_files'], caltech['te_files']
