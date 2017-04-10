@@ -1,12 +1,9 @@
 import numpy as np
 import unittest
 
-import tensorflow as tf
-
 from rfho.datasets import load_iris, load_mnist
 from rfho.hyper_gradients import ReverseHyperGradient
-from rfho.models import LinearModel, ffnn_lin_out, vectorize_model
-from rfho.optimizers import gradient_descent, momentum_dynamics, adam_dynamics
+from rfho.optimizers import *
 from rfho.models import *
 from rfho.utils import dot, SummaryUtil, SummaryUtils as SSU, PrintUtils, norm, stepwise_pu, MergedUtils, \
     cross_entropy_loss
@@ -36,7 +33,8 @@ class TestD(unittest.TestCase):
                 tr_error = error + l2_factor * dot(net_w, net_w)
 
                 hyper_list = [l2_factor, eta]
-                doh = ReverseHyperGradient(gradient_descent(net_w, eta, loss=tr_error), hyper_list, error, [])
+                doh = ReverseHyperGradient(GradientDescentOptimizer.create(
+                    net_w, eta, loss=tr_error), hyper_list, error, [])
 
                 T = 2000
 
@@ -115,7 +113,8 @@ class TestD(unittest.TestCase):
 
                 # hyper_list = [l2_factor, eta]
                 hyper_list = [eta]  # , gamma]
-                doh = ReverseHyperGradient(gradient_descent(net_w, eta, loss=tr_error), hyper_list, error, [])
+                doh = ReverseHyperGradient(GradientDescentOptimizer.create(
+                    net_w, eta, loss=tr_error), hyper_list, error, [])
 
                 pn = norm(doh.p_dict)  # monitor for the norm of costate
 
@@ -184,13 +183,15 @@ class TestD(unittest.TestCase):
                 ss.run(ts, feed_dict={x: bx, y: by})
                 # if _ % 100 == 0:
                 #     print(ss.run(accuracy, feed_dict={x: mnist.test.images, y: mnist.test.labels}))
-                if psu: psu.run(ss, _)
+                if psu:
+                    psu.run(ss, _)
 
             final_w = all_w.eval()
 
         def training_supplier(step): return {x: bxs[step], y: bys[step]}
 
-        doh = ReverseHyperGradient(gradient_descent(all_w, .1, loss=error), [], error, [])
+        doh = ReverseHyperGradient(GradientDescentOptimizer.create(
+            all_w, .1, loss=error), [], error, [])
 
         with tf.Session().as_default():
             doh.forward(1000, training_supplier, summary_utils=psu)
@@ -215,7 +216,8 @@ class TestD(unittest.TestCase):
         iterations = 100
         lr = .1
 
-        adam_dict = adam_dynamics(v, lr=lr, loss=obj, w_is_state=False)
+        adam_dict = AdamOptimizer.create(
+            v, lr=lr, loss=obj, w_is_state=False)
         print(adam_dict)
 
         print(tf.global_variables())
@@ -260,7 +262,7 @@ class TestD(unittest.TestCase):
         iterations = 100
         lr = .1
 
-        adam_dict = adam_dynamics(v1, lr=lr, loss=obj1, w_is_state=True)
+        adam_dict = AdamOptimizer.create(v1, lr=lr, loss=obj1, w_is_state=True)
         # assign_ops = v1.assign(adam_dict)
 
         # print(assign_ops)
@@ -305,7 +307,7 @@ class TestD(unittest.TestCase):
         lr = .5
         mu = .5
 
-        momentum_dict = momentum_dynamics(v, lr=lr, mu=mu, loss=obj, w_is_state=False)
+        momentum_dict = MomentumOptimizer.create(v, lr=lr, mu=mu, loss=obj, w_is_state=False)
         print(momentum_dict)
 
         print(tf.global_variables())
@@ -354,7 +356,7 @@ class TestD(unittest.TestCase):
         lr = .5
         mu = .5
 
-        momentum_dict = momentum_dynamics(v1, lr=lr, mu=mu, loss=obj1, w_is_state=True)
+        momentum_dict = MomentumOptimizer.create(v1, lr=lr, mu=mu, loss=obj1, w_is_state=True)
         print(momentum_dict)
 
         print(tf.global_variables())

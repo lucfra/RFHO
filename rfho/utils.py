@@ -9,12 +9,8 @@ import tensorflow as tf
 # noinspection PyProtectedMember
 from tensorflow.python.ops.gradients_impl import _hessian_vector_product as _hvp
 
-
-# TODO add another setting table to be stored into a file, with e.g. the path for saving file
-# (e.g. /media/luca/DATA/____)
 settings = {
     'WSA': True,  # gives a warning when new nodes are being created during session runtime
-    'NOTEBOOK_TITLE': ''
 }
 
 

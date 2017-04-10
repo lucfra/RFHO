@@ -1,12 +1,12 @@
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-import tensorflow as tf
+
 import numpy as np
 from rfho.models import LinearModel, vectorize_model
-from rfho.utils import cross_entropy_loss, stepwise_pu, unconditional_pu, PrintUtils, norm, Vl_Mode, ZMergedMatrix
+from rfho.utils import cross_entropy_loss, stepwise_pu, unconditional_pu, PrintUtils, norm
 from rfho.datasets import load_iris, ExampleVisiting
-from rfho.hyper_gradients import ReverseHyperGradient, ForwardHyperGradient, momentum_dynamics
-from rfho.optimizers import gradient_descent, momentum_dynamics
+from rfho.hyper_gradients import ReverseHyperGradient, ForwardHyperGradient
+from rfho.optimizers import *
 import unittest
 
 
@@ -37,7 +37,7 @@ class TestDohDirectDoh(unittest.TestCase):
         accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
         eta = tf.Variable(lr, name='eta')
-        dynamics_dict = gradient_descent(w, lr=eta, loss=error)
+        dynamics_dict = GradientDescentOptimizer.create(w, lr=eta, loss=error)
 
         doh = ReverseHyperGradient(dynamics_dict, hyper_dict={error: eta})
 
@@ -169,9 +169,9 @@ class TestDohDirectDoh(unittest.TestCase):
 
         eta = tf.Variable(lr, name='eta')
         if momentum:
-            dynamics_dict = momentum_dynamics(w, lr=eta, mu=mu, loss=training_error)
+            dynamics_dict = MomentumOptimizer.create(w, lr=eta, mu=mu, loss=training_error)
         else:
-            dynamics_dict = gradient_descent(w, lr=eta, loss=training_error)
+            dynamics_dict = GradientDescentOptimizer.create(w, lr=eta, loss=training_error)
 
         if momentum:
             doh = ReverseHyperGradient(dynamics_dict, hyper_dict={training_error: [eta, mu], error: [gamma]})

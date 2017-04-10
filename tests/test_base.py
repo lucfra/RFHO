@@ -18,5 +18,3 @@ def iris_logistic_regression(augment=0):
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
     return iris, x, y, model, model_w, model_y, error, accuracy
-
-

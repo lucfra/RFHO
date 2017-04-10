@@ -102,7 +102,7 @@ def hyper_data_cleaner(args,model,data,x,y,suppliers):
 
     # DOH SETTING
     val_err_dict = {error: [gamma]}
-    dynamics = ho.gradient_descent(w, lr=args.lr, loss=weighted_error)
+    dynamics = ho.GradientDescentOptimizer.create(w, lr=args.lr, loss=weighted_error)
     doh = ho.ReverseHyperGradient(dynamics, val_err_dict)
 
     psu = ho.PrintUtils(ho.stepwise_pu(
@@ -134,7 +134,7 @@ def hyper_data_cleaner(args,model,data,x,y,suppliers):
     grad_hyper = tf.placeholder(tf.float32)
 
     collected_hyper_gradients = {}  # DO NOT DELETE!
-    opt_hyper_dicts = {gamma: ho.adam_dynamics(gamma,
+    opt_hyper_dicts = {gamma: ho.AdamOptimizer.create(gamma,
                                                lr=args.hyper_learning_rate,
                                                grad=grad_hyper,
                                                w_is_state=False)}

@@ -5,7 +5,6 @@ from rfho.datasets import load_iris
 import numpy as np
 
 
-
 def test_hv_with_builtin():
     iris = load_iris()
     x = tf.placeholder(tf.float32, name='x')
