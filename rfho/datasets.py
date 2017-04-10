@@ -577,6 +577,11 @@ class ExampleVisiting:
         return get_targets(self.datasets.test)
 
     def generate_visiting_scheme(self):
+        """
+        Generates and stores example visiting scheme, as a numpy array of integers.
+
+        :return: self
+        """
 
         def all_indices_shuffled():
             _res = list(range(self.N_train))
@@ -585,6 +590,7 @@ class ExampleVisiting:
 
         # noinspection PyUnusedLocal
         self.training_schedule = np.concatenate([all_indices_shuffled() for _ in range(self.epochs)])
+        return self
 
     def create_train_feed_dict_supplier(self, x, y, other_feeds=None, lambda_feeds=None):
         """
