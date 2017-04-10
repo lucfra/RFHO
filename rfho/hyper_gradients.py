@@ -15,7 +15,7 @@ class ReverseHyperGradient:
         (https://arxiv.org/abs/1703.01785)
         Note that this class only computes the hyper-gradient and does not perform hyperparameter optimization.
 
-        :param optimizer: insance of Optimizer class, which represent the dynamics with which the model parameters are
+        :param optimizer: insance of Optimizer class, which contains the dynamics with which the model parameters are
                             updated
         :param hyper_dict: A dictionary of `{validation_error: hyperparameter or list_of_hyperparameters}` where
                             `validation_error` is a scalar tensor and `list_of_hyperparameters` is a list
@@ -31,8 +31,8 @@ class ReverseHyperGradient:
         self.w_t = MergedVariable.get_tensor(self.w)  # this is always a tensor
 
         self.tr_dynamics = optimizer.dynamics
-        assert isinstance(hyper_dict, dict), '%s not allowed type. Should be a dict of' \
-                                               '(tf.Tensor, hyperparameters)' % hyper_dict
+        assert isinstance(hyper_dict, dict), '%s not allowed type. Should be a dict of ' \
+                                             '(tf.Tensor, hyperparameters)' % hyper_dict
         self.val_error_dict = hyper_dict
 
         self.hyper_list = []
@@ -102,8 +102,18 @@ class ReverseHyperGradient:
 
         # TODO PER RICCARDO: aggiungere self.hyper_gradient_vars
 
-    def forward(self, T, feed_dict_supplier=None, summary_utils=None):
-        if not feed_dict_supplier:
+    def forward(self, T, training_supplier=None, summary_utils=None):
+        """
+        Performs (forward) optimization of the parameters.
+
+        :param T: Total number of iterations
+        :param training_supplier: (optional) A callable with signature `t -> feed_dict` to pass to `tf.Session.run`
+                                    feed_dict argument
+        :param summary_utils: (optional) object that implements a method method `run(tf.Session, step)`
+                                that is executed at every iteration (see for instance utils.PrintUtils
+        :return: None
+        """
+        if not training_supplier:
             # noinspection PyUnusedLocal
             def feed_dict_supplier(step=None): return None
 
@@ -113,22 +123,29 @@ class ReverseHyperGradient:
         ss = tf.get_default_session()
         self.w_hist.clear()
 
-        for _ in range(T):
+        for t in range(T):
             self.w_hist.append(self.w_t.eval())
-            ss.run([self.w_t, self._fw_ops, self.global_step.increase], feed_dict=feed_dict_supplier(_))
-            if summary_utils: summary_utils.run(ss, _)
+            ss.run([self.w_t, self._fw_ops, self.global_step.increase], feed_dict=training_supplier(t))
+            if summary_utils:
+                summary_utils.run(ss, t)
 
     def backward(self, T, validation_suppliers=None, training_supplier=None, summary_utils=None, check_if_zero=False):
         """
+        Performs backward computation of hyper-gradients
 
-        :param check_if_zero:
-        :param T:
-        :param validation_suppliers: either a function or a dictionary {validation_error tensor: function, supplier}
-        :param training_supplier:
-        :param summary_utils:
-        :return:
+        :param T: Total number of iterations
+        :param validation_suppliers: either a callable that returns a feed_dict
+                                        or a dictionary {validation_error tensor: callable (step -> feed_dict) that
+                                        is used to initialize the dual variables `p` (generally supplier of
+                                        validation example set).
+        :param training_supplier: (optional) A callable with signature `t -> feed_dict` to pass to `tf.Session.run`
+                                    feed_dict argument
+        :param summary_utils: (optional) object that implements a method method `run(tf.Session, step)`
+                                that is executed at every iteration (see for instance utils.PrintUtils
+        :param check_if_zero: (optional) debug flag
+        :return: A dictionary of lists of step-wise hyper-gradients. In usual application the "true" hyper-gradients
+                 can be obtained with method std_collect_hyper_gradients
         """
-
         if not training_supplier:
             # noinspection PyUnusedLocal
             def training_supplier(step=None): return None
@@ -193,20 +210,20 @@ class ReverseHyperGradient:
     def run_all(self, T, training_supplier=None, validation_suppliers=None, forward_su=None, backward_su=None,
                 after_forward_su=None, check_if_zero=False):
         """
-        Performs both forward and backward step.
+        Performs both forward and backward step. See functions `forward` and `backward` for details.
 
-        :param check_if_zero:
-        :param T:
-        :param training_supplier:
-        :param validation_suppliers:
-        :param forward_su:
-        :param backward_su:
-        :param after_forward_su:
-        :return: A list of list: Point-wise gradients (Numpy arrays)
-                of the training dynamics w.r.t. the hyper-parameters
-
+        :param T:                   Total number of iterations
+        :param training_supplier:   (feed_dict) supplier for training stage
+        :param validation_suppliers: (feed_dict) supplier for validation stage
+        :param forward_su:          (optional) utils object with function `run` passed to `forward`
+        :param backward_su:         (optional) utils object with function `run` passed to `backward`
+        :param after_forward_su:    (optional) utils object with function `run` executed after `forward` and before
+                                    `backward`
+        :param check_if_zero:       (debug flag).
+        :return: A dictionary of lists of step-wise hyper-gradients. In usual application the "true" hyper-gradients
+                 can be obtained with method `std_collect_hyper_gradients`
         """
-        self.forward(T, feed_dict_supplier=training_supplier, summary_utils=forward_su)
+        self.forward(T, training_supplier=training_supplier, summary_utils=forward_su)
         if after_forward_su:
             after_forward_su.run(tf.get_default_session(), T)
         return self.backward(
@@ -217,6 +234,12 @@ class ReverseHyperGradient:
 
     @classmethod
     def std_collect_hyper_gradients(cls, row_gradients):
+        """
+        Sums over all the step-wise hyper-gradients.
+
+        :param row_gradients: Result of method `backward`
+        :return: Hyper-gradients of validation error w.r.t. "fixed" hyperparameters
+        """
         return {hyp: sum([r for r in res[1:]], res[0]) for hyp, res in row_gradients.items()}
 
 
@@ -307,15 +330,21 @@ class ForwardHyperGradient:
                     self._hyper_assign_ops = [v.assign(ght)
                                               for v, ght in zip(self.hyper_gradient_vars, self.grad_wrt_hypers)]
 
-    def get_doh_hyper_dict(self):
+    def get_reverse_hyper_dict(self):
         """
 
         :return: A dictionary of (validation errors, (list of) hyper-parameters)
-                 suitable as input for Doh initializer.
+                 suitable as input for `ReverseHyperGradient` initializer.
         """
         return {k: [e[0] for e in v] for k, v in self.hyper_dict.items()}
 
     def _create_z(self, hyper):
+        """
+        Initializer for Z-variables
+
+        :param hyper:
+        :return:
+        """
         shape_h = hyper.get_shape().as_list()
         assert len(shape_h) < 2, 'only scalar or vector hyper-parameters are accepted: %s shape: %s' % (hyper, shape_h)
         dim_h = shape_h[0] if shape_h else 1
@@ -338,22 +367,34 @@ class ForwardHyperGradient:
 
         :return: None
         """
+        assert tf.get_default_session() is not None, 'No default tensorflow session!'
         var_init = self.w.var_list(Vl_Mode.BASE) if isinstance(self.w, MergedVariable) else [self.w]
         tf.variables_initializer(var_init + self.hyper_gradient_vars + [self.global_step.var]).run()
         [tf.variables_initializer(z.components).run() for z in self.zs]
 
-    def step_forward(self, feed_dict_supplier=None, summary_utils=None):
-        if not feed_dict_supplier:
+    def step_forward(self, training_supplier=None, summary_utils=None):
+        """
+        Updates for one step both model parameters (according to the optimizer dynamics) and
+        Z-variables.
+
+        :param training_supplier: (optional) A callable with signature `t -> feed_dict` to pass to `tf.Session.run`
+                                    feed_dict argument
+        :param summary_utils: (optional) object with method `run(session, iteration)`
+        :return: None
+        """
+
+        if not training_supplier:
             # noinspection PyUnusedLocal
             def feed_dict_supplier(step=None): return None
 
         ss = tf.get_default_session()
 
-        fd = feed_dict_supplier(self.global_step.eval())
+        fd = training_supplier(self.global_step.eval())
 
         ss.run(self.zs_assigns, feed_dict=fd)
         ss.run(self.fw_ops, feed_dict=fd)
-        if summary_utils: summary_utils.run(ss, self.global_step.eval())
+        if summary_utils:
+            summary_utils.run(ss, self.global_step.eval())
         self.global_step.increase.eval()
 
     def hyper_gradients(self, validation_suppliers=None, new_mode=False):
@@ -395,12 +436,26 @@ class ForwardHyperGradient:
 
 class RealTimeHO:
 
-    def __init__(self, direct_doh, hyper_opt_dicts, hyper_projections=None, hyper_step=None):
-        self.direct_doh = direct_doh
+    def __init__(self, forward_hyper_grad, hyperparameter_optimizers, hyper_projections=None, hyper_step=None):
+        """
+        Helper class to perform Real Time Hyperparameter optimization.
+        See section 3.3 of Forward and Reverse Gradient-Based Hyperparameter Optimization
+        (https://arxiv.org/abs/1703.01785)
 
-        assert isinstance(hyper_opt_dicts, (list, Optimizer)), "hyper_opt_dicts should be a single OptDict or a " \
-                                                               "list of OptDict. Instead is %s" % hyper_opt_dicts
-        self.hyper_opt_dicts = as_list(hyper_opt_dicts)
+        :param forward_hyper_grad:          instance of `ForwardHyperGradient`. Used to compute hyper-gradients
+        :param hyperparameter_optimizers:   single or list of Optimizer for the hyper-parameter descent procedure
+        :param hyper_projections:           (optional) list of assign ops that performs projection to
+                                            onto a convex subset of the hyperparameter space.
+        :param hyper_step:                  (optional) instance of `GlobalStep` class that keeps tracks of the number
+                                            of hyper-batches performed so far.
+        """
+        assert isinstance(forward_hyper_grad, ForwardHyperGradient)
+        self.direct_doh = forward_hyper_grad
+
+        assert isinstance(hyperparameter_optimizers, (list, Optimizer)), "hyper_opt_dicts should be a single " \
+                                                                         "Optimizer or a list of Optimizer. Instead" \
+                                                                         "is %s" % hyperparameter_optimizers
+        self.hyper_opt_dicts = as_list(hyperparameter_optimizers)
 
         self.hyper_projections = hyper_projections or []
 
@@ -418,7 +473,7 @@ class RealTimeHO:
         ss = tf.get_default_session()
 
         for k in range(size):
-            self.direct_doh.step_forward(feed_dict_supplier=training_supplier)
+            self.direct_doh.step_forward(training_supplier=training_supplier)
 
         self.direct_doh.hyper_gradients(validation_suppliers=validation_suppliers, new_mode=True)  # compute hyper_grads
 
@@ -428,24 +483,26 @@ class RealTimeHO:
 
         self.hyper_step.increase.eval()
 
-        if saver: saver(ss, self.hyper_step.eval(), collect_data=collect_data)  # saver should become a class...
+        if saver:
+            saver(ss, self.hyper_step.eval(), collect_data=collect_data)  # saver should become a class...
 
 
-def hyper_opt_dict(direct_doh, dynamics, **dynamics_kw_args):
+def hyper_opt_dict(forward_hyper_grad, optimizer_creator, **optimizers_kw_args):  # TODO review this method
     """
-    Helper for building descent procedure for the hyper-parameters.
+    Helper for creating descent procedure for hyperparameters
 
-    :param direct_doh: instance of DirectDoh class
-    :param dynamics:
-    :param dynamics_kw_args:
+    :param forward_hyper_grad: instance of `ForwardHyperGradient` class
+    :param optimizer_creator:  callable for instantiating the single optimizers
+    :param optimizers_kw_args:
     :return:
     """
-    assert callable(dynamics), '%s should be an optimization dynamics generator' % dynamics
-    # TODO make changes in Doh so that it follows the same structure as DirectDoh
-    assert isinstance(direct_doh, ForwardHyperGradient), \
+    assert callable(optimizer_creator), '%s should be an optimization dynamics generator' % optimizer_creator
+    # TODO maybe optimizer creator could be a list
+    # TODO make changes in Doh so that it follows the same structure as DirectDoh (and make this method usable with Doh)
+    assert isinstance(forward_hyper_grad, ForwardHyperGradient), \
         'This should ideally work also for Doh, but is not implemented yet..'
-    return [dynamics(hyp, **dynamics_kw_args, grad=hg, w_is_state=False)
-            for hyp, hg in zip(direct_doh.hyper_list, direct_doh.hyper_gradient_vars)]
+    return [optimizer_creator(hyp, **optimizers_kw_args, grad=hg, w_is_state=False)
+            for hyp, hg in zip(forward_hyper_grad.hyper_list, forward_hyper_grad.hyper_gradient_vars)]
 
 
 def positivity(hyper_list):
