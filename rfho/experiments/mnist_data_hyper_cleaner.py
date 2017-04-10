@@ -171,7 +171,7 @@ def hyper_data_cleaner(args,model,data,x,y,suppliers):
                 print('norm 1 of gamma', np.linalg.norm(gamma.eval(), ord=1))
             res = doh.run_all(args.T, train_feed_dict_supplier=suppliers['train'],
                               after_forward_su=after_forward_su,
-                              val_feed_dict_supplier=suppliers['validation'],
+                              val_feed_dict_suppliers=suppliers['validation'],
                               forward_su=psu, backward_su=None)
             if args.verbose:
                 print('end, updating hyperparameters')

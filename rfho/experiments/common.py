@@ -1,15 +1,13 @@
-from rfho.save_and_load import save_obj, load_obj
-from rfho.utils import as_list, flatten_list, merge_dicts
-from experiments.greek_alphabet import greek_alphabet
-
-import time
 import threading
-
+import time
+from collections import OrderedDict
 from functools import reduce
 
-from collections import OrderedDict
-
 from matplotlib import rc
+
+from rfho.experiments.greek_alphabet import greek_alphabet
+from rfho.save_and_load import save_obj, load_obj
+from rfho.utils import as_list, flatten_list, merge_dicts
 
 rc('text', usetex=True)
 

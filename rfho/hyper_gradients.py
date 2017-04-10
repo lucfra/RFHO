@@ -208,14 +208,14 @@ class ReverseHyperGradient:
     def _initialize_hyper_derivatives_res(self):
         return {hyper: [] for hyper in self.hyper_list}
 
-    def run_all(self, T, train_feed_dict_supplier=None, val_feed_dict_supplier=None,
+    def run_all(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None,
                 forward_su=None, backward_su=None, after_forward_su=None, check_if_zero=False):
         """
         Performs both forward and backward step. See functions `forward` and `backward` for details.
 
         :param T:                   Total number of iterations
         :param train_feed_dict_supplier:   (feed_dict) supplier for training stage
-        :param val_feed_dict_supplier: (feed_dict) supplier for validation stage
+        :param val_feed_dict_suppliers: (feed_dict) supplier for validation stage
         :param forward_su:          (optional) utils object with function `run` passed to `forward`
         :param backward_su:         (optional) utils object with function `run` passed to `backward`
         :param after_forward_su:    (optional) utils object with function `run` executed after `forward` and before
@@ -228,7 +228,7 @@ class ReverseHyperGradient:
         if after_forward_su:
             after_forward_su.run(tf.get_default_session(), T)
         return self.backward(
-            T, val_feed_dict_suppliers=val_feed_dict_supplier,
+            T, val_feed_dict_suppliers=val_feed_dict_suppliers,
             train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=backward_su,
             check_if_zero=check_if_zero
         )
