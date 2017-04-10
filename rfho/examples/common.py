@@ -5,7 +5,7 @@ from functools import reduce
 
 from matplotlib import rc
 
-from rfho.experiments.greek_alphabet import greek_alphabet
+from rfho.examples.greek_alphabet import greek_alphabet
 from rfho.save_and_load import save_obj, load_obj
 from rfho.utils import as_list, flatten_list, merge_dicts
 

@@ -3,8 +3,8 @@ from distutils.core import setup
 setup(
     name='RFHO',
     version='0.1',
-    packages=['rfho', 'rfho.experiments'],
-    # TODO have to decide what to do with things in experiments. experiments.common is a useful
+    packages=['rfho', 'rfho.examples'],
+    # TODO have to decide what to do with things in examples. examples.common is a useful
     # class but maybe its misplaced.
     url='',
     license='',
