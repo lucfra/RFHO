@@ -586,7 +586,7 @@ class ExampleVisiting:
         # noinspection PyUnusedLocal
         self.training_schedule = np.concatenate([all_indices_shuffled() for _ in range(self.epochs)])
 
-    def training_supplier(self, x, y, other_feeds=None, lambda_feeds=None):
+    def create_train_feed_dict_supplier(self, x, y, other_feeds=None, lambda_feeds=None):
         """
 
         :param x: placeholder for independent variable
@@ -627,7 +627,7 @@ class ExampleVisiting:
 
         return _training_supplier
 
-    def all_validation_supplier(self, x, y, other_feeds=None):
+    def create_all_valid_feed_dict_supplier(self, x, y, other_feeds=None):
 
         if not other_feeds:
             other_feeds = {}
@@ -642,7 +642,7 @@ class ExampleVisiting:
 
         return _validation_supplier
 
-    def all_test_supplier(self, x, y, other_feeds=None):
+    def create_all_test_feed_dict_supplier(self, x, y, other_feeds=None):
 
         if not other_feeds:
             other_feeds = {}
@@ -665,7 +665,7 @@ class WindowedData(object):
 
     def __init__(self, data, row_sentence_bounds, window=5, process_all=False):
         """
-        Class for managing windowed data (like TIMIT).
+        Class for managing windowed input data (like TIMIT).
 
         :param data: Numpy matrix. Each row should be an example data
         :param row_sentence_bounds:  Numpy matrix with bounds for padding. TODO add default NONE

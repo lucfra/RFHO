@@ -88,12 +88,12 @@ class TestDohDirectDoh(unittest.TestCase):
 
                 direct_doh.initialize()
                 for _k in range(T):
-                    direct_doh.step_forward(training_supplier=training_supplier, summary_utils=psu)
+                    direct_doh.step_forward(train_feed_dict_supplier=training_supplier, summary_utils=psu)
 
                 direct_res = direct_doh.hyper_gradient_vars(validation_suppliers=training_supplier)
 
-                res = doh.run_all(T, training_supplier=training_supplier, after_forward_su=after_forward_su,
-                                  validation_suppliers=training_supplier, forward_su=psu, backward_su=psu2)
+                res = doh.run_all(T, train_feed_dict_supplier=training_supplier, after_forward_su=after_forward_su,
+                                  val_feed_dict_supplier=training_supplier, forward_su=psu, backward_su=psu2)
 
                 collected_hyper_gradients = list(ReverseHyperGradient.std_collect_hyper_gradients(res).values())
                 [ss.run(hyper_upd_ops[j],
@@ -108,7 +108,7 @@ class TestDohDirectDoh(unittest.TestCase):
         ev_data = ExampleVisiting(iris, 10, 10)
         T = ev_data.T
 
-        training_supplier = ev_data.training_supplier(x, y)
+        training_supplier = ev_data.create_train_feed_dict_supplier(x, y)
 
         with tf.Session(config=TestDohDirectDoh.config).as_default() as ss:
             tf.variables_initializer([eta]).run()
@@ -120,12 +120,12 @@ class TestDohDirectDoh(unittest.TestCase):
                 direct_doh.initialize()
 
                 for _k in range(T):
-                    direct_doh.step_forward(training_supplier=training_supplier, summary_utils=psu)
+                    direct_doh.step_forward(train_feed_dict_supplier=training_supplier, summary_utils=psu)
 
                 direct_res = direct_doh.hyper_gradient_vars(validation_suppliers=all_training_supplier)
 
-                res = doh.run_all(T, training_supplier=training_supplier, after_forward_su=after_forward_su,
-                                  validation_suppliers=all_training_supplier, forward_su=psu, backward_su=psu2)
+                res = doh.run_all(T, train_feed_dict_supplier=training_supplier, after_forward_su=after_forward_su,
+                                  val_feed_dict_supplier=all_training_supplier, forward_su=psu, backward_su=psu2)
 
                 collected_hyper_gradients = list(ReverseHyperGradient.std_collect_hyper_gradients(res).values())
                 [ss.run(hyper_upd_ops[j],
@@ -257,7 +257,7 @@ class TestDohDirectDoh(unittest.TestCase):
 
                 direct_doh.initialize()
                 for _k in range(T):
-                    direct_doh.step_forward(training_supplier=training_supplier, summary_utils=psu)
+                    direct_doh.step_forward(train_feed_dict_supplier=training_supplier, summary_utils=psu)
 
                 validation_suppliers = {training_error: training_supplier, error: validation_supplier}
 
@@ -266,8 +266,8 @@ class TestDohDirectDoh(unittest.TestCase):
                 else:
                     direct_res = direct_doh.hyper_gradient_vars(validation_suppliers=validation_suppliers)
 
-                res = doh.run_all(T, training_supplier=training_supplier, after_forward_su=after_forward_su,
-                                  validation_suppliers={error: validation_supplier, training_error: training_supplier},
+                res = doh.run_all(T, train_feed_dict_supplier=training_supplier, after_forward_su=after_forward_su,
+                                  val_feed_dict_supplier={error: validation_supplier, training_error: training_supplier},
                                   forward_su=psu, backward_su=psu2)
 
                 collected_hyper_gradients = ReverseHyperGradient.std_collect_hyper_gradients(res)

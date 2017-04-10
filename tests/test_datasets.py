@@ -43,8 +43,8 @@ class ExampleVisitingTest(unittest.TestCase):
 
         indices = tf.placeholder(tf.int32)
 
-        train_supplier = ex_v.training_supplier(x, y, other_feeds={z: 4.},
-                                                lambda_feeds={indices: lambda nb: nb})
+        train_supplier = ex_v.create_train_feed_dict_supplier(x, y, other_feeds={z: 4.},
+                                                              lambda_feeds={indices: lambda nb: nb})
 
         with tf.Session().as_default() as ss:
             print(ss.run(
