@@ -233,8 +233,8 @@ class ReverseHyperGradient:
             check_if_zero=check_if_zero
         )
 
-    @classmethod
-    def std_collect_hyper_gradients(cls, row_gradients):
+    @staticmethod
+    def std_collect_hyper_gradients(row_gradients):
         """
         Sums over all the step-wise hyper-gradients.
 
