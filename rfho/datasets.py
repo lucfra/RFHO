@@ -33,14 +33,18 @@ import _pickle as cpickle
 
 from_env = os.getenv('RFHO_DATA_FOLDER')
 if from_env:
+    print('Congratulations, RFHO_DATA_FOLDER found! It is', from_env)
     DATA_FOLDER=from_env
 else:
     print('Environment variable RFHO_DATA_FOLDER not found.')
     print('You can crate it to specify root folder in which you store various datasets')
+    print('FOR UBUNTU:')
     print("Bash command is: export RFHO_DATA_FOLDER='absolute/path/to/dataset/folder'")
+    print('Remember! To add the global variable kinda permanently in your system you should add export command in '
+          'bash.bashrc file located in etc folder.')
     print()
     print('You can also skip this step...')
-    print('In that case all load_* methods take a FOLDER path as first argument.')
+    print('In this case all load_* methods take a FOLDER path as first argument.')
     print('Bye.')
     DATA_FOLDER=os.getcwd()
 
