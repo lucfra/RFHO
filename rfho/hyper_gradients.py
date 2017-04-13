@@ -101,6 +101,9 @@ class ReverseHyperGradient:
                     ]  # list of couples (hyper_list, list of symbolic hyper_gradients)  (lists are unhashable!)
 
         # TODO PER RICCARDO: aggiungere self.hyper_gradient_vars
+    def reset_parameters(self):
+        var_init = self.w.var_list(Vl_Mode.BASE) if isinstance(self.w, MergedVariable) else [self.w]
+        tf.variables_initializer(var_init + [self.global_step.var]).run()
 
     def forward(self, T, train_feed_dict_supplier=None, summary_utils=None):
         """
@@ -116,9 +119,6 @@ class ReverseHyperGradient:
         if not train_feed_dict_supplier:
             # noinspection PyUnusedLocal
             def feed_dict_supplier(step=None): return None
-
-        var_init = self.w.var_list(Vl_Mode.BASE) if isinstance(self.w, MergedVariable) else [self.w]
-        tf.variables_initializer(var_init + [self.global_step.var]).run()
 
         ss = tf.get_default_session()
         self.w_hist.clear()
@@ -224,6 +224,7 @@ class ReverseHyperGradient:
         :return: A dictionary of lists of step-wise hyper-gradients. In usual application the "true" hyper-gradients
                  can be obtained with method `std_collect_hyper_gradients`
         """
+        self.reset_parameters()
         self.forward(T, train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=forward_su)
         if after_forward_su:
             after_forward_su.run(tf.get_default_session(), T)
