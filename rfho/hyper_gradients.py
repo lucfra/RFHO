@@ -91,6 +91,7 @@ class ReverseHyperGradient:
             with tf.name_scope('w_history_ops'):
                 self._w_placeholder = tf.placeholder(self.w_t.dtype)
 
+                # TODO change name into w_assign or w_assign_op
                 self.back_hist_op = self.w.assign(self._w_placeholder)
 
             with tf.name_scope('hyper_derivatives'):
@@ -104,6 +105,15 @@ class ReverseHyperGradient:
     def reset_parameters(self):
         var_init = self.w.var_list(Vl_Mode.BASE) if isinstance(self.w, MergedVariable) else [self.w]
         tf.variables_initializer(var_init + [self.global_step.var]).run()
+
+    def set_parameters(self, w):
+        ss = tf.get_default_session()
+        ss.run(self.back_hist_op, feed_dict={self._w_placeholder: w})
+
+    def set_global_step(self, global_step):
+        ss = tf.get_default_session()
+        ss.run(self.global_step.assign_op, feed_dict={self.global_step.gs_placeholder: global_step})
+
 
     def forward(self, T, train_feed_dict_supplier=None, summary_utils=None):
         """
@@ -125,7 +135,8 @@ class ReverseHyperGradient:
 
         for t in range(T):
             self.w_hist.append(self.w_t.eval())
-            ss.run([self.w_t, self._fw_ops, self.global_step.increase], feed_dict=train_feed_dict_supplier(t))
+            ss.run([self.w_t, self._fw_ops, self.global_step.increase],
+                   feed_dict=train_feed_dict_supplier(self.global_step.eval()))
             if summary_utils:
                 summary_utils.run(ss, t)
 
@@ -170,11 +181,9 @@ class ReverseHyperGradient:
         for _ in range(T - 1, -1, -1):
 
             # revert w_t to w_(t-1), why not using _ -1?
-            ss.run(self.back_hist_op,
-                   feed_dict={self._w_placeholder: self.w_hist[self.global_step.eval() - 1]}
-                   )
+            self.set_parameters(self.w_hist[_ - 1])
 
-            fds = train_feed_dict_supplier(_)
+            fds = train_feed_dict_supplier(self.global_step.eval())
             # TODO read below
             """ Unfortunately it looks like that the following two lines cannot be run together (will this
             degrade the performances???
@@ -213,6 +222,7 @@ class ReverseHyperGradient:
         """
         Performs both forward and backward step. See functions `forward` and `backward` for details.
 
+        :param n_steps_truncated: number of steps for the truncated backprop through time
         :param T:                   Total number of iterations
         :param train_feed_dict_supplier:   (feed_dict) supplier for training stage
         :param val_feed_dict_suppliers: (feed_dict) supplier for validation stage
@@ -233,6 +243,58 @@ class ReverseHyperGradient:
             train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=backward_su,
             check_if_zero=check_if_zero
         )
+
+    def run_all_truncated(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None,
+                          forward_su=None, backward_su=None, after_forward_su=None, check_if_zero=False,
+                          n_steps_truncated=None, opt_hyper_dicts=None, grad_hyper=None):
+        """
+        Performs both forward and backward step. See functions `forward` and `backward` for details.
+
+        :param n_steps_truncated: number of steps for the truncated backprop through time
+        :param T:                   Total number of iterations
+        :param train_feed_dict_supplier:   (feed_dict) supplier for training stage
+        :param val_feed_dict_suppliers: (feed_dict) supplier for validation stage
+        :param forward_su:          (optional) utils object with function `run` passed to `forward`
+        :param backward_su:         (optional) utils object with function `run` passed to `backward`
+        :param after_forward_su:    (optional) utils object with function `run` executed after `forward` and before
+                                    `backward`
+        :param check_if_zero:       (debug flag).
+        :return: A dictionary of lists of step-wise hyper-gradients. In usual application the "true" hyper-gradients
+                 can be obtained with method `std_collect_hyper_gradients`
+        """
+        assert n_steps_truncated is not None and opt_hyper_dicts is not None and grad_hyper is not None, 'wrong use ' \
+                                    'of truncated backprop!, all the arguments after n_steps_truncated must be given'
+        K = n_steps_truncated if n_steps_truncated is not None else T
+        n_updates = T // K
+
+        self.reset_parameters()
+
+        for i in range(n_updates):
+            self.forward(K, train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=forward_su)
+            if after_forward_su:
+                after_forward_su.run(tf.get_default_session(), K*(i+1) - 1)
+
+            last_global_step = self.global_step.eval()
+
+            row_gradients = self.backward(
+                K, val_feed_dict_suppliers=val_feed_dict_suppliers,
+                train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=backward_su,
+                check_if_zero=check_if_zero
+            )
+
+            # restore w and global_step to be the same after forward:
+            self.set_parameters(self.w_hist[-1])
+            self.set_global_step(last_global_step)
+
+            if opt_hyper_dicts is not None:
+                hgs = ReverseHyperGradient.std_collect_hyper_gradients(row_gradients)
+                ss = tf.get_default_session()
+                for hyp in self.hyper_list:
+                    ss.run(opt_hyper_dicts[hyp].assign_ops, feed_dict={grad_hyper: hgs[hyp]})
+
+            return row_gradients
+
+
 
     @staticmethod
     def std_collect_hyper_gradients(row_gradients):
