@@ -292,7 +292,7 @@ class ReverseHyperGradient:
                 for hyp in self.hyper_list:
                     ss.run(opt_hyper_dicts[hyp].assign_ops, feed_dict={grad_hyper: hgs[hyp]})
 
-            return row_gradients
+        return row_gradients
 
 
 
