@@ -362,8 +362,8 @@ class MergedVariable:
     def graph(self):
         return self.tensor.graph
 
-    @classmethod
-    def get_tensor(cls, v):
+    @staticmethod
+    def get_tensor(v):
         return v.tensor if isinstance(v, MergedVariable) else v
 
 

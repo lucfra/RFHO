@@ -47,8 +47,8 @@ class Optimizer:
 
 class GradientDescentOptimizer(Optimizer):
 
-    @classmethod
-    def create(cls, w, lr, loss=None, grad=None, name='GradientDescent'):
+    @staticmethod
+    def create(w, lr, loss=None, grad=None, name='GradientDescent'):
         # TODO put this method the same way as the others
         """
         Just gradient descent dynamics.
@@ -108,8 +108,8 @@ class MomentumOptimizer(Optimizer):
             grad_loss_term
         ])
 
-    @classmethod
-    def create(cls, w, lr, mu, loss=None, grad=None, w_is_state=True, name='Momentum'):
+    @staticmethod
+    def create(w, lr, mu, loss=None, grad=None, w_is_state=True, name='Momentum'):
         """
 
 
@@ -209,8 +209,8 @@ class AdamOptimizer(MomentumOptimizer):
     def d_dynamics_d_linear_loss_term(self, grad_loss_term):
         raise NotImplementedError()  # TODO
 
-    @classmethod
-    def create(cls, w, lr=1.e-3, beta1=.9, beta2=.999, eps=1.e-8, global_step=None,
+    @staticmethod
+    def create(w, lr=1.e-3, beta1=.9, beta2=.999, eps=1.e-8, global_step=None,
                loss=None, grad=None, w_is_state=True, name='Adam'):  # FIXME rewrite this
         """
         Adam optimizer.
