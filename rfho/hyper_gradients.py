@@ -41,6 +41,7 @@ class ReverseHyperGradient:
             self.val_error_dict[k] = as_list(v)  # be sure that are all lists
 
         self.w_hist = state_history or []
+        self.w_last = None  # keeps the value of w after forward
 
         with self.w_t.graph.as_default():
             # global step
@@ -139,6 +140,8 @@ class ReverseHyperGradient:
                    feed_dict=train_feed_dict_supplier(self.global_step.eval()))
             if summary_utils:
                 summary_utils.run(ss, t)
+        self.w_last = self.w_t.eval()  # save last w to restore it after backward
+
 
     def backward(self, T, val_feed_dict_suppliers=None, train_feed_dict_supplier=None,
                  summary_utils=None, check_if_zero=False):
@@ -283,7 +286,7 @@ class ReverseHyperGradient:
             )
 
             # restore w and global_step to be the same after forward:
-            self.set_parameters(self.w_hist[-1])
+            self.set_parameters(self.w_last)
             self.set_global_step(last_global_step)
 
             if opt_hyper_dicts is not None:
