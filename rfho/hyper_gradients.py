@@ -564,21 +564,21 @@ class RealTimeHO:
             saver(ss, self.hyper_step.eval(), collect_data=collect_data)  # saver should become a class...
 
 
-def hyper_opt_dict(forward_hyper_grad, optimizer_creator, **optimizers_kw_args):  # TODO review this method
+def create_hyperparameter_optimizers(forward_hyper_grad, optimizer_class, **optimizers_kw_args):  # TODO review this m
     """
     Helper for creating descent procedure for hyperparameters
 
     :param forward_hyper_grad: instance of `ForwardHyperGradient` class
-    :param optimizer_creator:  callable for instantiating the single optimizers
+    :param optimizer_class:  callable for instantiating the single optimizers
     :param optimizers_kw_args: arguments to pass to `optimizer_creator`
     :return: List of `Optimizer` objects
     """
-    assert callable(optimizer_creator), '%s should be an optimization dynamics generator' % optimizer_creator
+    # assert isinstance(optimizer_class, Optimizer), '%s should be an Optimizer' % optimizer_class
     # TODO maybe optimizer creator could be a list
     # TODO make changes in Doh so that it follows the same structure as DirectDoh (and make this method usable with Doh)
     assert isinstance(forward_hyper_grad, ForwardHyperGradient), \
         'This should ideally work also for Doh, but is not implemented yet..'
-    return [optimizer_creator(hyp, **optimizers_kw_args, grad=hg, w_is_state=False)
+    return [optimizer_class.create(hyp, **optimizers_kw_args, grad=hg, w_is_state=False)
             for hyp, hg in zip(forward_hyper_grad.hyper_list, forward_hyper_grad.hyper_gradient_vars)]
 
 
