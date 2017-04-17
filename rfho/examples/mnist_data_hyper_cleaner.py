@@ -16,9 +16,11 @@ config.gpu_options.allow_growth = True
 
 ho.settings['NOTEBOOK_TITLE'] = 'lun_30_50_50_RL0'
 
-class Data:
+
+class Data:  # what's the purpose of this class???
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+
 
 def prepare_data(args):
     def limit_to_N_all(_x, _y, _d, _k):
