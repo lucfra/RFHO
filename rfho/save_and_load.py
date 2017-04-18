@@ -1,6 +1,10 @@
 import matplotlib.pyplot as plt
-from IPython.display import IFrame
-import IPython
+try:
+    from IPython.display import IFrame
+    import IPython
+except ImportError:
+    print('Looks like IPython is not installed...')
+    IFrame, IPython = None, None
 import gzip
 import os
 import _pickle as pickle
@@ -33,7 +37,8 @@ def save_fig(name, default_overwrite=False):
 
     filename = directory + '/%s.pdf' % name
     if not default_overwrite and os.path.isfile(filename):
-        IPython.display.display(IFrame(filename, width=800, height=600))
+        if IPython is not None:
+            IPython.display.display(IFrame(filename, width=800, height=600))
         overwrite = input('A file named %s already exists. Overwrite (Leave string empty for NO!)?' % filename)
         if not overwrite:
             print('No changes done.')

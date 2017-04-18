@@ -304,7 +304,7 @@ class MergedVariable:
         elif mode == Vl_Mode.BASE:
             return self._get_base_variable_list()
         elif mode == Vl_Mode.TENSOR:
-            return self._var_list_as_tensors() # return w unic tensor + copies augmented
+            return self._var_list_as_tensors()  # return w unic tensor + copies augmented
         else:
             raise NotImplementedError('mode %d does not exists' % mode)
 

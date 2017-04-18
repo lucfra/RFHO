@@ -3,7 +3,7 @@ import tensorflow as tf
 from rfho.utils import hvp, MergedVariable, Vl_Mode, GlobalStep, ZMergedMatrix
 
 
-class Optimizer:
+class Optimizer:  # Gradient descent-like optimizer
 
     def __init__(self, raw_w, w, assign_ops, dynamics, jac_z, learning_rate, gradient):
         self.raw_w = raw_w
@@ -44,6 +44,10 @@ class Optimizer:
         """
         return ZMergedMatrix(-self.learning_rate * grad_loss_term)
 
+    @staticmethod
+    def get_augmentation_multiplier():
+        return 0
+
 
 class GradientDescentOptimizer(Optimizer):
 
@@ -80,6 +84,10 @@ class GradientDescentOptimizer(Optimizer):
                              gradient=grad,
                              learning_rate=lr)
 
+    @staticmethod
+    def get_augmentation_multiplier():
+        return 0
+
 
 class MomentumOptimizer(Optimizer):
     def __init__(self, raw_w, w, m, assign_ops, dynamics, jac_z, gradient, learning_rate, momentum_factor):
@@ -107,6 +115,10 @@ class MomentumOptimizer(Optimizer):
             - self.learning_rate * grad_loss_term,
             grad_loss_term
         ])
+
+    @staticmethod
+    def get_augmentation_multiplier():
+        return 1
 
     @staticmethod
     def create(w, lr, mu, loss=None, grad=None, w_is_state=True, name='Momentum'):
@@ -208,6 +220,10 @@ class AdamOptimizer(MomentumOptimizer):
 
     def d_dynamics_d_linear_loss_term(self, grad_loss_term):
         raise NotImplementedError()  # TODO
+
+    @staticmethod
+    def get_augmentation_multiplier():
+        return 2
 
     @staticmethod
     def create(w, lr=1.e-3, beta1=.9, beta2=.999, eps=1.e-8, global_step=None,
