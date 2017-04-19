@@ -6,7 +6,7 @@ import tensorflow as tf
 import rfho as rf
 
 
-def load_dataset(partition_proportions=(.5,.3)):
+def load_dataset(partition_proportions=(.5, .3)):
     from rfho.datasets import load_mnist
     return load_mnist(partitions=partition_proportions)
 
@@ -141,7 +141,7 @@ def experiment(name_of_experiment, collect_data=True,
     # builds an instance of Real Time Hyperparameter optimization if mode is rtho
     # RealTimeHO exploits partial hypergradients calculated with forward-mode to perform hyperparameter updates
     # while the model is training...
-    rtho = rf.RealTimeHO(hyper_gradients, hyper_gradients, positivity) if mode == 'rtho' else None
+    rtho = rf.RealTimeHO(hyper_gradients, hyper_optimizers, positivity) if mode == 'rtho' else None
 
     # stochastic descent
     import rfho.datasets as dt
@@ -169,12 +169,26 @@ def experiment(name_of_experiment, collect_data=True,
 
     with tf.Session().as_default() as ss:
         saver.timer.start()
-        if mode == 'rtho':  # here we do not have hyper-iterations
-            rtho.initialize()  # helper for initializing all variables...
-            for k in range(hyper_iterations):
-                rtho.hyper_batch(hyper_batch_size, train_feed_dict_supplier=tr_supplier,
-                                 val_feed_dict_suppliers={error: val_supplier, training_error: all_training_supplier})
-                saver.save(k, append_string=mode)
-        else:
-            hyper_gradients.initialize()
+        if __name__ == '__main__':
+            if mode == 'rtho':  # here we do not have hyper-iterations
+                rtho.initialize()  # helper for initializing all variables...
+                for k in range(hyper_iterations):
+                    rtho.hyper_batch(hyper_batch_size, train_feed_dict_supplier=tr_supplier, val_feed_dict_suppliers=
+                    {error: val_supplier, training_error: all_training_supplier})
 
+                    saver.save(k, append_string=mode)
+
+            else:  # here we do complete hyper-iterations..
+                for k in range(hyper_iterations):
+                    hyper_gradients.run_all(ev_data.T, train_feed_dict_supplier=tr_supplier, val_feed_dict_suppliers=
+                    {error: val_supplier, training_error: all_training_supplier})
+
+                    # update hyperparameters
+                    [ss.run(hod.assign_ops) for hod in hyper_optimizers]
+                    [ss.run(prj) for prj in positivity]
+
+                    saver.save(k, append_string=mode)
+
+
+if __name__ == '__main__':
+    experiment(None, collect_data=False)

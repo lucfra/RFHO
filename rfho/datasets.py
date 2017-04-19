@@ -205,7 +205,6 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
     than one sample, for data augmentation)
     :return: a list of datasets of length equal to the (possibly augmented) partition_proportion
     """
-
     all_data = np.vstack([get_data(d) for d in datasets])
     all_labels = np.vstack([get_targets(d) for d in datasets])
 
@@ -214,6 +213,8 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
     N = len(all_data)
 
     if partition_proportions:  # argument check
+        partition_proportions = list([partition_proportions] if isinstance(partition_proportions, float)
+                                     else partition_proportions)
         sum_proportions = sum(partition_proportions)
         assert sum_proportions <= 1, "partition proportions must sum up to at most one: %d" % sum_proportions
         if sum_proportions < 1.: partition_proportions += [1. - sum_proportions]

@@ -455,11 +455,10 @@ class ForwardHyperGradient:
                     val_sup_lst.append(val_feed_dict_supplier[k])
                     break
 
-        if new_mode:
-            [assign_op.eval(feed_dict=vsl(self.global_step.eval())) for
-             assign_op, vsl in zip(self._hyper_assign_ops, val_sup_lst)]
+        [assign_op.eval(feed_dict=vsl(self.global_step.eval())) for
+         assign_op, vsl in zip(self._hyper_assign_ops, val_sup_lst)]
 
-        else:
+        if not new_mode:
             print("WARNING: things with hyper-gradients have been changed. Now they are treated as variables that "
                   "is much easier.")
             computations = [gve.eval(feed_dict=vsl(self.global_step.eval())) for
@@ -470,6 +469,18 @@ class ForwardHyperGradient:
                 return grad[0] if len(sh_grad) == 1 and sh_grad[0] == 1 else grad
 
             return {hyp: cast_to_scalar_if_needed(gdd) for hyp, gdd in zip(self.hyper_list, computations)}
+
+    def run_all(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None,
+                forward_su=None, after_forward_su=None):
+
+        self.initialize()
+        for k in range(T):
+            self.step_forward(train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=forward_su)
+
+        if after_forward_su:
+            after_forward_su.run(tf.get_default_session(), T)
+
+        return self.hyper_gradients(val_feed_dict_supplier=val_feed_dict_suppliers)
 
 
 class RealTimeHO:
