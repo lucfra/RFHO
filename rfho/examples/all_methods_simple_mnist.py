@@ -65,7 +65,10 @@ def define_errors_default_models(model, l1=0., l2=0., augment=0):
         reg_l2s = [tf.pow(w, 2) for w in ws]
         training_error += tf.reduce_sum([rho * rg_l1 for rho, rg_l1 in zip(rho_l2s, reg_l2s)])
 
-    return s, out, ws, y, error, training_error, rho_l1s, reg_l1s, rho_l2s, reg_l2s
+    correct_prediction = tf.equal(tf.argmax(out, 1), tf.argmax(y, 1))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+
+    return s, out, ws, y, error, training_error, rho_l1s, reg_l1s, rho_l2s, reg_l2s, accuracy
 
 _HO_MODES = ['forward', 'reverse', 'rtho']
 
@@ -75,7 +78,7 @@ def experiment(name_of_experiment, collect_data=True,
                optimizer=rf.MomentumOptimizer, optimizer_kwargs=None, batch_size=200,
                algo_hyper_wrt_tr_error=False,
                mode='reverse', hyper_optimizer=rf.AdamOptimizer, hyper_optimizer_kwargs=None,
-               hyper_iterations=100, hyper_batch_size=100):
+               hyper_iterations=100, hyper_batch_size=100, epochs=20, do_print=True):
     assert mode in _HO_MODES
 
     from rfho.examples.common import save_setting, Saver
@@ -85,7 +88,7 @@ def experiment(name_of_experiment, collect_data=True,
     if datasets is None: datasets = load_dataset()
 
     x, model = create_model(datasets, model, **model_kwargs or {})
-    s, out, ws, y, error, training_error, rho_l1s, reg_l1s, rho_l2s, reg_l2s = \
+    s, out, ws, y, error, training_error, rho_l1s, reg_l1s, rho_l2s, reg_l2s, accuracy = \
         define_errors_default_models(model, l1, l2, augment=optimizer.get_augmentation_multiplier())
 
     if optimizer_kwargs is None: optimizer_kwargs = {'lr': tf.Variable(.01, name='eta'),
@@ -132,4 +135,42 @@ def experiment(name_of_experiment, collect_data=True,
     hyper_gradients = rf.ReverseHyperGradient(tr_dynamics, hyper_dict) if mode == 'reverse' else \
         rf.ForwardHyperGradient(tr_dynamics, hyper_dict)
 
-    hyper_optimizers = rf.create_hyperparameter_optimizers()
+    hyper_optimizers = rf.create_hyperparameter_optimizers(hyper_gradients, hyper_optimizer, **hyper_optimizer_kwargs)
+    positivity = rf.positivity(hyper_gradients.hyper_list)
+
+    # builds an instance of Real Time Hyperparameter optimization if mode is rtho
+    # RealTimeHO exploits partial hypergradients calculated with forward-mode to perform hyperparameter updates
+    # while the model is training...
+    rtho = rf.RealTimeHO(hyper_gradients, hyper_gradients, positivity) if mode == 'rtho' else None
+
+    # stochastic descent
+    import rfho.datasets as dt
+    ev_data = dt.ExampleVisiting(datasets, batch_size=batch_size, epochs=epochs)
+    tr_supplier = ev_data.create_train_feed_dict_supplier(x, y)
+    val_supplier = ev_data.create_all_valid_feed_dict_supplier(x, y)
+    test_supplier = ev_data.create_all_test_feed_dict_supplier(x, y)
+
+    def all_training_supplier(step=None):
+        return {x: datasets.train.data, y: datasets.train.target}
+
+    hyper_grads = hyper_gradients.hyper_gradients_dict
+    # create a Saver object
+    saver = Saver(
+        'step', lambda step: step,
+        'test accuracy', accuracy, test_supplier,
+        'validation accuracy', accuracy,val_supplier,
+        'training accuracy', accuracy, tr_supplier,
+        'validation error', error, val_supplier,
+        *rf.flatten_list([rf.simple_name(hyp), [hyp, hyper_grads[hyp]]]
+                      for hyp in hyper_gradients.hyper_list),
+        do_print=do_print, collect_data=collect_data
+    )
+
+    with tf.Session().as_default() as ss:
+        # initalize all... Here it kind of depends on the mode... not much to do about it
+        saver.timer.start()
+        if mode == 'rtho':
+            rtho.initialize()  # helper for initializing all variables...
+            for k in range(hyper_iterations):
+                rtho.hyper_batch(hyper_batch_size, train_feed_dict_supplier=tr_supplier,
+                                 val_feed_dict_suppliers={error: val_supplier, training_error: all_training_supplier})

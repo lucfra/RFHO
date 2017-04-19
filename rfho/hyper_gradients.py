@@ -100,7 +100,18 @@ class ReverseHyperGradient:
                     self.lagrangians_dict.items()
                     ]  # list of couples (hyper_list, list of symbolic hyper_gradients)  (lists are unhashable!)
 
-        # TODO PER RICCARDO: aggiungere self.hyper_gradient_vars
+            with tf.name_scope('hyper_gradients'):  # ADDED 28/3/17 keeps track of hyper-gradients as tf.Variable
+                self.grad_wrt_hypers = tf.placeholder(tf.float32, name='placeholder')
+                # TODO this placeholder is not really necessary... just added to minimize the changes needed
+                # (merge with RICCARDO)
+
+                self.hyper_gradient_vars = [tf.Variable(tf.zeros_like(hyp), name=simple_name(hyp))
+                                            for hyp in self.hyper_list]
+                self.hyper_gradients_dict = {hyp: hgv for hyp, hgv  # redundant.. just for comfort ..
+                                             in zip(self.hyper_list, self.hyper_gradient_vars)}
+
+                self._hyper_assign_ops = {h: v.assign(self.grad_wrt_hypers)
+                                          for h, v in self.hyper_gradients_dict.items()}
 
     def forward(self, T, train_feed_dict_supplier=None, summary_utils=None):
         """
@@ -202,6 +213,11 @@ class ReverseHyperGradient:
             if summary_utils: summary_utils.run(ss, _)
 
         hyper_derivatives = {k: list(reversed(v)) for k, v in hyper_derivatives.items()}
+
+        # UPDATES ALSO VARIABLES THAT KEEP TRACK OF HYPERGRADIENTS
+        [self._hyper_assign_ops[hyp].eval(feed_dict=ReverseHyperGradient.std_collect_hyper_gradients(
+            hyper_derivatives[hyp]
+        )) for hyp in self.hyper_list]
 
         return hyper_derivatives
 
@@ -501,22 +517,21 @@ class RealTimeHO:
             saver(ss, self.hyper_step.eval(), collect_data=collect_data)  # saver should become a class...
 
 
-def create_hyperparameter_optimizers(forward_hyper_grad, optimizer_class, **optimizers_kw_args):  # TODO review this m
+def create_hyperparameter_optimizers(rf_hyper_gradients, optimizer_class, **optimizers_kw_args):  # TODO review this m
     """
     Helper for creating descent procedure for hyperparameters
 
-    :param forward_hyper_grad: instance of `ForwardHyperGradient` class
+    :param rf_hyper_gradients: instance of `ForwardHyperGradient` class
     :param optimizer_class:  callable for instantiating the single optimizers
     :param optimizers_kw_args: arguments to pass to `optimizer_creator`
     :return: List of `Optimizer` objects
     """
     # assert isinstance(optimizer_class, Optimizer), '%s should be an Optimizer' % optimizer_class
     # TODO maybe optimizer creator could be a list
-    # TODO make changes in Doh so that it follows the same structure as DirectDoh (and make this method usable with Doh)
-    assert isinstance(forward_hyper_grad, ForwardHyperGradient), \
-        'This should ideally work also for Doh, but is not implemented yet..'
+    # assert isinstance(forward_hyper_grad, ForwardHyperGradient), \
+    #     'This should ideally work also for Doh, but is not implemented yet..'
     return [optimizer_class.create(hyp, **optimizers_kw_args, grad=hg, w_is_state=False)
-            for hyp, hg in zip(forward_hyper_grad.hyper_list, forward_hyper_grad.hyper_gradient_vars)]
+            for hyp, hg in zip(rf_hyper_gradients.hyper_list, rf_hyper_gradients.hyper_gradient_vars)]
 
 
 def positivity(hyper_list):
