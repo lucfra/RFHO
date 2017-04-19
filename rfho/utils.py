@@ -375,10 +375,11 @@ def flatten_list(lst):
 def simple_size_of_with_pickle(obj):
     import pickle
     import os
-    with open('tbd', mode='bw') as f:
+    name = str(np.random.rand())
+    with open(name, mode='bw') as f:
         pickle.dump(obj, f)
-    size = os.stat('tbd').st_size
-    os.remove('tbd')
+    size = os.stat(name).st_size
+    os.remove(name)
     return size
 
 
