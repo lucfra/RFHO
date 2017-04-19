@@ -372,6 +372,23 @@ def flatten_list(lst):
     return list(chain(*lst))
 
 
+def size_of_an_object_with_pickle(obj):
+    """
+    Uses pickle to compute the size in bytes of an object...
+
+    :param obj:
+    :return:
+    """
+    import pickle
+    import os
+    with open('tbd', mode='bw') as f:
+        pickle.dump(obj, f)
+    statinfo = os.stat('tbd')
+    size = statinfo.st_size
+    os.remove('tbd')
+    return size
+
+
 class GlobalStep:
     """
     Helper for global step (probably would be present also in tensorflow)

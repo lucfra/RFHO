@@ -4,6 +4,8 @@ trained on mnist
 """
 import tensorflow as tf
 import rfho as rf
+import numpy as np
+
 
 
 def load_dataset(partition_proportions=(.5, .3)):
@@ -48,7 +50,7 @@ def define_errors_default_models(model, l1=0., l2=0., augment=0):
 
     # error
     y = tf.placeholder(tf.float32)
-    error = rf.cross_entropy_loss(out, y)  # also validation error
+    error = tf.reduce_mean(rf.cross_entropy_loss(out, y))  # also validation error
     training_error = error
 
     rho_l1s, reg_l1s, rho_l2s, reg_l2s = None, None, None, None
@@ -79,11 +81,16 @@ def experiment(name_of_experiment, collect_data=True,
                algo_hyper_wrt_tr_error=False,
                mode='reverse', hyper_optimizer=rf.AdamOptimizer, hyper_optimizer_kwargs=None,
                hyper_iterations=100, hyper_batch_size=100, epochs=20, do_print=True):
+
     assert mode in _HO_MODES
+
+    # set random seeds!!!!
+    np.random.seed(1)
+    tf.set_random_seed(1)
 
     from rfho.examples.common import save_setting, Saver
     if name_of_experiment is not None: rf.settings['NOTEBOOK_TITLE'] = name_of_experiment
-    if collect_data: save_setting(vars(), excluded=datasets)
+    if collect_data: save_setting(vars(), excluded=datasets, append_string='_%s' %mode)
 
     if datasets is None: datasets = load_dataset()
 
@@ -108,7 +115,7 @@ def experiment(name_of_experiment, collect_data=True,
         mu = tr_dynamics.momentum_factor
         if isinstance(mu, tf.Variable):
             if mode != 'reverse':
-                algorithmic_hyperparameters.append([mu, tr_dynamics.d_dynamics_d_momentum_factor])
+                algorithmic_hyperparameters.append([mu, tr_dynamics.d_dynamics_d_momentum_factor()])
             else:
                 algorithmic_hyperparameters.append(mu)
 
@@ -117,12 +124,12 @@ def experiment(name_of_experiment, collect_data=True,
     if rho_l1s is not None:
         if mode != 'reverse':
             regularization_hyperparameters += [(r1, tr_dynamics.d_dynamics_d_linear_loss_term(
-                tf.gradients(er1, vec_w))) for r1, er1 in zip(rho_l1s, reg_l1s)]
+                tf.gradients(er1, vec_w)[0])) for r1, er1 in zip(rho_l1s, reg_l1s)]
         else: regularization_hyperparameters += rho_l1s
     if rho_l2s is not None:
         if mode != 'reverse':
             regularization_hyperparameters += [(r2, tr_dynamics.d_dynamics_d_linear_loss_term(
-                tf.gradients(er2, vec_w))) for r2, er2 in zip(rho_l2s, reg_l2s)]
+                tf.gradients(er2, vec_w)[0])) for r2, er2 in zip(rho_l2s, reg_l2s)]
         else: regularization_hyperparameters += rho_l2s
     # end of hyperparameters
 
@@ -130,12 +137,15 @@ def experiment(name_of_experiment, collect_data=True,
     hyper_dict = {error: regularization_hyperparameters}
     if algo_hyper_wrt_tr_error:  # it is possible to optimize different hyperparameters wrt different validation errors
         hyper_dict[training_error] = algorithmic_hyperparameters
-    else: hyper_dict[error].append(algorithmic_hyperparameters)
+    else: hyper_dict[error] += algorithmic_hyperparameters
+
+    print(hyper_dict)
 
     hyper_gradients = rf.ReverseHyperGradient(tr_dynamics, hyper_dict) if mode == 'reverse' else \
         rf.ForwardHyperGradient(tr_dynamics, hyper_dict)
 
-    hyper_optimizers = rf.create_hyperparameter_optimizers(hyper_gradients, hyper_optimizer, **hyper_optimizer_kwargs)
+    hyper_optimizers = rf.create_hyperparameter_optimizers(hyper_gradients, hyper_optimizer,
+                                                           **hyper_optimizer_kwargs or {})
     positivity = rf.positivity(hyper_gradients.hyper_list)
 
     # builds an instance of Real Time Hyperparameter optimization if mode is rtho
@@ -154,6 +164,10 @@ def experiment(name_of_experiment, collect_data=True,
     def all_training_supplier(step=None):
         return {x: datasets.train.data, y: datasets.train.target}
 
+    # feed_dict supplier for validation errors
+    val_feed_dict_suppliers = {error: val_supplier}
+    if algo_hyper_wrt_tr_error: val_feed_dict_suppliers[training_error] = all_training_supplier
+
     hyper_grads = hyper_gradients.hyper_gradients_dict
     # create a Saver object
     saver = Saver(
@@ -162,33 +176,45 @@ def experiment(name_of_experiment, collect_data=True,
         'validation accuracy', accuracy,val_supplier,
         'training accuracy', accuracy, tr_supplier,
         'validation error', error, val_supplier,
+        'memory usage (bytes)', lambda step: rf.size_of_an_object_with_pickle(hyper_gradients),
         *rf.flatten_list([rf.simple_name(hyp), [hyp, hyper_grads[hyp]]]
-                      for hyp in hyper_gradients.hyper_list),
+                         for hyp in hyper_gradients.hyper_list),
         do_print=do_print, collect_data=collect_data
     )
 
     with tf.Session().as_default() as ss:
         saver.timer.start()
-        if __name__ == '__main__':
-            if mode == 'rtho':  # here we do not have hyper-iterations
-                rtho.initialize()  # helper for initializing all variables...
-                for k in range(hyper_iterations):
-                    rtho.hyper_batch(hyper_batch_size, train_feed_dict_supplier=tr_supplier, val_feed_dict_suppliers=
-                    {error: val_supplier, training_error: all_training_supplier})
 
-                    saver.save(k, append_string=mode)
+        if mode == 'rtho':  # here we do not have hyper-iterations
+            rtho.initialize()  # helper for initializing all variables...
+            for k in range(hyper_iterations):
+                rtho.hyper_batch(hyper_batch_size, train_feed_dict_supplier=tr_supplier,
+                                 val_feed_dict_suppliers=val_feed_dict_suppliers)
 
-            else:  # here we do complete hyper-iterations..
-                for k in range(hyper_iterations):
-                    hyper_gradients.run_all(ev_data.T, train_feed_dict_supplier=tr_supplier, val_feed_dict_suppliers=
-                    {error: val_supplier, training_error: all_training_supplier})
+                saver.save(k, append_string='_%s' %mode)
 
-                    # update hyperparameters
-                    [ss.run(hod.assign_ops) for hod in hyper_optimizers]
-                    [ss.run(prj) for prj in positivity]
+        else:  # here we do complete hyper-iterations..
+            #  initialize hyperparameters and support variables of hyperparameter optimizers
+            tf.variables_initializer(hyper_gradients.hyper_list).run()
+            [hod.support_variables_initializer().run() for hod in hyper_optimizers]
 
-                    saver.save(k, append_string=mode)
+            for k in range(hyper_iterations):  # start hyper-iterations
+                hyper_gradients.run_all(ev_data.T, train_feed_dict_supplier=tr_supplier,
+                                        val_feed_dict_suppliers=val_feed_dict_suppliers)
+
+                # update hyperparameters
+                [ss.run(hod.assign_ops) for hod in hyper_optimizers]
+                [ss.run(prj) for prj in positivity]
+
+                [print(k, v, sep=': ') for k, v in vars(hyper_gradients).items()]
+
+                saver.save(k, append_string='_%s' % mode)
 
 
 if __name__ == '__main__':
-    experiment(None, collect_data=False)
+    for mode in _HO_MODES:
+        tf.reset_default_graph()
+        experiment(None, collect_data=False, hyper_iterations=2, mode=mode,
+                   # optimizer=rf.GradientDescentOptimizer,
+                   # optimizer_kwargs={'lr': tf.Variable(.01, name='eta')}
+                   )

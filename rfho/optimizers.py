@@ -52,10 +52,11 @@ class Optimizer:  # Gradient descent-like optimizer
 class GradientDescentOptimizer(Optimizer):
 
     @staticmethod
-    def create(w, lr, loss=None, grad=None, name='GradientDescent'):
+    def create(w, lr, loss=None, grad=None, w_is_state=True, name='GradientDescent'):
         # TODO put this method the same way as the others
         """
         Just gradient descent dynamics.
+        :param w_is_state:
         :param loss: (optional) scalar loss
         :param w: must be a single variable or a tensor (use models.vectorize_model). No lists here!
         :param lr:
@@ -103,7 +104,7 @@ class MomentumOptimizer(Optimizer):
         return super().get_optimization_hyperparameters() + [self.momentum_factor]
 
     def d_dynamics_d_learning_rate(self):
-        return ZMergedMatrix([- self.momentum_factor * self.m + self.gradient,
+        return ZMergedMatrix([- self.momentum_factor * self.m - self.gradient,
                               tf.zeros(self.m.get_shape())
                               ])
 

@@ -101,7 +101,7 @@ class ReverseHyperGradient:
                     ]  # list of couples (hyper_list, list of symbolic hyper_gradients)  (lists are unhashable!)
 
             with tf.name_scope('hyper_gradients'):  # ADDED 28/3/17 keeps track of hyper-gradients as tf.Variable
-                self.grad_wrt_hypers = tf.placeholder(tf.float32, name='placeholder')
+                self._grad_wrt_hypers_placeholder = tf.placeholder(tf.float32, name='placeholder')
                 # TODO this placeholder is not really necessary... just added to minimize the changes needed
                 # (merge with RICCARDO)
 
@@ -110,7 +110,7 @@ class ReverseHyperGradient:
                 self.hyper_gradients_dict = {hyp: hgv for hyp, hgv  # redundant.. just for comfort ..
                                              in zip(self.hyper_list, self.hyper_gradient_vars)}
 
-                self._hyper_assign_ops = {h: v.assign(self.grad_wrt_hypers)
+                self._hyper_assign_ops = {h: v.assign(self._grad_wrt_hypers_placeholder)
                                           for h, v in self.hyper_gradients_dict.items()}
 
     def initialize(self):
@@ -227,9 +227,8 @@ class ReverseHyperGradient:
         hyper_derivatives = {k: list(reversed(v)) for k, v in hyper_derivatives.items()}
 
         # updates also variables that keep track of hyper-gradients
-        [self._hyper_assign_ops[hyp].eval(feed_dict=ReverseHyperGradient.std_collect_hyper_gradients(
-            hyper_derivatives[hyp]
-        )) for hyp in self.hyper_list]
+        [self._hyper_assign_ops[h].eval(feed_dict={self._grad_wrt_hypers_placeholder: ghv})
+         for h, ghv in ReverseHyperGradient.std_collect_hyper_gradients(hyper_derivatives).items()]
 
         return hyper_derivatives
 
