@@ -7,13 +7,15 @@ import rfho as rf
 import numpy as np
 
 
-
 def load_dataset(partition_proportions=(.5, .3)):
     from rfho.datasets import load_mnist
     return load_mnist(partitions=partition_proportions)
 
 
-_IMPLEMENTED_MODEL_TYPES = ['log_reg', 'ffnn']
+_IMPLEMENTED_MODEL_TYPES = ['log_reg', 'ffnn_deep', 'ffnn_large']
+
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
 
 
 def create_model(datasets, model_creator='log_reg', **model_kwargs):
@@ -22,12 +24,17 @@ def create_model(datasets, model_creator='log_reg', **model_kwargs):
     assert model_creator in _IMPLEMENTED_MODEL_TYPES or callable(model_creator)
     if model_creator == _IMPLEMENTED_MODEL_TYPES[0]:
         model = create_logistic_regressor(x, (dataset.dim_data, dataset.dim_target), **model_kwargs)
-    elif model_creator == _IMPLEMENTED_MODEL_TYPES[1]:
+    elif model_creator == _IMPLEMENTED_MODEL_TYPES[1]:  # ffnn deep
         dimensions = model_kwargs.get('dims', None)
-        if dimensions is None: dimensions = [None, 50, 50, 50, None]  # like in MacLaurin
+        if dimensions is None: dimensions = [None, 50, 50, 50, 50, 50, None]  # like in MacLaurin (maybe deeper)
         dimensions[0], dimensions[-1] = dataset.dim_data, dataset.dim_target
         model = create_ffnn(x, dimensions, **model_kwargs)
-    else:  # custom model creator
+    elif model_creator == _IMPLEMENTED_MODEL_TYPES[2]:  # ffnn large
+        dimensions = model_kwargs.get('dims', None)
+        if dimensions is None: dimensions = [None, 500, 500, None]  # a quite large model... nothing horrible toi
+        dimensions[0], dimensions[-1] = dataset.dim_data, dataset.dim_target
+        model = create_ffnn(x, dimensions, **model_kwargs)
+    else:  # custom _model creator
         model = model_creator(x, **model_kwargs)
 
     return x, model
@@ -120,7 +127,7 @@ def experiment(name_of_experiment, collect_data=True,
                 algorithmic_hyperparameters.append(mu)
 
     regularization_hyperparameters = []
-    vec_w = s.var_list(rf.Vl_Mode.TENSOR)[0]  # vectorized representation of model weights (always the first!)
+    vec_w = s.var_list(rf.Vl_Mode.TENSOR)[0]  # vectorized representation of _model weights (always the first!)
     if rho_l1s is not None:
         if mode != 'reverse':
             regularization_hyperparameters += [(r1, tr_dynamics.d_dynamics_d_linear_loss_term(
@@ -150,7 +157,7 @@ def experiment(name_of_experiment, collect_data=True,
 
     # builds an instance of Real Time Hyperparameter optimization if mode is rtho
     # RealTimeHO exploits partial hypergradients calculated with forward-mode to perform hyperparameter updates
-    # while the model is training...
+    # while the _model is training...
     rtho = rf.RealTimeHO(hyper_gradients, hyper_optimizers, positivity) if mode == 'rtho' else None
 
     # stochastic descent
@@ -198,7 +205,7 @@ def experiment(name_of_experiment, collect_data=True,
         do_print=do_print, collect_data=collect_data
     )
 
-    with tf.Session().as_default() as ss:
+    with tf.Session(config=config).as_default() as ss:
         saver.timer.start()
 
         if mode == 'rtho':  # here we do not have hyper-iterations
@@ -227,10 +234,10 @@ def experiment(name_of_experiment, collect_data=True,
 
 if __name__ == '__main__':
     for mode in _HO_MODES:
-        for model in ['ffnn']:
+        for _model in ['ffnn']:
             tf.reset_default_graph()
-            experiment('test_with_model_' + model, collect_data=False, hyper_iterations=2, mode=mode,
-                       model=model
+            experiment('test_with_model_' + _model, collect_data=False, hyper_iterations=2, mode=mode,
+                       model=_model
                        # optimizer=rf.GradientDescentOptimizer,
                        # optimizer_kwargs={'lr': tf.Variable(.01, name='eta')}
                        )
