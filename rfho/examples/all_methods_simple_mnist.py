@@ -146,6 +146,7 @@ def experiment(name_of_experiment, collect_data=True,
     # stochastic descent
     import rfho.datasets as dt
     ev_data = dt.ExampleVisiting(datasets, batch_size=batch_size, epochs=epochs)
+    ev_data.generate_visiting_scheme()
     tr_supplier = ev_data.create_train_feed_dict_supplier(x, y)
     val_supplier = ev_data.create_all_valid_feed_dict_supplier(x, y)
     test_supplier = ev_data.create_all_test_feed_dict_supplier(x, y)
@@ -167,10 +168,13 @@ def experiment(name_of_experiment, collect_data=True,
     )
 
     with tf.Session().as_default() as ss:
-        # initalize all... Here it kind of depends on the mode... not much to do about it
         saver.timer.start()
-        if mode == 'rtho':
+        if mode == 'rtho':  # here we do not have hyper-iterations
             rtho.initialize()  # helper for initializing all variables...
             for k in range(hyper_iterations):
                 rtho.hyper_batch(hyper_batch_size, train_feed_dict_supplier=tr_supplier,
                                  val_feed_dict_suppliers={error: val_supplier, training_error: all_training_supplier})
+                saver.save(k, append_string=mode)
+        else:
+            hyper_gradients.initialize()
+

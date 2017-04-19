@@ -91,7 +91,7 @@ class ReverseHyperGradient:
             with tf.name_scope('w_history_ops'):
                 self._w_placeholder = tf.placeholder(self.w_t.dtype)
 
-                self.back_hist_op = self.w.assign(self._w_placeholder)
+                self._back_hist_op = self.w.assign(self._w_placeholder)
 
             with tf.name_scope('hyper_derivatives'):
                 # equation (10) without summation.
@@ -113,6 +113,17 @@ class ReverseHyperGradient:
                 self._hyper_assign_ops = {h: v.assign(self.grad_wrt_hypers)
                                           for h, v in self.hyper_gradients_dict.items()}
 
+    def initialize(self):
+        """
+        Helper for initializing all the variables. Builds and runs model variables and global step initializers.
+        Note that dual variables are initialized only when calling `backward`.
+
+        :return: None
+        """
+        assert tf.get_default_session() is not None, 'No default tensorflow session!'
+        var_init = self.w.var_list(Vl_Mode.BASE) if isinstance(self.w, MergedVariable) else [self.w]
+        tf.variables_initializer(var_init + self.hyper_gradient_vars + [self.global_step.var]).run()
+
     def forward(self, T, train_feed_dict_supplier=None, summary_utils=None):
         """
         Performs (forward) optimization of the parameters.
@@ -128,8 +139,8 @@ class ReverseHyperGradient:
             # noinspection PyUnusedLocal
             def feed_dict_supplier(step=None): return None
 
-        var_init = self.w.var_list(Vl_Mode.BASE) if isinstance(self.w, MergedVariable) else [self.w]
-        tf.variables_initializer(var_init + [self.global_step.var]).run()
+        # var_init = self.w.var_list(Vl_Mode.BASE) if isinstance(self.w, MergedVariable) else [self.w]
+        # tf.variables_initializer(var_init + [self.global_step.var]).run()
 
         ss = tf.get_default_session()
         self.w_hist.clear()
@@ -181,7 +192,7 @@ class ReverseHyperGradient:
         for _ in range(T - 1, -1, -1):
 
             # revert w_t to w_(t-1), why not using _ -1?
-            ss.run(self.back_hist_op,
+            ss.run(self._back_hist_op,
                    feed_dict={self._w_placeholder: self.w_hist[self.global_step.eval() - 1]}
                    )
 
@@ -189,6 +200,7 @@ class ReverseHyperGradient:
             # TODO read below
             """ Unfortunately it looks like that the following two lines cannot be run together (will this
             degrade the performances???
+
             Furthermore, when using ADAM as parameter optimizer it looks like p_0 = nan (note that p_0 usually is not
             needed for the derivation of the hyper-gradients, unless w_0 itself
             depends from some hyper-parameter in hyper_list). Anyway should look into it"""
@@ -214,7 +226,7 @@ class ReverseHyperGradient:
 
         hyper_derivatives = {k: list(reversed(v)) for k, v in hyper_derivatives.items()}
 
-        # UPDATES ALSO VARIABLES THAT KEEP TRACK OF HYPERGRADIENTS
+        # updates also variables that keep track of hyper-gradients
         [self._hyper_assign_ops[hyp].eval(feed_dict=ReverseHyperGradient.std_collect_hyper_gradients(
             hyper_derivatives[hyp]
         )) for hyp in self.hyper_list]
@@ -240,14 +252,22 @@ class ReverseHyperGradient:
         :return: A dictionary of lists of step-wise hyper-gradients. In usual application the "true" hyper-gradients
                  can be obtained with method `std_collect_hyper_gradients`
         """
+        self.initialize()
         self.forward(T, train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=forward_su)
+        final_w = self.w_t.eval()
+
         if after_forward_su:
             after_forward_su.run(tf.get_default_session(), T)
-        return self.backward(
+
+        raw_hyper_grads = self.backward(
             T, val_feed_dict_suppliers=val_feed_dict_suppliers,
             train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=backward_su,
             check_if_zero=check_if_zero
         )
+
+        tf.get_default_session().run(self._back_hist_op, feed_dict={self._w_placeholder: final_w})  # restore weights
+
+        return raw_hyper_grads
 
     @staticmethod
     def std_collect_hyper_gradients(row_gradients):
