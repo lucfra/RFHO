@@ -9,13 +9,13 @@ import tensorflow as tf
 # noinspection PyProtectedMember
 from tensorflow.python.ops.gradients_impl import _hessian_vector_product as _hvp
 
-settings = {
+utils_settings = {
     'WSA': True,  # gives a warning when new nodes are being created during session runtime
 }
 
 
 def wsr(node):  # warning on session running
-    if settings['WSA'] and tf.get_default_session():
+    if utils_settings['WSA'] and tf.get_default_session():
         print('Warning: creating nodes at tf.Session runtime: node %s' % node,
               file=sys.stderr)
     return node

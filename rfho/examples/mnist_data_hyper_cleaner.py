@@ -14,7 +14,7 @@ from rfho.datasets import load_mnist
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 
-ho.settings['NOTEBOOK_TITLE'] = 'lun_30_50_50_RL0'
+ho.utils_settings['NOTEBOOK_TITLE'] = 'lun_30_50_50_RL0'
 
 
 class Data:  # what's the purpose of this class???
