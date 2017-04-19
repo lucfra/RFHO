@@ -192,6 +192,7 @@ def experiment(name_of_experiment, collect_data=True,
         'training accuracy', accuracy, tr_supplier,
         'validation error', error, val_supplier,
         'memory usage (mb)', lambda step: calculate_memory_usage()*9.5367e-7,
+        'weights', vec_w,
         *rf.flatten_list([rf.simple_name(hyp), [hyp, hyper_grads[hyp]]]
                          for hyp in hyper_gradients.hyper_list),
         do_print=do_print, collect_data=collect_data
