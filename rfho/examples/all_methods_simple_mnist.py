@@ -58,13 +58,13 @@ def define_errors_default_models(model, l1=0., l2=0., augment=0):
     # layer-wise l1 regularizers]
     if isinstance(l1, float):
         rho_l1s = [tf.Variable(l1, name='rho_l1_%d' % k) for k in range(len(ws))]
-        reg_l1s = [tf.abs(w) for w in ws]
+        reg_l1s = [tf.reduce_sum(tf.abs(w)) for w in ws]
         training_error += tf.reduce_sum([rho*rg_l1 for rho, rg_l1 in zip(rho_l1s, reg_l1s)])
 
     # layer-wise l2 regularizers]
     if isinstance(l2, float):
         rho_l2s = [tf.Variable(l1, name='rho_l2_%d' % k) for k in range(len(ws))]
-        reg_l2s = [tf.pow(w, 2) for w in ws]
+        reg_l2s = [tf.reduce_sum(tf.pow(w, 2)) for w in ws]
         training_error += tf.reduce_sum([rho * rg_l1 for rho, rg_l1 in zip(rho_l2s, reg_l2s)])
 
     correct_prediction = tf.equal(tf.argmax(out, 1), tf.argmax(y, 1))
@@ -168,6 +168,21 @@ def experiment(name_of_experiment, collect_data=True,
     val_feed_dict_suppliers = {error: val_supplier}
     if algo_hyper_wrt_tr_error: val_feed_dict_suppliers[training_error] = all_training_supplier
 
+    def calculate_memory_usage():
+        memory_usage = rf.simple_size_of_with_pickle([
+            hyper_gradients.w.eval(),
+            [h.eval() for h in hyper_gradients.hyper_list]
+        ])
+        if mode == 'reverse':
+            return memory_usage + rf.simple_size_of_with_pickle([
+                hyper_gradients.w_hist,
+                [p.eval() for p in hyper_gradients.p_dict.values()]
+            ])
+        else:
+            return memory_usage + rf.simple_size_of_with_pickle([
+                [z.eval() for z in hyper_gradients.zs]
+            ])
+
     hyper_grads = hyper_gradients.hyper_gradients_dict
     # create a Saver object
     saver = Saver(
@@ -176,7 +191,7 @@ def experiment(name_of_experiment, collect_data=True,
         'validation accuracy', accuracy,val_supplier,
         'training accuracy', accuracy, tr_supplier,
         'validation error', error, val_supplier,
-        'memory usage (bytes)', lambda step: rf.size_of_an_object_with_pickle(hyper_gradients),
+        'memory usage (mb)', lambda step: calculate_memory_usage()*9.5367e-7,
         *rf.flatten_list([rf.simple_name(hyp), [hyp, hyper_grads[hyp]]]
                          for hyp in hyper_gradients.hyper_list),
         do_print=do_print, collect_data=collect_data
@@ -191,7 +206,7 @@ def experiment(name_of_experiment, collect_data=True,
                 rtho.hyper_batch(hyper_batch_size, train_feed_dict_supplier=tr_supplier,
                                  val_feed_dict_suppliers=val_feed_dict_suppliers)
 
-                saver.save(k, append_string='_%s' %mode)
+                saver.save(k, append_string='_%s' % mode)
 
         else:  # here we do complete hyper-iterations..
             #  initialize hyperparameters and support variables of hyperparameter optimizers
@@ -206,15 +221,15 @@ def experiment(name_of_experiment, collect_data=True,
                 [ss.run(hod.assign_ops) for hod in hyper_optimizers]
                 [ss.run(prj) for prj in positivity]
 
-                [print(k, v, sep=': ') for k, v in vars(hyper_gradients).items()]
-
                 saver.save(k, append_string='_%s' % mode)
 
 
 if __name__ == '__main__':
     for mode in _HO_MODES:
-        tf.reset_default_graph()
-        experiment(None, collect_data=False, hyper_iterations=2, mode=mode,
-                   # optimizer=rf.GradientDescentOptimizer,
-                   # optimizer_kwargs={'lr': tf.Variable(.01, name='eta')}
-                   )
+        for model in ['ffnn']:
+            tf.reset_default_graph()
+            experiment('test_with_model_' + model, collect_data=False, hyper_iterations=2, mode=mode,
+                       model=model
+                       # optimizer=rf.GradientDescentOptimizer,
+                       # optimizer_kwargs={'lr': tf.Variable(.01, name='eta')}
+                       )

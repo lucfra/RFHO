@@ -372,19 +372,12 @@ def flatten_list(lst):
     return list(chain(*lst))
 
 
-def size_of_an_object_with_pickle(obj):
-    """
-    Uses pickle to compute the size in bytes of an object...
-
-    :param obj:
-    :return:
-    """
+def simple_size_of_with_pickle(obj):
     import pickle
     import os
     with open('tbd', mode='bw') as f:
         pickle.dump(obj, f)
-    statinfo = os.stat('tbd')
-    size = statinfo.st_size
+    size = os.stat('tbd').st_size
     os.remove('tbd')
     return size
 
@@ -443,3 +436,6 @@ class ZMergedMatrix:
         assert isinstance(other, ZMergedMatrix)  # TODO make it a little bit more flexible (e.g. case of GD)
         assert len(other.components) == len(self.components)
         return ZMergedMatrix([c + v for c, v in zip(self.components, other.components)])
+
+    def eval(self, feed_dict=None):
+        return self.tensor.eval(feed_dict=feed_dict)
