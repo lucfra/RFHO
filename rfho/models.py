@@ -273,19 +273,19 @@ class LinearModel(Network):
 
 class FFNN(Network):
 
-    def __init__(self, _input, _dims,
+    def __init__(self, _input, dims,
                  activ_gen=(ffnn_layer(), ffnn_lin_out()),
                  name='FFNN'):
         super(FFNN, self).__init__(_input)
 
         pvars(vars())
-        self.dims = _dims
+        self.dims = dims
 
-        if len(activ_gen) != len(_dims) - 1:  # assume (hidden, output)
-            activ_gen = [activ_gen[0]] * (len(_dims) - 2) + [activ_gen[1]]
+        if len(activ_gen) != len(dims) - 1:  # assume (hidden, output)
+            activ_gen = [activ_gen[0]] * (len(dims) - 2) + [activ_gen[1]]
 
         with tf.name_scope(name):
-            for d0, d1, ag, l_num in zip(_dims, _dims[1:], activ_gen, range(len(_dims))):
+            for d0, d1, ag, l_num in zip(dims, dims[1:], activ_gen, range(len(dims))):
                 with tf.name_scope('layer_' + str(l_num)):
                     _W, _b, _activ, act_f = ag(self.inp[-1], [d0, d1])
 
