@@ -1,6 +1,9 @@
 """
-This module contains a simple example of the execution of the three algorithms on various classifiers
-trained on mnist
+This module contains a set of example of the execution of the three main algorithms contained in this package:
+- Reverse-HO
+- Forward-HO and
+- RealTimeHO (RTHO)
+ on various classifiers trained on MNIST dataset, with different hyperparameter settings.
 """
 import tensorflow as tf
 import rfho as rf
@@ -12,7 +15,8 @@ def load_dataset(partition_proportions=(.5, .3)):
     return load_mnist(partitions=partition_proportions)
 
 
-_IMPLEMENTED_MODEL_TYPES = ['log_reg', 'ffnn']
+IMPLEMENTED_MODEL_TYPES = ['log_reg', 'ffnn']
+HO_MODES = ['forward', 'reverse', 'rtho']
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -21,11 +25,14 @@ config.gpu_options.allow_growth = True
 def create_model(datasets, model_creator='log_reg', **model_kwargs):
     dataset = datasets.train
     x = tf.placeholder(tf.float32)
-    assert model_creator in _IMPLEMENTED_MODEL_TYPES or callable(model_creator), \
-        '%s, available %s' % (model_creator, _IMPLEMENTED_MODEL_TYPES)
-    if model_creator == _IMPLEMENTED_MODEL_TYPES[0]:
+    assert model_creator in IMPLEMENTED_MODEL_TYPES or callable(model_creator), \
+        '%s, available %s \n You can implement your own model' \
+        'with a function that returns the model! Since a certain structure is assumed ' \
+        'in the model object to proceed automatically with the vectorization,' \
+        'your model should be a subclass of rf.models.Network...' % (model_creator, IMPLEMENTED_MODEL_TYPES)
+    if model_creator == IMPLEMENTED_MODEL_TYPES[0]:
         model = create_logistic_regressor(x, (dataset.dim_data, dataset.dim_target), **model_kwargs)
-    elif model_creator == _IMPLEMENTED_MODEL_TYPES[1]:  # ffnn deep
+    elif model_creator == IMPLEMENTED_MODEL_TYPES[1]:  # ffnn deep
         model = create_ffnn(x, dataset.dim_data, dataset.dim_target, **model_kwargs)
     else:  # custom _model creator
         model = model_creator(x, **model_kwargs)
@@ -85,8 +92,6 @@ def define_errors_default_models(model, l1=0., l2=0., synthetic_hypers=None, aug
     return s, out, ws, y, error, training_error, rho_l1s, reg_l1s, rho_l2s, reg_l2s, accuracy,\
            base_training_error, gamma
 
-_HO_MODES = ['forward', 'reverse', 'rtho']
-
 
 def experiment(name_of_experiment, collect_data=True,
                datasets=None, model='log_reg', model_kwargs=None, l1=0., l2=0.,
@@ -96,7 +101,7 @@ def experiment(name_of_experiment, collect_data=True,
                mode='reverse', hyper_optimizer=rf.AdamOptimizer, hyper_optimizer_kwargs=None,
                hyper_iterations=100, hyper_batch_size=100, epochs=20, do_print=True):
 
-    assert mode in _HO_MODES
+    assert mode in HO_MODES
 
     # set random seeds!!!!
     np.random.seed(1)
@@ -268,9 +273,9 @@ def experiment(name_of_experiment, collect_data=True,
 
 
 if __name__ == '__main__':
-    synt_hyp = 10
-    for _mode in _HO_MODES:
-        for _model in _IMPLEMENTED_MODEL_TYPES[1:2]:
+    synt_hyp = None
+    for _mode in HO_MODES:
+        for _model in IMPLEMENTED_MODEL_TYPES[1:2]:
             _model_kwargs = {'dims': [None, 200, 200, 200, None]}
             tf.reset_default_graph()
             experiment('test_with_model_' + _model, collect_data=False, hyper_iterations=2, mode=_mode, epochs=3,

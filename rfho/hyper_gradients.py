@@ -376,7 +376,7 @@ class ForwardHyperGradient:
 
     def _create_z(self, hyper):
         """
-        Initializer for Z-variables
+        Initializer for Z-variables. Used internally.
 
         :param hyper:
         :return:
@@ -551,15 +551,12 @@ def create_hyperparameter_optimizers(rf_hyper_gradients, optimizer_class, **opti
     """
     Helper for creating descent procedure for hyperparameters
 
-    :param rf_hyper_gradients: instance of `ForwardHyperGradient` class
+    :param rf_hyper_gradients: instance of `ForwardHyperGradient` or `ReverseHyperGradient` class
     :param optimizer_class:  callable for instantiating the single optimizers
     :param optimizers_kw_args: arguments to pass to `optimizer_creator`
     :return: List of `Optimizer` objects
     """
     # assert isinstance(optimizer_class, Optimizer), '%s should be an Optimizer' % optimizer_class
-    # TODO maybe optimizer creator could be a list
-    # assert isinstance(forward_hyper_grad, ForwardHyperGradient), \
-    #     'This should ideally work also for Doh, but is not implemented yet..'
     return [optimizer_class.create(hyp, **optimizers_kw_args, grad=hg, w_is_state=False)
             for hyp, hg in zip(rf_hyper_gradients.hyper_list, rf_hyper_gradients.hyper_gradient_vars)]
 

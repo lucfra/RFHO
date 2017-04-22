@@ -44,19 +44,20 @@ class Optimizer:  # Gradient descent-like optimizer
         """
         return ZMergedMatrix(-self.learning_rate * grad_loss_term)
 
-    @staticmethod
+    @staticmethod  # maybe remove this?
     def get_augmentation_multiplier():
         return 0
 
 
 class GradientDescentOptimizer(Optimizer):
 
+    # noinspection PyUnusedLocal
     @staticmethod
     def create(w, lr, loss=None, grad=None, w_is_state=True, name='GradientDescent'):
-        # TODO put this method the same way as the others
         """
         Just gradient descent dynamics.
-        :param w_is_state:
+        :param w_is_state: Just for compatibility with other create methods.
+        Gradient descent does not require auxiliary variables!
         :param loss: (optional) scalar loss
         :param w: must be a single variable or a tensor (use models.vectorize_model). No lists here!
         :param lr:
