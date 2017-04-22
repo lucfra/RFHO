@@ -237,6 +237,11 @@ def vectorize_model(model_vars, *o_outs, augment=0):
 class Network(object):
 
     def __init__(self, _input):
+        """
+        Creates a network object.
+
+        :param _input:
+        """
         super(Network, self).__init__()
 
         self.Ws = []
