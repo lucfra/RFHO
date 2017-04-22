@@ -1,3 +1,7 @@
+"""
+With this configuration all ICML experiments should work (included rebuttal experiments - ask Michele for MTL code!)
+"""
+
 import numpy as np
 import tensorflow as tf
 
