@@ -269,7 +269,8 @@ class ReverseHyperGradient:
             check_if_zero=check_if_zero
         )
 
-        tf.get_default_session().run(self._back_hist_op, feed_dict={self._w_placeholder: final_w})  # restore weights
+        tf.get_default_session().run(self._back_hist_op,
+                                     feed_dict={self._w_placeholder: final_w})  # restore weights
 
         return raw_hyper_grads
 

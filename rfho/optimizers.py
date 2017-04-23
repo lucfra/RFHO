@@ -177,8 +177,6 @@ class MomentumOptimizer(Optimizer):
             dynamics = tf.concat([w_base_k, m_k], 0) if w_base_k.get_shape().ndims != 0 \
                 else tf.stack([w_base_k, m_k], 0)  # for scalar w
 
-            print(w)
-
             if w_is_state:
                 w_base_mv, m_mv = w.var_list(Vl_Mode.RAW)
             else:
