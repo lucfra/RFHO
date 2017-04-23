@@ -1,3 +1,8 @@
+"""
+This module contains the core classes of the package that implement the three hyperparameter optimization methods
+presented in Forward and Reverse Gradient-Based Hyperparameter Optimization (https://arxiv.org/abs/1703.01785).
+"""
+
 import numpy as np
 import tensorflow as tf
 

@@ -1,3 +1,12 @@
+"""
+This module contains utility functions to process and load various datasets. Most of the datasets are public,
+but are not included in the package; MNIST dataset will be automatically downloaded.
+
+There are also some classes to represent datasets. `ExampleVisiting` is an helper class that implements
+the stochastic sampling of data and is optimized to work with `Reverse/ForwardHyperGradient` (has helper funcitons
+to create training and validation `feed_dict` suppliers).
+"""
+
 import numpy as np
 from functools import reduce
 import tensorflow as tf

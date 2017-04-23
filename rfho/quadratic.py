@@ -1,6 +1,14 @@
-import cvxopt
+"""
+Contains methods for performing projections on convex sets.
+"""
+
 import numpy as np
-from cvxopt import spmatrix, matrix, sparse
+try:
+    import cvxopt
+    from cvxopt import spmatrix, matrix, sparse
+except ImportError:
+    cvxopt, spmatrix, matrix, sparse = None
+    print('Package cvxopt not found. This module will not work! Install it with pip!')
 
 options = {'show_progress': False}
 mode_strings = {1: 'keep the lambdas in [0,1] and  \sum{lambdas} < dim for the entire training set',
