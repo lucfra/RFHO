@@ -32,6 +32,8 @@ def pvars(_vars, _tabs=0):
 
 # layers util funcs ########
 
+# this comes form tensorflow tutorials...
+
 def new_weight(_shape, std_dev=.1): return tf.Variable(tf.truncated_normal(_shape, stddev=std_dev))
 
 
@@ -66,8 +68,6 @@ def unpool(value, name='unpool'):
         out = tf.reshape(out, out_size, name=scope)
     return out
 
-
-# standard layers end ##############
 
 def conv_layer(_input, _shape, _activ=tf.nn.relu, _stdder=.1, _bias_init=.1):
     pvars(vars(), 1)
@@ -123,7 +123,8 @@ def dropout_activation(_keep_prob, _activ=tf.nn.relu):
     return _int
 
 
-def create_or_reuse(init_or_variable, shape, name='var'):
+def create_or_reuse(init_or_variable, shape, name='var'):  # TODO check usage if this function
+    # (should be present also in cnn helpers..
     return init_or_variable if isinstance(init_or_variable, tf.Variable) \
         else tf.Variable(init_or_variable(shape), name=name)
 
@@ -197,13 +198,19 @@ def vectorize_model(model_vars, *o_outs, augment=0):
     Substantially you need to keep track of the tf.identity(variable) and use the resulting tensor to build up the model
     and then also of the initial value of variable. Probably it is not necessary to keep track of  variable itself. }
 
-    It would be also nice to delete the previously defined variables... but unfortunately it looks more
-    complicated then needed. So for the moment let's skip this part...
 
     :param model_vars: list of variables of the model or initializers
     :param o_outs: output_variables, list or tensor. (e.g. model output)
-    :param augment:
-    :return: pair (all weight vector, outs) such that outs are the same computed by the initial model
+    :param augment: (int: default 0) augment the all weights vector by creating augumented variables (initialized at 0)
+                    that mirror rank and dimensions of the variables in `model_vars`. The process is repeated
+                    `augment` times.
+                    This new variables can be  accessed with methods in `MergedVariable`.
+                    The common usage is to prepare the model to be optimized with optimizers that require states
+                    such as `MomentumOptimizer` (`augment=1`) or `AdamOptimizer` (`augment=2`).
+
+    :return: a list which has as first element the `MergedVariable` that represents the all weights vector. Remaining
+                elements are the outputs
+                in the modified graph. These new outs are the same computed by the initial model
             (by the computation graph in which the model lives) but with dependencies form the all_weight_vector.
 
     """
@@ -238,9 +245,14 @@ class Network(object):
 
     def __init__(self, _input):
         """
-        Creates a network object.
+        Creates an object that represent a network. Important attributes of a Network object are
 
-        :param _input:
+        `var_list`: list of tf.Variables that constitute the parameters of the model
+
+        `inp`: list, first element is `_input` and last should be output of the model. Other entries can be
+        hidden layers activations.
+
+        :param _input: tf.Tensor, input of this model.
         """
         super(Network, self).__init__()
 
@@ -262,6 +274,15 @@ class LinearModel(Network):
 
     def __init__(self, _input, dim_input, dim_output,
                  active_gen=ffnn_lin_out()):
+        """
+        Builds a single layer NN, by default with linear activation (this means it's just a linear model!)
+
+        :param _input: see `Network`
+        :param dim_input: input dimension
+        :param dim_output: output dimension
+        :param active_gen: callable that genera
+        """
+        # TODO infer input and output dimensions form input....
         super(LinearModel, self).__init__(_input)
 
         self.dims = [dim_input, dim_output]
@@ -281,6 +302,15 @@ class FFNN(Network):
     def __init__(self, _input, dims,
                  activ_gen=(ffnn_layer(), ffnn_lin_out()),
                  name='FFNN'):
+        """
+        Creates a feed-forward neural network.
+
+        :param _input:
+        :param dims:
+        :param activ_gen:
+        :param name:
+        """
+        # TODO infer input and output dimensions form input....
         super(FFNN, self).__init__(_input)
 
         pvars(vars())
@@ -309,9 +339,12 @@ class SimpleConvolutionalOnly(Network):  # TODO STORE ACTIVATION FUNCTIONS
     def __init__(self, _input, _dims, conv_gen=relu_conv_layer2x2_max_pool,
                  name='Simple_Convolutional'):
         """
+        Creates a simple convolutional network, by default 2 dimensional. Only convolutional part! Use
+        `SimpleCNN` for an usual CNN classifier.
 
         :param _input:
-        :param _dims:
+        :param _dims: in default 2d setting, should be a list of quadruples where each quadruple is given by
+                        (width, height, # of input channels, # of output channels)
         :param conv_gen:
         :param name:
         """
