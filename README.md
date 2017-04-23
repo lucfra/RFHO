@@ -36,9 +36,10 @@ please feel free to issues comments, suggestions and feedbacks! You can also ema
 
 #### Quick start 
 
-- [Self contained example]() on MNIST (!) with Reverse-HO 
+- [Self contained example](https://github.com/lucfra/RFHO/blob/master/rfho/examples/RFHO%20starting%20example.ipynb) on MNIST (!) with Reverse-HO 
 (Forward-HO and RTHO coming very soon..)
-- [A module with a more complete set of examples]() (still on MNIST...)
+- [A module with a more complete set of examples](https://github.com/lucfra/RFHO/blob/master/rfho/examples/all_methods_on_mnist.py) 
+showing all algorithms an various models (still on MNIST...)
 
 #### Core idea
 
