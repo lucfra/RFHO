@@ -54,8 +54,25 @@ parameters (e.g. you can think about stochastic gradient descent with momentum),
 and we formulate
 HO as a __constrained optimization__ problem. See the [paper]((https://arxiv.org/abs/1703.01785)) for details.
 
-#### Modules
+#### Code structure
 
-- All the algorithms are implemented in the module `hyper_gradients`.
-The classes `ReverseHyperGradient` and `ForwardHyperGradient` 
-- ...
+- All the hyperparameter optimization algorithms are implemented in the module `hyper_gradients`.
+The classes `ReverseHyperGradient` and `ForwardHyperGradient` are responsible 
+of the computation of the hyper-gradients while `RealTimeHO` is an helper class
+that implements RTHO algorithm (based on `ForwardHyperGradient`).
+- The module `optimizers` contains classes that implement 
+gradient descent based iterative optimizers. Since 
+the HO methods need to access to the optimizer dynamics (which is seen as 
+a dynamical system) we haven't been able to employ TensorFlow optimizers. 
+At the moment the following optimizers are implemented
+    - `GradientDescentOptimizer`
+    - `MomentumOptimizer`
+    - `AdamOptimizer` (not compatible yet with Forward-HO)
+- `models` module contains some helper function to build up models. It also 
+contains the core function `vectorize_model` which transform the computational
+graph so that all the parameters of the model are conveniently collected into 
+a single vector (rank-1 tensor) of the appropriate dimension (see method doc
+for further details)
+- `utils` method contains some use useful functions. Most notably `cross_entropy_loss`
+ re-implements the cross entropy with softmax output. This was necessary since 
+ tensorflow function has zero Hessian.
