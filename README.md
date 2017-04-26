@@ -47,8 +47,8 @@ The objective is to minimize some validation function _E_ with respect to
  a vector of hyperparameters _lambda_. The validation error depends on the model output and thus
  on the model parameters _w_. 
   _w_ should be a minimizer of the training error and the hyperparameter optimization 
-  problem should thus be formulated as a __bilevel optimization__ problem.
-   Instead we 
+  problem can be natuarlly formulated as a __bilevel optimization__ problem.  
+   Since these problems are rather hard to tackle, we  
 explicitly take into account the learning dynamics used to obtain the model  
 parameters (e.g. you can think about stochastic gradient descent with momentum),
 and we formulate
