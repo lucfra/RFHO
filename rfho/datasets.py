@@ -58,9 +58,12 @@ else:
     DATA_FOLDER=os.getcwd()
 
 
+# kind of private
 TIMIT_DIR = os.path.join(DATA_FOLDER, 'timit4python')
 XRMB_DIR = os.path.join(DATA_FOLDER, 'XRMB')
+IROS15_BASE_FOLDER = 'dls_collaboration/Learning'
 
+# easy to find!
 IRIS_TRAINING = os.path.join(DATA_FOLDER, 'iris', "training.csv")
 IRIS_TEST = os.path.join(DATA_FOLDER, 'iris', "test.csv")
 MNIST_DIR = os.path.join(DATA_FOLDER, "mnist_data")
@@ -70,6 +73,16 @@ CENSUS_TRAIN = os.path.join(DATA_FOLDER, 'census', "train.csv")
 CENSUS_TEST = os.path.join(DATA_FOLDER, 'census', "test.csv")
 CIFAR10_DIR = os.path.join(DATA_FOLDER, "CIFAR-10")
 CIFAR100_DIR = os.path.join(DATA_FOLDER, "CIFAR-100")
+
+
+def to_datasets(list_of_datasets):
+    train, valid, test = None, None, None
+    train = list_of_datasets[0]
+    if len(list_of_datasets) > 1:
+        test = list_of_datasets[-1]
+        if len(list_of_datasets) > 2:
+            valid = list_of_datasets[1]
+    return Datasets(train, valid, test)
 
 
 def _dim(what):
@@ -455,6 +468,25 @@ def load_caltech101_30(tiny_problem=False):
     training_dataset = Dataset(data=train_x, target=train_y, general_info_dict={'files': train_file})
 
     return Datasets(train=training_dataset, validation=validation_dataset, test=test_dataset)
+
+
+def load_iros15(folder=IROS15_BASE_FOLDER, resolution=15, legs='all', part_proportions=(.7, .2), one_hot=True):
+    resolutions = (5, 11, 15)
+    legs_names = ('LF', 'LH', 'RF', 'RH')
+    assert resolution in resolutions
+    folder += str(resolution)
+    if legs == 'all': legs = legs_names
+    base_name_by_leg = lambda leg: folder + '/trainingSet%sx%sFromSensor%s.mat' % (resolution, resolution, leg)
+
+    datasets = {}
+    for leg in legs:
+        dat = scio.loadmat(base_name_by_leg(leg))
+        data, target = dat['X'], to_one_hot_enc(dat['Y']) if one_hot else dat['Y']
+        # maybe preprocessing??? or it is already done? ask...
+        datasets[leg] = to_datasets(
+            redivide_data([Dataset(data, target, general_info_dict={'leg': leg})],
+                          partition_proportions=part_proportions))
+    return datasets
 
 
 def load_caltech101(one_hot=True, partitions=None, filters=None, maps=None):
