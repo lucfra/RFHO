@@ -61,7 +61,7 @@ else:
 # kind of private
 TIMIT_DIR = os.path.join(DATA_FOLDER, 'timit4python')
 XRMB_DIR = os.path.join(DATA_FOLDER, 'XRMB')
-IROS15_BASE_FOLDER = 'dls_collaboration/Learning'
+IROS15_BASE_FOLDER = os.path.join('dls_collaboration', 'Learning')
 
 # easy to find!
 IRIS_TRAINING = os.path.join(DATA_FOLDER, 'iris', "training.csv")
@@ -476,13 +476,14 @@ def load_iros15(folder=IROS15_BASE_FOLDER, resolution=15, legs='all', part_propo
     assert resolution in resolutions
     folder += str(resolution)
     if legs == 'all': legs = legs_names
-    base_name_by_leg = lambda leg: folder + '/trainingSet%sx%sFromSensor%s.mat' % (resolution, resolution, leg)
+    base_name_by_leg = lambda leg: os.path.join(folder, 'trainingSet%sx%sFromSensor%s.mat'
+                                                % (resolution, resolution, leg))
 
     datasets = {}
     for leg in legs:
         dat = scio.loadmat(base_name_by_leg(leg))
         data, target = dat['X'], to_one_hot_enc(dat['Y']) if one_hot else dat['Y']
-        # maybe preprocessing??? or it is already done? ask...
+        # maybe pre-processing??? or it is already done? ask...
         datasets[leg] = to_datasets(
             redivide_data([Dataset(data, target, general_info_dict={'leg': leg})],
                           partition_proportions=part_proportions))
