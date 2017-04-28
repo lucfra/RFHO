@@ -61,7 +61,7 @@ else:
 # kind of private
 TIMIT_DIR = os.path.join(DATA_FOLDER, 'timit4python')
 XRMB_DIR = os.path.join(DATA_FOLDER, 'XRMB')
-IROS15_BASE_FOLDER = os.path.join('dls_collaboration', 'Learning')
+IROS15_BASE_FOLDER = os.path.join(DATA_FOLDER, os.path.join('dls_collaboration', 'Learning'))
 
 # easy to find!
 IRIS_TRAINING = os.path.join(DATA_FOLDER, 'iris', "training.csv")
