@@ -392,6 +392,8 @@ class GlobalStep:
         self._var = tf.Variable(start_from, trainable=False, name='global_step')
         self.increase = self.var.assign_add(1)
         self.decrease = self.var.assign_sub(1)
+        self.gs_placeholder = tf.placeholder(tf.int32)
+        self.assign_op = self.var.assign(self.gs_placeholder)
 
     def eval(self, auto_initialize=True):
         if not auto_initialize:
