@@ -10,6 +10,23 @@ from rfho.optimizers import Optimizer
 from rfho.utils import dot, MergedVariable, Vl_Mode, as_list, simple_name, GlobalStep, ZMergedMatrix
 
 
+class HyperOptimizer:
+
+    def __init__(self, optimizer, hyper_dict, hyper_optimizer, method, **others):  # TODO define signature
+        assert method in ['reverse', 'forward']  # shall we put here also rtho & trho?? or that would be implicit in
+        # call to hyper_batch
+        pass
+
+    def initialize(self):
+        pass
+
+    def hyper_batch(self, steps, training_feed_dict_suppl, validation_supplier):
+        # TODO idea: if steps == T then do full reverse, or forward, otherwise do trho and rtho
+        # after all the main difference is that if we go with the full version, after the gradient has been
+        # computed, the method `initialize()` is called.
+        pass
+
+
 class ReverseHyperGradient:
 
     # noinspection SpellCheckingInspection
@@ -299,6 +316,7 @@ class ReverseHyperGradient:
 
         self.initialize()
 
+        row_gradients = None
         for i in range(n_updates):
             self.forward(k, train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=forward_su)
             final_w = self.w_t.eval()
