@@ -248,11 +248,23 @@ def reshape_generator(original_var, start, end):
     return lambda merged: wsr(tf.reshape(merged[start:end], original_var.get_shape()))
 
 
+def cleaner_accuracy(x, correct_labels, epsilon):
+    n_examples = x.shape[0]
+    correct_guesses = np.abs(x - correct_labels) < epsilon
+    return np.count_nonzero(correct_guesses)/n_examples
+
+
 def one_hot_confidence(vec, epsilon):
     n_examples = vec.shape[0]
     near_one_hot = np.amax(vec, 1) > 1 - epsilon
     # print("near_one_hot ({}/{}): {}".format(near_one_hot.size, n_examples, near_one_hot)) #DEBUG
     return np.count_nonzero(near_one_hot)/n_examples
+
+
+def one_or_zero_similarity(x):
+    n_examples = x.shape[0]
+    one_or_zero_similarity_vector = np.abs(x - 0.5) * 2
+    return np.sum(one_or_zero_similarity_vector)/n_examples
 
 
 Vl_Mode = Enum('Vl_Mode', 'RAW BASE TENSOR')  # allowed modes for MergedVariable.var_list (maybe not that convenient..)
