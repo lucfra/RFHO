@@ -490,8 +490,8 @@ def load_iros15(folder=IROS15_BASE_FOLDER, resolution=15, legs='all', part_propo
     return datasets
 
 
-def load_caltech101(one_hot=True, partitions=None, filters=None, maps=None):
-    path = CALTECH101_DIR + "/caltech101.pickle"
+def load_caltech101(folder=CALTECH101_DIR, one_hot=True, partitions=None, filters=None, maps=None):
+    path = folder + "/caltech101.pickle"
     with open(path, "rb") as input_file:
         X, target_name, files = cpickle.load(input_file)
     dict_name_ID = {}
@@ -515,8 +515,8 @@ def load_caltech101(one_hot=True, partitions=None, filters=None, maps=None):
     return dataset
 
 
-def load_cifar10(one_hot=True, partitions=None, filters=None, maps=None):
-    path = CIFAR10_DIR + "/cifar-10.pickle"
+def load_cifar10(folder=CIFAR10_DIR, one_hot=True, partitions=None, filters=None, maps=None):
+    path = folder + "/cifar-10.pickle"
     with open(path, "rb") as input_file:
         X, target_name, files = cpickle.load(input_file)
     dict_name_ID = {}
@@ -540,8 +540,8 @@ def load_cifar10(one_hot=True, partitions=None, filters=None, maps=None):
     return dataset
 
 
-def load_cifar100(one_hot=True, partitions=None, filters=None, maps=None):
-    path = CIFAR100_DIR + "/cifar-100.pickle"
+def load_cifar100(folder=CIFAR100_DIR, one_hot=True, partitions=None, filters=None, maps=None):
+    path = folder + "/cifar-100.pickle"
     with open(path, "rb") as input_file:
         X, target_ID_fine, target_ID_coarse, fine_ID_corr, coarse_ID_corr, files = cpickle.load(input_file)
 
