@@ -319,13 +319,14 @@ class ReverseHyperGradient:
         row_gradients = None
         for i in range(n_updates):
             self.forward(k, train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=forward_su)
+
             final_w = self.w_t.eval()
+            last_global_step = self.global_step.eval()
+
             if after_forward_su:
                 after_forward_su.run(tf.get_default_session(), k*(i+1) - 1)
 
-            last_global_step = self.global_step.eval()
-
-            row_gradients = self.backward(
+            raw_gradients = self.backward(
                 k, val_feed_dict_suppliers=val_feed_dict_suppliers,
                 train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=backward_su,
                 check_if_zero=check_if_zero
@@ -338,12 +339,48 @@ class ReverseHyperGradient:
                                          feed_dict={self.global_step.gs_placeholder: last_global_step})
 
             if opt_hyper_dicts is not None:
-                hgs = ReverseHyperGradient.std_collect_hyper_gradients(row_gradients)
+                hgs = ReverseHyperGradient.std_collect_hyper_gradients(raw_gradients)
                 ss = tf.get_default_session()
                 for hyp in self.hyper_list:
                     ss.run(opt_hyper_dicts[hyp].assign_ops, feed_dict={self._grad_wrt_hypers_placeholder: hgs[hyp]})
 
-        return row_gradients
+        return raw_gradients
+
+    def run_trho(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None,
+                          forward_su=None, backward_su=None, after_forward_su=None, check_if_zero=False):
+        """
+        Performs both forward and backward step. See functions `forward` and `backward` for details.
+
+        :param T:                   Total number of iterations
+        :param train_feed_dict_supplier:   (feed_dict) supplier for training stage
+        :param val_feed_dict_suppliers: (feed_dict) supplier for validation stage
+        :param forward_su:          (optional) utils object with function `run` passed to `forward`
+        :param backward_su:         (optional) utils object with function `run` passed to `backward`
+        :param after_forward_su:    (optional) utils object with function `run` executed after `forward` and before
+                                    `backward`
+        :param check_if_zero:       (debug flag).
+        :return: A dictionary of lists of step-wise hyper-gradients. In usual application the "true" hyper-gradients
+                 can be obtained with method `std_collect_hyper_gradients`
+        """
+
+        self.forward(T, train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=forward_su)
+        final_w = self.w_t.eval()
+        last_global_step = self.global_step.eval()
+        if after_forward_su:
+            after_forward_su.run(tf.get_default_session(), T)
+
+        raw_hyper_grads = self.backward(
+            T, val_feed_dict_suppliers=val_feed_dict_suppliers,
+            train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=backward_su,
+            check_if_zero=check_if_zero
+        )
+
+        tf.get_default_session().run(self._back_hist_op,
+                                     feed_dict={self._w_placeholder: final_w})  # restore weights
+        tf.get_default_session().run(self.global_step.assign_op,
+                                     feed_dict={self.global_step.gs_placeholder: last_global_step})
+
+        return raw_hyper_grads
 
     @staticmethod
     def std_collect_hyper_gradients(row_gradients):
