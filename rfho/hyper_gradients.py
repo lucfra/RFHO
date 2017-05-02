@@ -3,8 +3,9 @@ This module contains the core classes of the package that implement the three hy
 presented in Forward and Reverse Gradient-Based Hyperparameter Optimization (https://arxiv.org/abs/1703.01785).
 """
 
-import numpy as np
+# import numpy as np
 import tensorflow as tf
+import rfho as rf
 
 from rfho.optimizers import Optimizer
 from rfho.utils import dot, MergedVariable, Vl_Mode, as_list, simple_name, GlobalStep, ZMergedMatrix
@@ -12,19 +13,53 @@ from rfho.utils import dot, MergedVariable, Vl_Mode, as_list, simple_name, Globa
 
 class HyperOptimizer:
 
-    def __init__(self, optimizer, hyper_dict, hyper_optimizer, method, **others):  # TODO define signature
-        assert method in ['reverse', 'forward']  # shall we put here also rtho & trho?? or that would be implicit in
-        # call to hyper_batch
-        pass
+    def __init__(self, optimizer, hyper_dict, method=ReverseHyperGradient, hyper_grad_kw_args=None,
+                 hyper_optimizer_class=rf.AdamOptimizer, **optimizers_kw_args):
+        assert method in [ReverseHyperGradient, ForwardHyperGradient]
+        assert issubclass(hyper_optimizer_class, rf.Optimizer)
+        assert isinstance(hyper_dict, dict)
+        assert isinstance(optimizer, rf.Optimizer)
+
+        if not hyper_grad_kw_args: hyper_grad_kw_args = {}
+        self.hyper_iteration_step = GlobalStep()
+        self.hyper_batch_step = GlobalStep()
+        self._first_init = True
+
+        hyper_grad_kw_args['global_step'] = hyper_grad_kw_args.get(
+            'global_step', optimizer.global_step if hasattr(optimizer, 'global_step') else GlobalStep())
+
+        self.hyper_gradient = method(optimizer, hyper_dict, **hyper_grad_kw_args)
+
+        self.hyper_optimizers = create_hyperparameter_optimizers(
+            self.hyper_gradient, optimizer_class=hyper_optimizer_class, **optimizers_kw_args)
 
     def initialize(self):
-        pass
+        """
+        Initialize all tensorflow variables.
 
-    def hyper_batch(self, steps, training_feed_dict_suppl, validation_supplier):
+        :return:
+        """
+        ss = tf.get_default_session()
+        assert ss, 'No default session.'
+
+        if self._first_init:
+            tf.variables_initializer(self.hyper_gradient.hyper_list).run()
+            [opt.support_variables_initializer().run() for opt in self.hyper_optimizers]
+            tf.variables_initializer([self.hyper_iteration_step.var]).run()
+            self._first_init = False
+
+        self.hyper_gradient.initialize()
+        tf.variables_initializer([self.hyper_batch_step.var]).run()
+
+    def run(self, T, training_feed_dict_suppl=None, val_feed_dict_supplier=None):
         # TODO idea: if steps == T then do full reverse, or forward, otherwise do trho and rtho
         # after all the main difference is that if we go with the full version, after the gradient has been
         # computed, the method `initialize()` is called.
-        pass
+
+        # TODO now it is not compatible with TRHO!
+        return self.hyper_gradient.run_all(T, train_feed_dict_supplier=training_feed_dict_suppl,
+                                           val_feed_dict_suppliers=val_feed_dict_supplier)
+
 
 
 class ReverseHyperGradient:
@@ -548,11 +583,10 @@ class ForwardHyperGradient:
             summary_utils.run(ss, self.global_step.eval())
         self.global_step.increase.eval()
 
-    def hyper_gradients(self, val_feed_dict_supplier=None, new_mode=False):
+    def hyper_gradients(self, val_feed_dict_supplier=None):
         """
         Method that computes the hyper-gradient.
 
-        :param new_mode:
         :param val_feed_dict_supplier: single  supplier or list of suppliers for the examples in the validation set
 
         :return: Dictionary: {hyper-parameter: hyper-gradient} or None in new_mode
@@ -568,20 +602,21 @@ class ForwardHyperGradient:
                     val_sup_lst.append(val_feed_dict_supplier[k])
                     break
 
+        # NEW VARIABLE-BASED HYPER-GRADIENTS
         [assign_op.eval(feed_dict=vsl(self.global_step.eval())) for
          assign_op, vsl in zip(self._hyper_assign_ops, val_sup_lst)]
 
-        if not new_mode:
-            print("WARNING: things with hyper-gradients have been changed. Now they are treated as variables that "
-                  "is much easier.")
-            computations = [gve.eval(feed_dict=vsl(self.global_step.eval())) for
-                            gve, vsl in zip(self.grad_wrt_hypers, val_sup_lst)]  # computes the actual gradients
+        return {hyp: self.hyper_gradients_dict[hyp].eval() for hyp in self.hyper_list}
 
-            def cast_to_scalar_if_needed(grad):
-                sh_grad = list(np.shape(grad))
-                return grad[0] if len(sh_grad) == 1 and sh_grad[0] == 1 else grad
+        # OLD RETURN MODE
+        # computations = [gve.eval(feed_dict=vsl(self.global_step.eval())) for
+        #                 gve, vsl in zip(self.grad_wrt_hypers, val_sup_lst)]  # computes the actual gradients
+        #
+        # def cast_to_scalar_if_needed(grad):
+        #     sh_grad = list(np.shape(grad))
+        #     return grad[0] if len(sh_grad) == 1 and sh_grad[0] == 1 else grad
 
-            return {hyp: cast_to_scalar_if_needed(gdd) for hyp, gdd in zip(self.hyper_list, computations)}
+        # return {hyp: cast_to_scalar_if_needed(gdd) for hyp, gdd in zip(self.hyper_list, computations)}
 
     def run_all(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None,
                 forward_su=None, after_forward_su=None):
@@ -649,7 +684,7 @@ class RealTimeHO:
             self.direct_doh.step_forward(train_feed_dict_supplier=train_feed_dict_supplier)
 
         # compute hyper_grads
-        self.direct_doh.hyper_gradients(val_feed_dict_supplier=val_feed_dict_suppliers, new_mode=True)
+        self.direct_doh.hyper_gradients(val_feed_dict_supplier=val_feed_dict_suppliers)
 
         if apply_hyper_gradients:
             [ss.run(hod.assign_ops) for hod in self.hyper_opt_dicts]
