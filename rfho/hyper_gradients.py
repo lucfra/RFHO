@@ -5,61 +5,9 @@ presented in Forward and Reverse Gradient-Based Hyperparameter Optimization (htt
 
 # import numpy as np
 import tensorflow as tf
-import rfho as rf
 
-from rfho.optimizers import Optimizer
+from rfho.optimizers import Optimizer, AdamOptimizer
 from rfho.utils import dot, MergedVariable, Vl_Mode, as_list, simple_name, GlobalStep, ZMergedMatrix
-
-
-class HyperOptimizer:
-
-    def __init__(self, optimizer, hyper_dict, method=ReverseHyperGradient, hyper_grad_kw_args=None,
-                 hyper_optimizer_class=rf.AdamOptimizer, **optimizers_kw_args):
-        assert method in [ReverseHyperGradient, ForwardHyperGradient]
-        assert issubclass(hyper_optimizer_class, rf.Optimizer)
-        assert isinstance(hyper_dict, dict)
-        assert isinstance(optimizer, rf.Optimizer)
-
-        if not hyper_grad_kw_args: hyper_grad_kw_args = {}
-        self.hyper_iteration_step = GlobalStep()
-        self.hyper_batch_step = GlobalStep()
-        self._first_init = True
-
-        hyper_grad_kw_args['global_step'] = hyper_grad_kw_args.get(
-            'global_step', optimizer.global_step if hasattr(optimizer, 'global_step') else GlobalStep())
-
-        self.hyper_gradient = method(optimizer, hyper_dict, **hyper_grad_kw_args)
-
-        self.hyper_optimizers = create_hyperparameter_optimizers(
-            self.hyper_gradient, optimizer_class=hyper_optimizer_class, **optimizers_kw_args)
-
-    def initialize(self):
-        """
-        Initialize all tensorflow variables.
-
-        :return:
-        """
-        ss = tf.get_default_session()
-        assert ss, 'No default session.'
-
-        if self._first_init:
-            tf.variables_initializer(self.hyper_gradient.hyper_list).run()
-            [opt.support_variables_initializer().run() for opt in self.hyper_optimizers]
-            tf.variables_initializer([self.hyper_iteration_step.var]).run()
-            self._first_init = False
-
-        self.hyper_gradient.initialize()
-        tf.variables_initializer([self.hyper_batch_step.var]).run()
-
-    def run(self, T, training_feed_dict_suppl=None, val_feed_dict_supplier=None):
-        # TODO idea: if steps == T then do full reverse, or forward, otherwise do trho and rtho
-        # after all the main difference is that if we go with the full version, after the gradient has been
-        # computed, the method `initialize()` is called.
-
-        # TODO now it is not compatible with TRHO!
-        return self.hyper_gradient.run_all(T, train_feed_dict_supplier=training_feed_dict_suppl,
-                                           val_feed_dict_suppliers=val_feed_dict_supplier)
-
 
 
 class ReverseHyperGradient:
@@ -694,6 +642,62 @@ class RealTimeHO:
 
         if saver:
             saver(ss, self.hyper_step.eval(), collect_data=collect_data)  # saver should become a class...
+
+
+class HyperOptimizer:
+
+    def __init__(self, optimizer, hyper_dict, method=ReverseHyperGradient, hyper_grad_kwargs=None,
+                 hyper_optimizer_class=AdamOptimizer, **optimizers_kwargs):
+        assert method in [ReverseHyperGradient, ForwardHyperGradient]
+        assert issubclass(hyper_optimizer_class, Optimizer)
+        assert isinstance(hyper_dict, dict)
+        assert isinstance(optimizer, Optimizer)
+
+        if not hyper_grad_kwargs: hyper_grad_kwargs = {}
+        self.hyper_iteration_step = GlobalStep()
+        self.hyper_batch_step = GlobalStep()
+        self._first_init = True
+
+        hyper_grad_kwargs['global_step'] = hyper_grad_kwargs.get(
+            'global_step', optimizer.global_step if hasattr(optimizer, 'global_step') else GlobalStep())
+
+        self.hyper_gradients = method(optimizer, hyper_dict, **hyper_grad_kwargs)
+
+        self.hyper_optimizers = create_hyperparameter_optimizers(
+            self.hyper_gradients, optimizer_class=hyper_optimizer_class, **optimizers_kwargs)
+
+    @property
+    def hyper_list(self):
+        return self.hyper_gradients.hyper_list
+
+    def initialize(self):
+        """
+        Initialize all tensorflow variables.
+
+        :return:
+        """
+        ss = tf.get_default_session()
+        assert ss, 'No default session.'
+
+        if self._first_init:
+            tf.variables_initializer(self.hyper_gradients.hyper_list).run()
+            [opt.support_variables_initializer().run() for opt in self.hyper_optimizers]
+            tf.variables_initializer([self.hyper_iteration_step.var]).run()
+            self._first_init = False
+
+        self.hyper_gradients.initialize()
+        tf.variables_initializer([self.hyper_batch_step.var]).run()
+
+    def run(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None, hyper_constraints_ops=None):
+        # TODO idea: if steps == T then do full reverse, or forward, otherwise do trho and rtho
+        # after all the main difference is that if we go with the full version, after the gradient has been
+        # computed, the method `initialize()` is called.
+
+        # TODO now it is not compatible with TRHO!
+        self.hyper_gradients.run_all(T, train_feed_dict_supplier=train_feed_dict_supplier,
+                                     val_feed_dict_suppliers=val_feed_dict_suppliers)
+        [tf.get_default_session().run(hod.assign_ops) for hod in self.hyper_optimizers]
+        if hyper_constraints_ops: [op.eval() for op in as_list(hyper_constraints_ops)]
 
 
 def create_hyperparameter_optimizers(rf_hyper_gradients, optimizer_class, **optimizers_kw_args):  # TODO review this m

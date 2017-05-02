@@ -34,14 +34,15 @@ def generate_setting_dict(local_variables, excluded=None):
     return setting_dict
 
 
-def save_setting(local_variables, excluded=None, default_overwrite=False, do_print=True, append_string=''):
+def save_setting(local_variables, excluded=None, default_overwrite=False, collect_data=True,
+                 do_print=True, append_string=''):
     dictionary = generate_setting_dict(local_variables, excluded=excluded)
     if do_print:
         print('SETTING:')
         for k, v in dictionary.items():
             print(k, v, sep=': ')
         print()
-    save_obj(dictionary, 'setting' + append_string, default_overwrite=default_overwrite)
+    if collect_data: save_obj(dictionary, 'setting' + append_string, default_overwrite=default_overwrite)
 
 
 class Timer:
