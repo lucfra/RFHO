@@ -263,7 +263,7 @@ if __name__ == '__main__':
                        model_kwargs=_model_kwargs,
                        set_T=100,
                        synthetic_hypers=synt_hyp,
-                       hyper_batch_size=50
+                       hyper_batch_size=2
                        # optimizer=rf.GradientDescentOptimizer,
                        # optimizer_kwargs={'lr': tf.Variable(.01, name='eta')}
                        )

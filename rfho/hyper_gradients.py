@@ -255,9 +255,10 @@ class ReverseHyperGradient:
         :return: A dictionary of lists of step-wise hyper-gradients. In usual application the "true" hyper-gradients
                  can be obtained with method `std_collect_hyper_gradients`
         """
-        self.initialize()
+        # self.initialize()
         self.forward(T, train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=forward_su)
         final_w = self.w_t.eval()
+        last_global_step = self.global_step.eval()
 
         if after_forward_su:
             after_forward_su.run(tf.get_default_session(), T)
@@ -270,6 +271,9 @@ class ReverseHyperGradient:
 
         tf.get_default_session().run(self._back_hist_op,
                                      feed_dict={self._w_placeholder: final_w})  # restore weights
+
+        tf.get_default_session().run(self.global_step.assign_op,
+                                     feed_dict={self.global_step.gs_placeholder: last_global_step})
 
         return raw_hyper_grads
 
@@ -569,7 +573,7 @@ class ForwardHyperGradient:
     def run_all(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None,
                 forward_su=None, after_forward_su=None):
 
-        self.initialize()
+        # self.initialize()
         for k in range(T):
             self.step_forward(train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=forward_su)
 
