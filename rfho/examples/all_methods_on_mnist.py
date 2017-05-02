@@ -256,14 +256,14 @@ if __name__ == '__main__':
     synt_hyp = None
     for _mode in HO_MODES:
         for _model in IMPLEMENTED_MODEL_TYPES[1:2]:
-            _model_kwargs = {'dims': [None, 200, 200, 200, None]}
+            _model_kwargs = {'dims': [None, 300, 300, None]}
             tf.reset_default_graph()
-            experiment('test_with_model_' + _model, collect_data=False, hyper_iterations=10, mode=_mode, epochs=3,
+            experiment('test_with_model_' + _model, collect_data=False, hyper_iterations=50, mode=_mode, epochs=3,
                        model=_model,
                        model_kwargs=_model_kwargs,
                        set_T=100,
                        synthetic_hypers=synt_hyp,
-                       hyper_batch_size=2
+                       hyper_batch_size=10
                        # optimizer=rf.GradientDescentOptimizer,
                        # optimizer_kwargs={'lr': tf.Variable(.01, name='eta')}
                        )
