@@ -547,71 +547,6 @@ class ForwardHyperGradient:
         return self.hyper_gradients(val_feed_dict_supplier=val_feed_dict_suppliers)
 
 
-class RealTimeHO:
-
-    def __init__(self, forward_hyper_grad, hyperparameter_optimizers, hyper_projections=None, hyper_step=None):
-        """
-        Helper class to perform Real Time Hyperparameter optimization.
-        See section 3.3 of Forward and Reverse Gradient-Based Hyperparameter Optimization
-        (https://arxiv.org/abs/1703.01785)
-
-        :param forward_hyper_grad:          instance of `ForwardHyperGradient`. Used to compute hyper-gradients
-        :param hyperparameter_optimizers:   single or list of Optimizer for the hyper-parameter descent procedure
-        :param hyper_projections:           (optional) list of assign ops that performs projection to
-                                            onto a convex subset of the hyperparameter space.
-        :param hyper_step:                  (optional) instance of `GlobalStep` class that keeps tracks of the number
-                                            of hyper-batches performed so far.
-        """
-        assert isinstance(forward_hyper_grad, ForwardHyperGradient)
-        self.direct_doh = forward_hyper_grad
-
-        assert isinstance(hyperparameter_optimizers, (list, Optimizer)), "hyper_opt_dicts should be a single " \
-                                                                         "Optimizer or a list of Optimizer. Instead" \
-                                                                         "is %s" % hyperparameter_optimizers
-        self.hyper_opt_dicts = as_list(hyperparameter_optimizers)
-
-        self.hyper_projections = hyper_projections or []
-
-        self.hyper_step = hyper_step or GlobalStep()
-
-        # self.collected_hyper_gradients = {}
-
-    def initialize(self):
-        tf.variables_initializer(self.direct_doh.hyper_list + [self.hyper_step.var]).run()
-        [ahd.support_variables_initializer().run() for ahd in self.hyper_opt_dicts]
-        self.direct_doh.initialize()
-
-    def hyper_batch(self, hyper_batch_size, train_feed_dict_supplier=None, val_feed_dict_suppliers=None,
-                    saver=None, collect_data=True, apply_hyper_gradients=True):
-        """
-        Executes an entire hyper-batch.
-
-        :param hyper_batch_size: size of the hyper-batch (number of elementary iterations)
-        :param train_feed_dict_supplier: supplier for the training stage
-        :param val_feed_dict_suppliers: dictionary of suppliers for the validation stage
-        :param saver: (optional) callable to save some statistics
-        :param collect_data: (optional) flag for saving training data
-        :param apply_hyper_gradients: (debug flag, default `True`) if `False` not hyperparameter update is performed
-        :return:
-        """
-        ss = tf.get_default_session()
-
-        for k in range(hyper_batch_size):
-            self.direct_doh.step_forward(train_feed_dict_supplier=train_feed_dict_supplier)
-
-        # compute hyper_grads
-        self.direct_doh.hyper_gradients(val_feed_dict_supplier=val_feed_dict_suppliers)
-
-        if apply_hyper_gradients:
-            [ss.run(hod.assign_ops) for hod in self.hyper_opt_dicts]
-            [ss.run(prj) for prj in self.hyper_projections]
-
-        self.hyper_step.increase.eval()
-
-        if saver:
-            saver(ss, self.hyper_step.eval(), collect_data=collect_data)  # saver should become a class...
-
-
 class HyperOptimizer:
 
     def __init__(self, optimizer, hyper_dict, method=ReverseHyperGradient, hyper_grad_kwargs=None,
@@ -652,6 +587,8 @@ class HyperOptimizer:
             [opt.support_variables_initializer().run() for opt in self.hyper_optimizers]
             tf.variables_initializer([self.hyper_iteration_step.var]).run()
             self._first_init = False
+        else:
+            self.hyper_iteration_step.increase.eval()
 
         self.hyper_gradients.initialize()
         tf.variables_initializer([self.hyper_batch_step.var]).run()
@@ -666,6 +603,7 @@ class HyperOptimizer:
                                      val_feed_dict_suppliers=val_feed_dict_suppliers)
         [tf.get_default_session().run(hod.assign_ops) for hod in self.hyper_optimizers]
         if hyper_constraints_ops: [op.eval() for op in as_list(hyper_constraints_ops)]
+        self.hyper_batch_step.increase.eval()
 
 
 def create_hyperparameter_optimizers(rf_hyper_gradients, optimizer_class, **optimizers_kw_args):  # TODO review this m
