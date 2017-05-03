@@ -305,25 +305,8 @@ class ReverseHyperGradient:
 
         row_gradients = None
         for i in range(n_updates):
-            self.forward(k, train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=forward_su)
-
-            final_w = self.w_t.eval()
-            last_global_step = self.global_step.eval()
-
-            if after_forward_su:
-                after_forward_su.run(tf.get_default_session(), k*(i+1) - 1)
-
-            raw_gradients = self.backward(
-                k, val_feed_dict_suppliers=val_feed_dict_suppliers,
-                train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=backward_su,
-                check_if_zero=check_if_zero
-            )
-
-            # restore w and global_step to be the same after forward:
-            tf.get_default_session().run(self._back_hist_op,
-                                         feed_dict={self._w_placeholder: final_w})
-            tf.get_default_session().run(self.global_step.assign_op,
-                                         feed_dict={self.global_step.gs_placeholder: last_global_step})
+            raw_gradients = self.run_all(k, train_feed_dict_supplier, val_feed_dict_suppliers, forward_su, backward_su,
+                                         after_forward_su, check_if_zero)
 
             if opt_hyper_dicts is not None:
                 hgs = ReverseHyperGradient.std_collect_hyper_gradients(raw_gradients)
