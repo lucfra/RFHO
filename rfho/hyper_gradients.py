@@ -152,8 +152,9 @@ class ReverseHyperGradient:
 
         for t in range(T):
             self.w_hist.append(self.w_t.eval())
-            ss.run([self.w_t, self._fw_ops, self.global_step.increase],
+            ss.run(self._fw_ops,
                    feed_dict=train_feed_dict_supplier(self.global_step.eval()))
+            self.global_step.increase.eval()  # increase later!
             if summary_utils:
                 summary_utils.run(ss, t)
 
@@ -502,7 +503,7 @@ class ForwardHyperGradient:
                     break
 
         # NEW VARIABLE-BASED HYPER-GRADIENTS
-        [assign_op.eval(feed_dict=vsl(self.global_step.eval())) for
+        [assign_op.eval(feed_dict=vsl(self.global_step.eval())) for  # TODO this doesn't make that much sense...
          assign_op, vsl in zip(self._hyper_assign_ops, val_sup_lst)]
 
         return {hyp: self.hyper_gradients_dict[hyp].eval() for hyp in self.hyper_list}

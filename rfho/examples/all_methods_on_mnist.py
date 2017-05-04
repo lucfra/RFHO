@@ -68,7 +68,7 @@ def define_errors_default_models(model, l1=0., l2=0., synthetic_hypers=None, aug
     gamma = None
     if synthetic_hypers is not None:
         gamma = tf.Variable(tf.ones([synthetic_hypers]))
-        training_error = tf.reduce_mean([gamma[k]*base_training_error[k] for k in range(synthetic_hypers)])
+        training_error = tf.reduce_mean([gamma[k] * base_training_error[k] for k in range(synthetic_hypers)])
     else:
         training_error = tf.reduce_mean(base_training_error)
 
@@ -78,7 +78,7 @@ def define_errors_default_models(model, l1=0., l2=0., synthetic_hypers=None, aug
     if isinstance(l1, float):
         rho_l1s = [tf.Variable(l1, name='rho_l1_%d' % k) for k in range(len(ws))]
         reg_l1s = [tf.reduce_sum(tf.abs(w)) for w in ws]
-        training_error += tf.reduce_sum([rho*rg_l1 for rho, rg_l1 in zip(rho_l1s, reg_l1s)])
+        training_error += tf.reduce_sum([rho * rg_l1 for rho, rg_l1 in zip(rho_l1s, reg_l1s)])
 
     # layer-wise l2 regularizers]
     if isinstance(l2, float):
@@ -89,7 +89,7 @@ def define_errors_default_models(model, l1=0., l2=0., synthetic_hypers=None, aug
     correct_prediction = tf.equal(tf.argmax(out, 1), tf.argmax(y, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
-    return s, out, ws, y, error, training_error, rho_l1s, reg_l1s, rho_l2s, reg_l2s, accuracy,\
+    return s, out, ws, y, error, training_error, rho_l1s, reg_l1s, rho_l2s, reg_l2s, accuracy, \
            base_training_error, gamma
 
 
@@ -100,19 +100,14 @@ def experiment(name_of_experiment, collect_data=True,
                algo_hyper_wrt_tr_error=False,
                mode='reverse', hyper_optimizer=rf.AdamOptimizer, hyper_optimizer_kwargs=None,
                hyper_iterations=100, hyper_batch_size=100, epochs=20, do_print=True):
-
     assert mode in HO_MODES
-
-    # set random seeds!!!!
-    np.random.seed(1)
-    tf.set_random_seed(1)
 
     if synthetic_hypers is not None:
         batch_size = synthetic_hypers  # altrimenti divento matto!
 
     from rfho.examples.common import save_setting, Saver
     if name_of_experiment is not None: rf.settings['NOTEBOOK_TITLE'] = name_of_experiment
-    save_setting(vars(), collect_data=collect_data, excluded=datasets, append_string='_%s' %mode)
+    save_setting(vars(), collect_data=collect_data, excluded=datasets, append_string='_%s' % mode)
 
     if datasets is None: datasets = load_dataset()
 
@@ -148,12 +143,14 @@ def experiment(name_of_experiment, collect_data=True,
         if mode != 'reverse':
             regularization_hyperparameters += [(r1, tr_dynamics.d_dynamics_d_linear_loss_term(
                 tf.gradients(er1, vec_w)[0])) for r1, er1 in zip(rho_l1s, reg_l1s)]
-        else: regularization_hyperparameters += rho_l1s
+        else:
+            regularization_hyperparameters += rho_l1s
     if rho_l2s is not None:
         if mode != 'reverse':
             regularization_hyperparameters += [(r2, tr_dynamics.d_dynamics_d_linear_loss_term(
                 tf.gradients(er2, vec_w)[0])) for r2, er2 in zip(rho_l2s, reg_l2s)]
-        else: regularization_hyperparameters += rho_l2s
+        else:
+            regularization_hyperparameters += rho_l2s
 
     synthetic_hyperparameters = []
     if synthetic_hypers:
@@ -178,7 +175,8 @@ def experiment(name_of_experiment, collect_data=True,
     hyper_dict = {error: regularization_hyperparameters + synthetic_hyperparameters}
     if algo_hyper_wrt_tr_error:  # it is possible to optimize different hyperparameters wrt different validation errors
         hyper_dict[training_error] = algorithmic_hyperparameters
-    else: hyper_dict[error] += algorithmic_hyperparameters
+    else:
+        hyper_dict[error] += algorithmic_hyperparameters
     print(hyper_dict)
 
     hyper_opt = rf.HyperOptimizer(tr_dynamics, hyper_dict,
@@ -226,10 +224,10 @@ def experiment(name_of_experiment, collect_data=True,
         'step', lambda step: step,
         'mode', lambda step: mode,
         'test accuracy', accuracy, test_supplier,
-        'validation accuracy', accuracy,val_supplier,
+        'validation accuracy', accuracy, val_supplier,
         'training accuracy', accuracy, tr_supplier,
         'validation error', error, val_supplier,
-        'memory usage (mb)', lambda step: calculate_memory_usage()*9.5367e-7,
+        'memory usage (mb)', lambda step: calculate_memory_usage() * 9.5367e-7,
         'weights', vec_w,
         '# weights', lambda step: vec_w.get_shape().as_list()[0],
         '# hyperparameters', lambda step: len(hyper_opt.hyper_list),
@@ -239,6 +237,8 @@ def experiment(name_of_experiment, collect_data=True,
         do_print=do_print, collect_data=collect_data
     )
 
+    save_dict_history = []
+
     with tf.Session(config=config).as_default() as ss:
         saver.timer.start()
         hyper_opt.initialize()
@@ -246,19 +246,27 @@ def experiment(name_of_experiment, collect_data=True,
             hyper_opt.run(T, train_feed_dict_supplier=tr_supplier, val_feed_dict_suppliers=val_feed_dict_suppliers,
                           hyper_constraints_ops=positivity)
 
-            saver.save(k, append_string='_%s' % mode)
+            save_dict_history.append(saver.save(k, append_string='_%s' % mode))
 
             if mode != 'rtho':
                 hyper_opt.initialize()
 
+    return save_dict_history
 
-if __name__ == '__main__':
+
+def _check_adam():
     synt_hyp = None
-    for _mode in HO_MODES:
+    for _mode in HO_MODES[1:2]:
         for _model in IMPLEMENTED_MODEL_TYPES[1:2]:
             _model_kwargs = {'dims': [None, 300, 300, None]}
             tf.reset_default_graph()
+
+            # set random seeds!!!!
+            np.random.seed(1)
+            tf.set_random_seed(1)
+
             experiment('test_with_model_' + _model, collect_data=False, hyper_iterations=3, mode=_mode, epochs=3,
+                       optimizer=rf.AdamOptimizer, optimizer_kwargs={'lr': tf.Variable(.001, name='eta_adam')},
                        model=_model,
                        model_kwargs=_model_kwargs,
                        set_T=100,
@@ -267,3 +275,54 @@ if __name__ == '__main__':
                        # optimizer=rf.GradientDescentOptimizer,
                        # optimizer_kwargs={'lr': tf.Variable(.01, name='eta')}
                        )
+
+
+def _check_forward():
+    w_100 = []
+    for i in range(100):
+        for _mode in HO_MODES[0:1]:
+            for _model in IMPLEMENTED_MODEL_TYPES[1:2]:
+                _model_kwargs = {'dims': [None, 300, 300, None]}
+                tf.reset_default_graph()
+                # set random seeds!!!!
+                np.random.seed(1)
+                tf.set_random_seed(1)
+
+                results = experiment('test_with_model_' + _model, collect_data=False, hyper_iterations=3, mode=_mode,
+                                     epochs=3,
+                                     model=_model,
+                                     model_kwargs=_model_kwargs,
+                                     set_T=100,
+                                     synthetic_hypers=None,
+                                     hyper_batch_size=100
+                                     # optimizer=rf.GradientDescentOptimizer,
+                                     # optimizer_kwargs={'lr': tf.Variable(.01, name='eta')}
+                                     )
+                w_100.append(results[0]['weights'])
+    rf.save_obj(w_100, 'check_forward')
+    return w_100
+
+
+def _check_all_methods():
+    for _mode in HO_MODES:
+        for _model in IMPLEMENTED_MODEL_TYPES[1:2]:
+            _model_kwargs = {'dims': [None, 300, 300, None]}
+            tf.reset_default_graph()
+            # set random seeds!!!!
+            np.random.seed(1)
+            tf.set_random_seed(1)
+
+            experiment('test_with_model_' + _model, collect_data=False, hyper_iterations=3, mode=_mode,
+                       epochs=3,
+                       model=_model,
+                       model_kwargs=_model_kwargs,
+                       set_T=100,
+                       synthetic_hypers=None,
+                       hyper_batch_size=100
+                       # optimizer=rf.GradientDescentOptimizer,
+                       # optimizer_kwargs={'lr': tf.Variable(.01, name='eta')}
+                       )
+
+
+if __name__ == '__main__':
+    _check_all_methods()

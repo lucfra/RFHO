@@ -470,7 +470,8 @@ def load_caltech101_30(tiny_problem=False):
     return Datasets(train=training_dataset, validation=validation_dataset, test=test_dataset)
 
 
-def load_iros15(folder=IROS15_BASE_FOLDER, resolution=15, legs='all', part_proportions=(.7, .2), one_hot=True):
+def load_iros15(folder=IROS15_BASE_FOLDER, resolution=15, legs='all', part_proportions=(.7, .2), one_hot=True,
+                shuffle=True):
     resolutions = (5, 11, 15)
     legs_names = ('LF', 'LH', 'RF', 'RH')
     assert resolution in resolutions
@@ -480,13 +481,13 @@ def load_iros15(folder=IROS15_BASE_FOLDER, resolution=15, legs='all', part_propo
                                                 % (resolution, resolution, leg))
 
     datasets = {}
-    for leg in legs:
-        dat = scio.loadmat(base_name_by_leg(leg))
+    for _leg in legs:
+        dat = scio.loadmat(base_name_by_leg(_leg))
         data, target = dat['X'], to_one_hot_enc(dat['Y']) if one_hot else dat['Y']
         # maybe pre-processing??? or it is already done? ask...
-        datasets[leg] = to_datasets(
-            redivide_data([Dataset(data, target, general_info_dict={'leg': leg})],
-                          partition_proportions=part_proportions))
+        datasets[_leg] = to_datasets(
+            redivide_data([Dataset(data, target, general_info_dict={'leg': _leg})],
+                          partition_proportions=part_proportions, shuffle=shuffle))
     return datasets
 
 
