@@ -210,7 +210,7 @@ def load_iris(partitions_proportions=None, classes=3):
     return Datasets(train=tr_dst, test=tst_dst, validation=None)
 
 
-def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=None, maps=None):
+def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=None, maps=None, balance_classes=False):
     """
     Function that redivides datasets. Can be use also to shuffle or filter or map examples.
 
@@ -286,15 +286,58 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
     for data in datasets:
         new_general_info_dict = {**new_general_info_dict, **data.general_info_dict}
 
-    new_datasets = [
-        Dataset(data=all_data[d1:d2], target=all_labels[d1:d2], sample_info_dicts=all_infos[d1:d2],
-                general_info_dict=new_general_info_dict)
-        for d1, d2 in zip(calculated_partitions, calculated_partitions[1:])
-        ]
+        if balance_classes:
+            new_datasets = []
+            forbidden_indices = np.empty(0, dtype=np.int64)
+            for d1, d2 in zip(calculated_partitions[:-1], calculated_partitions[1:-1]):
+                indices = np.array(get_indices_balanced_classes(d2 - d1, all_labels, forbidden_indices))
+                dataset = Dataset(data=all_data[indices], target=all_labels[indices],
+                                            sample_info_dicts=all_infos[indices],
+                                            general_info_dict=new_general_info_dict)
+                new_datasets.append(dataset)
+                forbidden_indices = np.append(forbidden_indices, indices)
+                test_if_balanced(dataset)
+            remaining_indices = np.array(list(set(list(range(N))) - set(forbidden_indices)))
+            new_datasets.append(Dataset(data=all_data[remaining_indices], target=all_labels[remaining_indices],
+                                        sample_info_dicts=all_infos[remaining_indices],
+                                        general_info_dict=new_general_info_dict))
+        else:
+            new_datasets = [
+                Dataset(data=all_data[d1:d2], target=all_labels[d1:d2], sample_info_dicts=all_infos[d1:d2],
+                        general_info_dict=new_general_info_dict)
+                for d1, d2 in zip(calculated_partitions, calculated_partitions[1:])
+            ]
 
-    print('DONE')
+        print('DONE')
 
-    return new_datasets
+        return new_datasets
+
+
+def get_indices_balanced_classes(n_examples, labels, forbidden_indices):
+    N = len(labels)
+    n_classes = len(labels[0])
+
+    indices = []
+    current_class = 0
+    for i in range(n_examples):
+        index = np.random.random_integers(0, N - 1, 1)[0]
+        while index in indices or index in forbidden_indices or np.argmax(labels[index]) != current_class:
+            index = np.random.random_integers(0, N - 1, 1)[0]
+        indices.append(index)
+        current_class = (current_class + 1) % n_classes
+
+    return indices
+
+
+def test_if_balanced(dataset):
+    labels = dataset.target
+    n_classes = len(labels[0])
+    class_counter = [0]*n_classes
+    for l in labels:
+        class_counter[np.argmax(l)]+=1
+    print('exemple by class: ', class_counter)
+
+
 
 
 # noinspection PyPep8Naming
@@ -516,7 +559,7 @@ def load_caltech101(folder=CALTECH101_DIR, one_hot=True, partitions=None, filter
     return dataset
 
 
-def load_cifar10(folder=CIFAR10_DIR, one_hot=True, partitions=None, filters=None, maps=None):
+def load_cifar10(folder=CIFAR10_DIR, one_hot=True, partitions=None, filters=None, maps=None, balance_classes=False):
     path = folder + "/cifar-10.pickle"
     with open(path, "rb") as input_file:
         X, target_name, files = cpickle.load(input_file)
@@ -535,7 +578,7 @@ def load_cifar10(folder=CIFAR10_DIR, one_hot=True, partitions=None, filters=None
     dataset = Dataset(data=X, target=Y, general_info_dict={'dict_name_ID': dict_name_ID, 'dict_ID_name': dict_ID_name},
                       sample_info_dicts=[{'target_name': t, 'files': f} for t, f in zip(target_name, files)])
     if partitions:
-        res = redivide_data([dataset], partitions, filters=filters, maps=maps, shuffle=True)
+        res = redivide_data([dataset], partitions, filters=filters, maps=maps, shuffle=True, balance_classes=True)
         res += [None] * (3 - len(res))
         return Datasets(train=res[0], validation=res[1], test=res[2])
     return dataset
