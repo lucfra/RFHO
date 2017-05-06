@@ -152,9 +152,7 @@ class ReverseHyperGradient:
 
         for t in range(T):
             self.w_hist.append(self.w_t.eval())
-            ss.run(self._fw_ops,
-                   feed_dict=train_feed_dict_supplier(self.global_step.eval()))
-            self.global_step.increase.eval()  # increase later!
+            ss.run([self.w_t, self._fw_ops, self.global_step.increase], feed_dict=train_feed_dict_supplier(t))
             if summary_utils:
                 summary_utils.run(ss, t)
 
@@ -201,7 +199,7 @@ class ReverseHyperGradient:
             # revert w_t to w_(t-1)
             ss.run(self._back_hist_op, feed_dict={self._w_placeholder: self.w_hist[_ - 1]})
 
-            fds = train_feed_dict_supplier(self.global_step.eval())
+            fds = train_feed_dict_supplier(_)
             # TODO read below
             """ Unfortunately it looks like that the following two lines cannot be run together (will this
             degrade the performances???
@@ -225,7 +223,7 @@ class ReverseHyperGradient:
                     hyper_derivatives[hyper_list[j]].append(mr[j])
 
             # computes alpha_t = alpha_(t+1)*A_(t+1)
-            ss.run([self._bk_ops, self.global_step.decrease], feed_dict=fds)
+            ss.run([self._bk_ops, self.global_step.decrease], feed_dict=fds)  # check this global_step here.. (for Adam)
 
             if summary_utils: summary_utils.run(ss, _)
 
