@@ -248,8 +248,12 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
     than one sample, for data augmentation)
     :return: a list of datasets of length equal to the (possibly augmented) partition_proportion
     """
+    def stack_or_concat(list_of_arays):
+        func = np.concatenate if list_of_arays[0].ndim == 1 else np.vstack
+        return func(list_of_arays)
+
     all_data = np.vstack([get_data(d) for d in datasets])
-    all_labels = np.vstack([get_targets(d) for d in datasets])
+    all_labels = stack_or_concat([get_targets(d) for d in datasets])
 
     all_infos = np.concatenate([d.sample_info_dicts for d in datasets])
 
@@ -278,7 +282,7 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
         for fiat in filters:
             data_triple = [xy for i, xy in enumerate(data_triple) if fiat(xy[0], xy[1], xy[2], i)]
         all_data = np.vstack([e[0] for e in data_triple])
-        all_labels = np.vstack([e[1] for e in data_triple])
+        all_labels = stack_or_concat([e[1] for e in data_triple])
         all_infos = np.vstack([e[2] for e in data_triple])
 
     if maps:
@@ -287,7 +291,7 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
         for _map in maps:
             data_triple = [_map(xy[0], xy[1], xy[2], i) for i, xy in enumerate(data_triple)]
         all_data = np.vstack([e[0] for e in data_triple])
-        all_labels = np.vstack([e[1] for e in data_triple])
+        all_labels = stack_or_concat([e[1] for e in data_triple])
         all_infos = np.vstack([e[2] for e in data_triple])
 
     N = len(all_data)
