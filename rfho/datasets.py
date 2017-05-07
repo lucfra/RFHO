@@ -31,6 +31,12 @@ except ImportError:
     print('scipy not found. Some load function might not work')
 
 try:
+    import sklearn.datasets as sk_dt
+except ImportError:
+    sk_dt = None
+    print('sklearn not found. Some load function might not work')
+
+try:
     import intervaltree as it
 except ImportError:
     it = None
@@ -42,20 +48,29 @@ import _pickle as cpickle
 
 from_env = os.getenv('RFHO_DATA_FOLDER')
 if from_env:
-    print('Congratulations, RFHO_DATA_FOLDER found! It is', from_env)
     DATA_FOLDER=from_env
+    print('Congratulations, RFHO_DATA_FOLDER found!')
 else:
-    print('Environment variable RFHO_DATA_FOLDER not found.')
-    print('You can crate it to specify root folder in which you store various datasets')
-    print('FOR UBUNTU:')
-    print("Bash command is: export RFHO_DATA_FOLDER='absolute/path/to/dataset/folder'")
-    print('Remember! To add the global variable kinda permanently in your system you should add export command in '
-          'bash.bashrc file located in etc folder.')
-    print()
-    print('You can also skip this step...')
-    print('In this case all load_* methods take a FOLDER path as first argument.')
-    print('Bye.')
+    print('Environment variable RFHO_DATA_FOLDER not found. Variables HELP_WIN and HELP_UBUNTU contain info.')
     DATA_FOLDER=os.getcwd()
+    _COMMON_BEGIN = "You can set environment variable RFHO_DATA_FOLDER to" \
+                    "specify root folder in which you store various datasets. \n"
+    _COMMON_END = """\n
+    You can also skip this step... \n
+    In this case all load_* methods take a FOLDER path as first argument. \n
+    Bye."""
+    HELP_UBUNTU = _COMMON_BEGIN + """
+    Bash command is: export RFHO_DATA_FOLDER='absolute/path/to/dataset/folder \n
+    Remember! To add the global variable kinda permanently in your system you should add export command in
+          bash.bashrc file located in etc folder.
+    """ + _COMMON_END
+
+    HELP_WIN = _COMMON_BEGIN + """
+    Cmd command is: Set RFHO_DATA_FOLDER absolute/path/to/dataset/folder  for one session. \n
+    To set it permanently use SetX instead of Set (and probably reboot system)
+    """ + _COMMON_END
+
+print('Data folder is', DATA_FOLDER)
 
 
 # kind of private
@@ -74,13 +89,19 @@ CENSUS_TEST = os.path.join(DATA_FOLDER, 'census', "test.csv")
 CIFAR10_DIR = os.path.join(DATA_FOLDER, "CIFAR-10")
 CIFAR100_DIR = os.path.join(DATA_FOLDER, "CIFAR-100")
 
+# scikit learn datasets
+SCIKIT_LEARN_DATA = os.path.join(DATA_FOLDER, 'scikit_learn_data')
+
 
 def to_datasets(list_of_datasets):
     train, valid, test = None, None, None
     train = list_of_datasets[0]
+    if len(list_of_datasets) > 2:
+        print('There are more then 3 Datasets here...')
+        return list_of_datasets
     if len(list_of_datasets) > 1:
         test = list_of_datasets[-1]
-        if len(list_of_datasets) > 2:
+        if len(list_of_datasets) == 3:
             valid = list_of_datasets[1]
     return Datasets(train, valid, test)
 
@@ -338,22 +359,42 @@ def test_if_balanced(dataset):
     print('exemple by class: ', class_counter)
 
 
+def load_20newsgroup_feed_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, partitions_proportions=None,
+                                     shuffle=True):
+    data_train = sk_dt.fetch_20newsgroups_vectorized(data_home=folder, subset='train')
+    data_test = sk_dt.fetch_20newsgroups_vectorized(data_home=folder, subset='test')
+
+    X_train = data_train.data
+    X_test = data_test.data
+    y_train = data_train.target
+    y_test = data_test.target
+    if one_hot:
+        y_train = to_one_hot_enc(y_train)
+        y_test = to_one_hot_enc(y_test)
+
+    d_train = Dataset(data=X_train.todense(), target=y_train, general_info_dict={'target names': data_train.target_names})
+    d_test = Dataset(data=X_test.todense(), target=y_test, general_info_dict={'target names': data_train.target_names})
+    res = [d_train, d_test]
+    if partitions_proportions:
+        res = redivide_data([d_train, d_test], partition_proportions=partitions_proportions, shuffle=True)
+
+    return to_datasets(res)
 
 
 # noinspection PyPep8Naming
-def load_XRMB(root=XRMB_DIR, half_window=2, max_speakers=100, only_independent=False, normalize_single_speaker=False):
+def load_XRMB(folder=XRMB_DIR, half_window=2, max_speakers=100, only_independent=False, normalize_single_speaker=False):
     """
     Loads XRMB data.
 
     :param max_speakers:
-    :param root: path for root directory.
+    :param folder: path for root directory.
     :param half_window: half window size for the data.
     :param only_independent:  if False returns speaker datasets that do not keep track of the speaker.
     :param normalize_single_speaker: if True normalizes each dataset independently
     :return:    A Datasets class containing speaker independent data for training, validation and test, or a list
                 a triplet of lists of Dataset if speaker_dependent is True.
     """
-    prefix = root + "/xrbm_spk_"
+    prefix = folder + "/xrbm_spk_"
 
     set_types = ['train', 'val', 'test']
 
@@ -472,8 +513,8 @@ def load_timit(folder=TIMIT_DIR, only_primary=False, filters=None, maps=None, sm
     return res
 
 
-def load_mnist(one_hot=True, partitions=None, filters=None, maps=None):
-    datasets = read_data_sets(MNIST_DIR, one_hot=one_hot)
+def load_mnist(folder=MNIST_DIR, one_hot=True, partitions=None, filters=None, maps=None):
+    datasets = read_data_sets(folder, one_hot=one_hot)
     train = Dataset(datasets.train.images, datasets.train.labels)
     validation = Dataset(datasets.validation.images, datasets.validation.labels)
     test = Dataset(datasets.test.images, datasets.test.labels)
@@ -484,8 +525,8 @@ def load_mnist(one_hot=True, partitions=None, filters=None, maps=None):
     return Datasets(train=res[0], validation=res[1], test=res[2])
 
 
-def load_caltech101_30(tiny_problem=False):
-    caltech = scio.loadmat(CALTECH101_30_DIR + '/caltech101-30.matlab')
+def load_caltech101_30(folder=CALTECH101_30_DIR, tiny_problem=False):
+    caltech = scio.loadmat(folder + '/caltech101-30.matlab')
     k_train, k_test = caltech['Ktrain'], caltech['Ktest']
     label_tr, label_te = caltech['tr_label'], caltech['te_label']
     file_tr, file_te = caltech['tr_files'], caltech['te_files']
