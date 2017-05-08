@@ -400,8 +400,8 @@ class GlobalStep:
     Helper for global step (probably would be present also in tensorflow)
     """
 
-    def __init__(self, start_from=0):
-        self._var = tf.Variable(start_from, trainable=False, name='global_step')
+    def __init__(self, start_from=0, name='global_step'):
+        self._var = tf.Variable(start_from, trainable=False, name=name)
         self.increase = self.var.assign_add(1)
         self.decrease = self.var.assign_sub(1)
         self.gs_placeholder = tf.placeholder(tf.int32)

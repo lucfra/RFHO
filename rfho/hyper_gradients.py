@@ -530,19 +530,33 @@ class ForwardHyperGradient:
 
 
 class HyperOptimizer:
+    """
+    Interface class for gradient-based hyperparameter optimization methods.
+    """
 
     def __init__(self, optimizer, hyper_dict, method=ReverseHyperGradient, hyper_grad_kwargs=None,
                  hyper_optimizer_class=AdamOptimizer, **optimizers_kwargs):
+        """
+        Interface instance of gradient-based hyperparameter optimization methods.
+
+        :param optimizer: parameter optimization dynamics
+        :param hyper_dict: dictionary of validation errors and list of hyperparameters to be optimized
+        :param method: (default `ReverseHyperGradient`) method with which to compute hyper-gradients: Forward or Reverse-Ho
+        :param hyper_grad_kwargs: dictionary of keyword arguments for `HyperGradient` classes (usually None)
+        :param hyper_optimizer_class: (default Adam) Optimizer class for optimization of the hyperparameters
+        :param optimizers_kwargs: keyword arguments for hyperparameter optimizers (like hyper-learning rate)
+        """
         assert method in [ReverseHyperGradient, ForwardHyperGradient]
         assert issubclass(hyper_optimizer_class, Optimizer)
         assert isinstance(hyper_dict, dict)
         assert isinstance(optimizer, Optimizer)
 
         if not hyper_grad_kwargs: hyper_grad_kwargs = {}
-        self.hyper_iteration_step = GlobalStep()
-        self.hyper_batch_step = GlobalStep()
-        self._first_init = True
+        self.hyper_iteration_step = GlobalStep(name='hyper_iteration_step')
+        self._report_hyper_it_init = tf.report_uninitialized_variables([self.hyper_iteration_step.var])
+        self.hyper_batch_step = GlobalStep(name='hyper_batch_step')
 
+        # automatically links eventual optimizer global step (like in Adam) to HyperGradient global step
         hyper_grad_kwargs['global_step'] = hyper_grad_kwargs.get(
             'global_step', optimizer.global_step if hasattr(optimizer, 'global_step') else GlobalStep())
 
@@ -553,22 +567,33 @@ class HyperOptimizer:
 
     @property
     def hyper_list(self):
+        """
+
+        :return: list of hyperparameters that are/will be optimized
+        """
         return self.hyper_gradients.hyper_list
 
-    def initialize(self):
+    def initialize(self, complete_reinitialize=False):
         """
-        Initialize all tensorflow variables.
+        Initialize all tensorflow variables. This method has two behaviours:
 
-        :return:
+        - first time it is called (after entering a Session run block) or when flag `complete_reinitialize` is `True`
+            initializes all the relevant variables
+        - subsequent times, reinitialize only model variables (next hyper-iteration).
+
+        :param: complete_reinitialize: (default `False`) if True reinitialize hyper-step counts and hyperparameter
+                                        optimizers regardless of
+
+        :return: `None`
         """
         ss = tf.get_default_session()
         assert ss, 'No default session.'
 
-        if self._first_init:
+        if complete_reinitialize or self._report_hyper_it_init.eval():  # never initialized or subsequent run of
+            # Session run block (for instance in a Ipython book)
             tf.variables_initializer(self.hyper_gradients.hyper_list).run()
             [opt.support_variables_initializer().run() for opt in self.hyper_optimizers]
             tf.variables_initializer([self.hyper_iteration_step.var]).run()
-            self._first_init = False
         else:
             self.hyper_iteration_step.increase.eval()
 
@@ -576,11 +601,19 @@ class HyperOptimizer:
         tf.variables_initializer([self.hyper_batch_step.var]).run()
 
     def run(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None, hyper_constraints_ops=None):
-        # TODO idea: if steps == T then do full reverse, or forward, otherwise do trho and rtho
+        """
+
+        :param T:
+        :param train_feed_dict_supplier:
+        :param val_feed_dict_suppliers:
+        :param hyper_constraints_ops:
+        :return:
+        """
+        # idea: if steps == T then do full reverse, or forward, otherwise do trho and rtho
         # after all the main difference is that if we go with the full version, after the gradient has been
         # computed, the method `initialize()` is called.
 
-        # TODO now it is not compatible with TRHO!
+        # TODO Riccardo, is it compatible with TRHO???
         self.hyper_gradients.run_all(T, train_feed_dict_supplier=train_feed_dict_supplier,
                                      val_feed_dict_suppliers=val_feed_dict_suppliers)
         [tf.get_default_session().run(hod.assign_ops) for hod in self.hyper_optimizers]
@@ -588,7 +621,7 @@ class HyperOptimizer:
         self.hyper_batch_step.increase.eval()
 
 
-def create_hyperparameter_optimizers(rf_hyper_gradients, optimizer_class, **optimizers_kw_args):  # TODO review this m
+def create_hyperparameter_optimizers(rf_hyper_gradients, optimizer_class, **optimizers_kw_args):
     """
     Helper for creating descent procedure for hyperparameters
 
@@ -603,9 +636,21 @@ def create_hyperparameter_optimizers(rf_hyper_gradients, optimizer_class, **opti
 
 
 def positivity(hyper_list):
+    """
+    Simple positivity constraints for a list of hyperparameters
+
+    :param hyper_list:
+    :return: a list of assign ops, one for each variable in `hyper_list`
+    """
     return [hyp.assign(tf.maximum(hyp, tf.zeros_like(hyp))) for hyp in hyper_list]
 
 
 def print_hyper_gradients(hyper_gradient_dict):
+    """
+    Old helper function to nicely print hyper-gradients
+
+    :param hyper_gradient_dict:
+    :return:
+    """
     for k, v in hyper_gradient_dict.items():
         print(k.name, v)
