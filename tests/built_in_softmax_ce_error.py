@@ -1,17 +1,14 @@
-import tensorflow as tf
-from rfho.utils import hvp
-from rfho.models import LinearModel, vectorize_model
-from rfho.datasets import load_iris, Datasets, Dataset
 import numpy as np
+import tensorflow as tf
+from rfho.datasets import load_iris
+from rfho.models import LinearModel, vectorize_model
+from rfho.utils import hvp
+
+
 
 
 def test_hv_with_builtin():
-    try:
-        iris = load_iris()
-    except:
-        print('Random data')
-        iris = Datasets(train=Dataset(data=np.random.rand(100, 4),
-                                      target=np.random.randint(0,2, size=[100, 3])), validation=None, test=None)
+    iris = load_iris()
     x = tf.placeholder(tf.float32, name='x')
     y = tf.placeholder(tf.float32, name='y')
     model = LinearModel(x, 4, 3)

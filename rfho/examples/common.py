@@ -1,162 +1,18 @@
 import threading
 import time
-from collections import OrderedDict
 from functools import reduce
 
 from matplotlib import rc
 
 from rfho.examples.greek_alphabet import greek_alphabet
-from rfho.save_and_load import save_obj, load_obj
+from rfho.save_and_load import load_obj
 from rfho.utils import as_list, flatten_list, merge_dicts
 
-from tensorflow import get_default_session
+from rfho.save_and_load import Saver
 
 rc('text', usetex=True)
 
 GREEK_LETTERS = list(greek_alphabet.values())
-
-
-def generate_setting_dict(local_variables, excluded=None):
-    """
-    Generates a dictionary of (name, values) of local variables (typically obtained by vars()) that
-    can be saved at the beginning of the experiment. Furthermore, if an object obj in local_variables implements the
-    function setting(), it saves the result of obj.setting() as value in the dictionary.
-
-    :param local_variables:
-    :param excluded: (optional, default []) variable or list of variables to be excluded.
-    :return: A dictionary
-    """
-    excluded = as_list(excluded) or []
-    setting_dict = {k: v.setting() if hasattr(v, 'setting') else v
-                    for k, v in local_variables.items() if v not in excluded}
-    import datetime
-    setting_dict['datetime'] = str(datetime.datetime.now())
-    return setting_dict
-
-
-def save_setting(local_variables, excluded=None, default_overwrite=False, collect_data=True,
-                 do_print=True, append_string=''):
-    dictionary = generate_setting_dict(local_variables, excluded=excluded)
-    if do_print:
-        print('SETTING:')
-        for k, v in dictionary.items():
-            print(k, v, sep=': ')
-        print()
-    if collect_data: save_obj(dictionary, 'setting' + append_string, default_overwrite=default_overwrite)
-
-
-class Timer:
-
-    _div_unit = {'ms': 1. / 1000,
-                 'sec': 1.,
-                 'min': 60.,
-                 'hr': 3600.}
-
-    def __init__(self, unit='sec', round_off=True):
-        self._starting_times = []
-        self._stopping_times = []
-        self._running = False
-        self.round_off = round_off
-        assert unit in Timer._div_unit
-        self.unit = unit
-
-    def start(self):
-        if not self._running:
-            self._starting_times.append(time.time())
-            self._running = True
-        return self
-
-    def stop(self):
-        if self._running:
-            self._stopping_times.append(time.time())
-            self._running = False
-        return self
-
-    def raw_elapsed_time_list(self):
-        def _maybe_add_last():
-            t2 = self._stopping_times if len(self._starting_times) == len(self._stopping_times) else \
-                self._stopping_times + [time.time()]
-            return zip(self._starting_times, t2)
-        return [t2 - t1 for t1, t2 in _maybe_add_last()]
-
-    def elapsed_time(self):
-        res = sum(self.raw_elapsed_time_list())/Timer._div_unit[self.unit]
-        return res if not self.round_off else int(res)
-
-
-class Saver:
-
-    def __init__(self, *args, timer=None, do_print=True, collect_data=True):
-        """
-        Initialize a saver to collect data. Intended to be used together with OnlinePlotStream.
-
-        :param args: a list of (from pairs to at most) 5-tuples that represent the things you want to save.
-                      The first arg of each tuple should be a string that will be the key of the save_dict.
-                      Then there can be either a callable with signature (step) -> None
-                      Should pass the various args in ths order:
-                          fetches: tensor or list of tensors to compute;
-                          feeds (optional): to be passed to tf.Session.run. Can be a
-                          callable with signature (step) -> feed_dict
-                          options (optional): to be passed to tf.Session.run
-                          run_metadata (optional): to be passed to tf.Session.run
-        :param timer: optional timer object. If None creates a new one. If false does not register time.
-                        If None or Timer it adds to the save_dict an entry time that record elapsed_time.
-                        The time required to perform data collection and saving are not counted, since typically
-                        the aim is to record the true algorithm execution time!
-        :param do_print: (optional, default True) will print by default `save_dict` each time method `save` is executed
-        :param collect_data: (optional, default True) will save by default `save_dict` each time
-                            method `save` is executed
-        """
-
-        self.do_print = do_print
-        self.collect_data = collect_data
-        assert isinstance(args[0], str), 'Check args! first arg: %s. Should be a string. All args: %s' % (args[0], args)
-        assert isinstance(timer, Timer) or timer is None or timer is False, 'timer param not good...'
-
-        processed_args = []
-        k = 0
-        while k < len(args):
-            part = [args[k]]
-            k += 1
-            while k < len(args) and not isinstance(args[k], str):
-                part.append(args[k])
-                k += 1
-            assert len(part) >= 2, 'Check args! Last part %s' % part
-            part += [None] * (5 - len(part))  # representing name, fetches, feeds, options, metadata
-            processed_args.append(part)
-
-        if timer is None:
-            timer = Timer()
-
-        self.timer = timer
-        self.processed_args = processed_args
-
-    def save(self, step, append_string="", do_print=None, collect_data=None):
-        if do_print is None: do_print = self.do_print
-        if collect_data is None: collect_data = self.collect_data
-
-        ss = get_default_session()
-        if ss is None and do_print: print('WARNING, No default session')
-
-        if self.timer: self.timer.stop()
-        save_dict = OrderedDict([(pt[0], pt[1](step) if callable(pt[1])
-                                 else ss.run(pt[1], feed_dict=pt[2](step) if callable(pt[2]) else pt[2],
-                                             options=pt[3], run_metadata=pt[4]))
-                                 for pt in self.processed_args])
-
-        if self.timer: save_dict['Elapsed time (%s)' % self.timer.unit] = self.timer.elapsed_time()
-
-        if do_print:
-            print('SAVE DICT:')
-            for key, v in save_dict.items():
-                print(key, v, sep=': ')
-            print()
-        if collect_data:
-            save_obj(save_dict, str(step) + append_string)
-
-        if self.timer: self.timer.start()
-
-        return save_dict
 
 
 def process_name(name):
@@ -337,3 +193,4 @@ class ReadSaveDictThread(threading.Thread):
                 time.sleep(self._delay)
         except Exception:
             self.exc.append(sys.exc_info())
+

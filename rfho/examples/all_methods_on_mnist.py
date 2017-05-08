@@ -5,9 +5,10 @@ This module contains a set of example of the execution of the three main algorit
 - RealTimeHO (RTHO)
  on various classifiers trained on MNIST dataset, with different hyperparameter settings.
 """
+import numpy as np
 import tensorflow as tf
 import rfho as rf
-import numpy as np
+
 
 
 def load_dataset(partition_proportions=(.5, .3)):
@@ -105,7 +106,8 @@ def experiment(name_of_experiment, collect_data=True,
     if synthetic_hypers is not None:
         batch_size = synthetic_hypers  # altrimenti divento matto!
 
-    from rfho.examples.common import save_setting, Saver
+    from rfho import Saver
+    from rfho import save_setting
     if name_of_experiment is not None: rf.settings['NOTEBOOK_TITLE'] = name_of_experiment
     save_setting(vars(), collect_data=collect_data, excluded=datasets, append_string='_%s' % mode)
 

@@ -1,12 +1,13 @@
-import numpy as np
 import unittest
-
+import numpy as np
 from rfho.datasets import load_iris, load_mnist
+from rfho.models import *
 from rfho.hyper_gradients import ReverseHyperGradient
 from rfho.optimizers import *
-from rfho.models import *
 from rfho.utils import dot, SummaryUtil, SummaryUtils as SSU, PrintUtils, norm, stepwise_pu, MergedUtils, \
     cross_entropy_loss
+
+
 
 
 class TestD(unittest.TestCase):

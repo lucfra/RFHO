@@ -1,7 +1,9 @@
 import tensorflow as tf
-from rfho.models import vectorize_model, LinearModel
 from rfho.datasets import load_iris
+from rfho.models import vectorize_model, LinearModel
 from rfho.utils import cross_entropy_loss
+
+
 
 
 def iris_logistic_regression(augment=0):
