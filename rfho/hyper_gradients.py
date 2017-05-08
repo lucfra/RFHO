@@ -11,6 +11,9 @@ from rfho.utils import dot, MergedVariable, Vl_Mode, as_list, simple_name, Globa
 
 
 class ReverseHyperGradient:
+    """
+    Class to compute hyper-gradients in reverse mode
+    """
 
     # noinspection SpellCheckingInspection
     def __init__(self, optimizer, hyper_dict, state_history=None, global_step=None):
@@ -134,15 +137,14 @@ class ReverseHyperGradient:
         Performs (forward) optimization of the parameters.
 
         :param T: Total number of iterations
-        :param train_feed_dict_supplier: (optional) A callable with signature `t -> feed_dict` to pass to `tf.Session.run`
-                                    feed_dict argument
+        :param train_feed_dict_supplier: (optional) A callable with signature `t -> feed_dict` to pass to
+                                            `tf.Session.run` feed_dict argument
         :param summary_utils: (optional) object that implements a method method `run(tf.Session, step)`
                                 that is executed at every iteration (see for instance utils.PrintUtils
         :return: None
         """
         if not train_feed_dict_supplier:
-            # noinspection PyUnusedLocal
-            def feed_dict_supplier(step=None): return None
+            train_feed_dict_supplier = lambda step: None
 
         # var_init = self.w.var_list(Vl_Mode.BASE) if isinstance(self.w, MergedVariable) else [self.w]
         # tf.variables_initializer(var_init + [self.global_step.var]).run()
@@ -166,7 +168,8 @@ class ReverseHyperGradient:
                                         or a dictionary {validation_error tensor: callable (step -> feed_dict) that
                                         is used to initialize the dual variables `p` (generally supplier of
                                         validation example set).
-        :param train_feed_dict_supplier: (optional) A callable with signature `t -> feed_dict` to pass to `tf.Session.run`
+        :param train_feed_dict_supplier: (optional) A callable with signature `t -> feed_dict` to
+                                            pass to `tf.Session.run`
                                     feed_dict argument
         :param summary_utils: (optional) object that implements a method method `run(tf.Session, step)`
                                 that is executed at every iteration (see for instance utils.PrintUtils
@@ -176,9 +179,9 @@ class ReverseHyperGradient:
         """
         if not train_feed_dict_supplier:
             # noinspection PyUnusedLocal
-            def training_supplier(step=None): return None
+            train_feed_dict_supplier = lambda step: None
         if not val_feed_dict_suppliers:  # FIXME probably won't work with the current settings.
-            def validation_suppliers(): return None
+            val_feed_dict_suppliers = lambda step: None
         else:
             if not isinstance(val_feed_dict_suppliers, dict) and len(self.val_error_dict.keys()) == 1:
                 # cast validation supplier into a dict
@@ -199,6 +202,7 @@ class ReverseHyperGradient:
             # revert w_t to w_(t-1)
             ss.run(self._back_hist_op, feed_dict={self._w_placeholder: self.w_hist[_ - 1]})
 
+            # noinspection PyNoneFunctionAssignment
             fds = train_feed_dict_supplier(_)
             # TODO read below
             """ Unfortunately it looks like that the following two lines cannot be run together (will this
@@ -282,6 +286,7 @@ class ReverseHyperGradient:
         """
         Performs both forward and backward step. See functions `forward` and `backward` for details.
 
+        :param opt_hyper_dicts:
         :param n_steps_truncated: number of steps for the truncated backprop through time
         :param T:                   Total number of iterations
         :param train_feed_dict_supplier:   (feed_dict) supplier for training stage
@@ -294,15 +299,16 @@ class ReverseHyperGradient:
         :return: A dictionary of lists of step-wise hyper-gradients. In usual application the "true" hyper-gradients
                  can be obtained with method `std_collect_hyper_gradients`
         """
-        assert n_steps_truncated is not None and opt_hyper_dicts is not None, 'wrong use of truncated backprop!,' \
-                                                       ' all the arguments after n_steps_truncated must be given'
+        assert n_steps_truncated is not None and opt_hyper_dicts is not None, 'wrong use of truncated reverse-HO!,' \
+                                                                              ' all the arguments ' \
+                                                                              'after n_steps_truncated must be given'
 
         k = n_steps_truncated if n_steps_truncated is not None else T
         n_updates = T // k
 
         self.initialize()
 
-        row_gradients = None
+        raw_gradients = None
         for i in range(n_updates):
             raw_gradients = self.run_all(k, train_feed_dict_supplier, val_feed_dict_suppliers, forward_su, backward_su,
                                          after_forward_su, check_if_zero)
@@ -327,6 +333,9 @@ class ReverseHyperGradient:
 
 
 class ForwardHyperGradient:
+    """
+    Computes the hyper-gradient in forward mode
+    """
 
     def __init__(self, optimizer, hyper_dict, global_step=None):
         """
@@ -468,11 +477,11 @@ class ForwardHyperGradient:
         """
 
         if not train_feed_dict_supplier:
-            # noinspection PyUnusedLocal
-            def feed_dict_supplier(step=None): return None
+            train_feed_dict_supplier = lambda step: None
 
         ss = tf.get_default_session()
 
+        # noinspection PyNoneFunctionAssignment
         fd = train_feed_dict_supplier(self.global_step.eval())
 
         ss.run(self.zs_assigns, feed_dict=fd)
@@ -501,7 +510,8 @@ class ForwardHyperGradient:
                     break
 
         # NEW VARIABLE-BASED HYPER-GRADIENTS
-        [assign_op.eval(feed_dict=vsl(self.global_step.eval())) for  # TODO this doesn't make that much sense...
+        [assign_op.eval(feed_dict=vsl(self.global_step.eval())) for  # TODO this doesn't make that much sense... maybe
+         # global step should be somehow replaced by some step in HyperOptimizer.... mah
          assign_op, vsl in zip(self._hyper_assign_ops, val_sup_lst)]
 
         return {hyp: self.hyper_gradients_dict[hyp].eval() for hyp in self.hyper_list}
@@ -518,6 +528,16 @@ class ForwardHyperGradient:
 
     def run_all(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None,
                 forward_su=None, after_forward_su=None):
+        """
+        Helper method for running
+
+        :param T:
+        :param train_feed_dict_supplier:
+        :param val_feed_dict_suppliers:
+        :param forward_su:
+        :param after_forward_su:
+        :return:
+        """
 
         # self.initialize()
         for k in range(T):
@@ -541,7 +561,8 @@ class HyperOptimizer:
 
         :param optimizer: parameter optimization dynamics
         :param hyper_dict: dictionary of validation errors and list of hyperparameters to be optimized
-        :param method: (default `ReverseHyperGradient`) method with which to compute hyper-gradients: Forward or Reverse-Ho
+        :param method: (default `ReverseHyperGradient`) method with which to compute hyper-gradients: Forward
+                        or Reverse-Ho
         :param hyper_grad_kwargs: dictionary of keyword arguments for `HyperGradient` classes (usually None)
         :param hyper_optimizer_class: (default Adam) Optimizer class for optimization of the hyperparameters
         :param optimizers_kwargs: keyword arguments for hyperparameter optimizers (like hyper-learning rate)
