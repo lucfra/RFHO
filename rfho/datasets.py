@@ -364,7 +364,7 @@ def test_if_balanced(dataset):
 
 
 def load_20newsgroup_feed_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, partitions_proportions=None,
-                                     shuffle=True):
+                                     shuffle=True, binary_problem=False):
     data_train = sk_dt.fetch_20newsgroups_vectorized(data_home=folder, subset='train')
     data_test = sk_dt.fetch_20newsgroups_vectorized(data_home=folder, subset='test')
 
@@ -372,6 +372,11 @@ def load_20newsgroup_feed_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, par
     X_test = data_test.data
     y_train = data_train.target
     y_test = data_test.target
+    if binary_problem:
+        y_train[data_train.target < 10] = 0.
+        y_train[data_train.target >= 10] = 1.
+        y_test[data_test.target < 10] = 0.
+        y_test[data_test.target >= 10] = 1.
     if one_hot:
         y_train = to_one_hot_enc(y_train)
         y_test = to_one_hot_enc(y_test)
@@ -380,7 +385,7 @@ def load_20newsgroup_feed_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, par
     d_test = Dataset(data=X_test.todense(), target=y_test, general_info_dict={'target names': data_train.target_names})
     res = [d_train, d_test]
     if partitions_proportions:
-        res = redivide_data([d_train, d_test], partition_proportions=partitions_proportions, shuffle=True)
+        res = redivide_data([d_train, d_test], partition_proportions=partitions_proportions, shuffle=shuffle)
 
     return to_datasets(res)
 

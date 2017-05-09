@@ -26,7 +26,7 @@ settings = {
 }
 
 
-FOLDER_NAMINGS = {
+FOLDER_NAMINGS = {  # TODO should go into a settings file?
     'EXP_ROOT': os.path.expanduser(join_paths('~user', 'Experiments')),
     'OBJ_DIR': 'Obj_data',
     'PLOTS_DIR': 'Plots',
@@ -36,18 +36,15 @@ FOLDER_NAMINGS = {
 
 
 def check_or_create_dir(directory, notebook_mode=True, create=True):
-    if create:
-        try:
-            os.mkdir(directory)
-        except FileExistsError:
-            pass
+    if not os.path.exists(directory) and create:
+        os.mkdir(directory)
+        print('folder ', directory, 'has been created')
+
     if notebook_mode and settings['NOTEBOOK_TITLE']:
         directory = join_paths(directory, settings['NOTEBOOK_TITLE'])  # += '/' + settings['NOTEBOOK_TITLE']
-        if create:
-            try:
-                os.mkdir(directory)
-            except FileExistsError:
-                pass
+        if not os.path.exists(directory) and create:
+            os.mkdir(directory)
+            print('folder ', directory, 'has been created')
     return directory
 
 
@@ -82,7 +79,7 @@ def save_obj(obj, name, notebook_mode=True, default_overwrite=False):
         print('File saved!')
 
 
-def load_obj(name, notebook_mode=False):
+def load_obj(name, notebook_mode=True):
     directory = check_or_create_dir(FOLDER_NAMINGS['OBJ_DIR'], notebook_mode=notebook_mode, create=False)
 
     filename = directory + '/%s.pkgz' % name
@@ -203,14 +200,17 @@ class Saver:
         :param collect_data: (optional, default True) will save by default `save_dict` each time
                             method `save` is executed
         """
+        assert isinstance(args[0], str), 'Check args! first arg %s. Should be a string. All args: %s' % (args[0], args)
+
         self.directory = join_paths(root_directory, experiment_name)
-        if collect_data: check_or_create_dir(self.directory)
+        if collect_data:
+            check_or_create_dir(root_directory, notebook_mode=False)
+            check_or_create_dir(self.directory, notebook_mode=False)
 
         self.do_print = do_print
         self.collect_data = collect_data
         self.default_overwrite = default_overwrite
 
-        assert isinstance(args[0], str), 'Check args! first arg: %s. Should be a string. All args: %s' % (args[0], args)
         assert isinstance(timer, Timer) or timer is None or timer is False, 'timer param not good...'
 
         processed_args = []
