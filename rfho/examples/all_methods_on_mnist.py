@@ -8,7 +8,7 @@ This module contains a set of example of the execution of the three main algorit
 import numpy as np
 import tensorflow as tf
 import rfho as rf
-
+import rfho.utils
 
 def load_dataset(partition_proportions=(.5, .3)):
     from rfho.datasets import load_mnist
