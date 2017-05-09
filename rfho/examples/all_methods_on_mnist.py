@@ -10,7 +10,6 @@ import tensorflow as tf
 import rfho as rf
 
 
-
 def load_dataset(partition_proportions=(.5, .3)):
     from rfho.datasets import load_mnist
     return load_mnist(partitions=partition_proportions)
@@ -189,7 +188,7 @@ def experiment(name_of_experiment, collect_data=True,
 
     # stochastic descent
     import rfho.datasets as dt
-    ev_data = dt.ExampleVisiting(datasets, batch_size=batch_size, epochs=epochs)
+    ev_data = rfho.utils.ExampleVisiting(datasets, batch_size=batch_size, epochs=epochs)
     ev_data.generate_visiting_scheme()
     tr_supplier = ev_data.create_train_feed_dict_supplier(x, y)
     val_supplier = ev_data.create_all_valid_feed_dict_supplier(x, y)
