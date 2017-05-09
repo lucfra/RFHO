@@ -7,17 +7,15 @@ the stochastic sampling of data and is optimized to work with `Reverse/ForwardHy
 to create training and validation `feed_dict` suppliers).
 """
 
-import os
-import sys
-from functools import reduce
-
 import numpy as np
+from functools import reduce
 import tensorflow as tf
 from tensorflow.contrib.learn.python.learn.datasets.base import Datasets
 from tensorflow.examples.tutorials.mnist.input_data import read_data_sets
-
+import os
 from rfho.utils import as_list, np_normalize_data
 
+import sys
 try:
     import pandas as pd
 except ImportError:
@@ -695,8 +693,132 @@ def get_targets(d_set):
         raise ValueError("something wrong with the dataset %s" % d_set)
 
 
-# noinspection PyUnresolvedReferences
-from rfho.utils import ExampleVisiting  # for backward compatibility
+#
+class ExampleVisiting:
+    def __init__(self, datasets, batch_size, epochs):
+        self.datasets = datasets
+        self.batch_size = batch_size
+        self.epochs = epochs
+        self.T = int(epochs * datasets.train.num_examples / batch_size)
+        self.training_schedule = []
+
+        self.N_train = len(get_data(self.datasets.train))
+        self.iter_per_epoch = int(self.N_train / batch_size)
+
+    def setting(self):
+        excluded = ['training_schedule', 'datasets']
+        return {k: v for k, v in vars(self).items() if k not in excluded}
+
+    @property
+    def train_data(self):
+        return get_data(self.datasets.train)
+
+    @property
+    def train_targets(self):
+        return get_targets(self.datasets.train)
+
+    @property
+    def valid_data(self):
+        return get_data(self.datasets.validation)
+
+    @property
+    def valid_targets(self):
+        return get_targets(self.datasets.validation)
+
+    @property
+    def test_data(self):
+        return get_data(self.datasets.test)
+
+    @property
+    def test_targets(self):
+        return get_targets(self.datasets.test)
+
+    def generate_visiting_scheme(self):
+        """
+        Generates and stores example visiting scheme, as a numpy array of integers.
+
+        :return: self
+        """
+
+        def all_indices_shuffled():
+            _res = list(range(self.N_train))
+            np.random.shuffle(_res)
+            return _res
+
+        # noinspection PyUnusedLocal
+        self.training_schedule = np.concatenate([all_indices_shuffled() for _ in range(self.epochs)])
+        return self
+
+    def create_train_feed_dict_supplier(self, x, y, other_feeds=None, lambda_feeds=None):
+        """
+
+        :param x: placeholder for independent variable
+        :param y: placeholder for dependent variable
+        :param lambda_feeds: dictionary of placeholders: number_of_example -> substitution
+        :param other_feeds: dictionary of other feeds (e.g. dropout factor, ...) to add to the input output
+                            feed_dict
+        :return: a function that generates a feed_dict with the right signature for Reverse and Forward HyperGradient
+                    classes
+        """
+
+        if not lambda_feeds:
+            lambda_processed_feeds = {}
+        if not other_feeds:
+            other_feeds = {}
+
+        def _training_supplier(step=None):
+            nonlocal lambda_processed_feeds, other_feeds
+
+            if step >= self.T:
+                if step % self.T == 0:
+                    print('End of the training scheme reached. Generating another scheme.')
+                    self.generate_visiting_scheme()
+                step %= self.T
+
+            if self.training_schedule is None:
+                raise ValueError('visiting scheme not yet generated!')
+
+            nb = self.training_schedule[step * self.batch_size: (step + 1) * self.batch_size]
+
+            bx = self.train_data[nb, :]
+            by = self.train_targets[nb, :]
+            if lambda_feeds:
+                lambda_processed_feeds = {k: v(nb) for k, v in lambda_feeds.items()}
+            else:
+                lambda_processed_feeds = {}
+            return {**{x: bx, y: by}, **other_feeds, **lambda_processed_feeds}
+
+        return _training_supplier
+
+    def create_all_valid_feed_dict_supplier(self, x, y, other_feeds=None):
+
+        if not other_feeds:
+            other_feeds = {}
+
+        # noinspection PyUnusedLocal
+        def _validation_supplier(step=None):
+            data = self.valid_data
+            if isinstance(data, WindowedData):
+                data = data.generate_all()
+
+            return {**{x: data, y: self.valid_targets}, **other_feeds}
+
+        return _validation_supplier
+
+    def create_all_test_feed_dict_supplier(self, x, y, other_feeds=None):
+
+        if not other_feeds:
+            other_feeds = {}
+
+        # noinspection PyUnusedLocal
+        def _test_supplier(step=None):
+            data = self.test_data
+            if isinstance(data, WindowedData):
+                data = data.generate_all()
+
+            return {**{x: data, y: self.test_targets}, **other_feeds}
+
+        return _test_supplier
 
 
 def pad(_example, _size): return np.concatenate([_example] * _size)

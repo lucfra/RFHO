@@ -1,7 +1,6 @@
 import unittest
-
-from rfho import ExampleVisiting
 from rfho.datasets import *
+
 
 class RepartitionDatasetTest(unittest.TestCase):
 
