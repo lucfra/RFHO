@@ -8,7 +8,7 @@ This module contains a set of example of the execution of the three main algorit
 import numpy as np
 import tensorflow as tf
 import rfho as rf
-
+import rfho.utils
 
 
 def load_dataset(partition_proportions=(.5, .3)):
@@ -189,7 +189,7 @@ def experiment(name_of_experiment, collect_data=True,
 
     # stochastic descent
     import rfho.datasets as dt
-    ev_data = dt.ExampleVisiting(datasets, batch_size=batch_size, epochs=epochs)
+    ev_data = rfho.utils.ExampleVisiting(datasets, batch_size=batch_size, epochs=epochs)
     ev_data.generate_visiting_scheme()
     tr_supplier = ev_data.create_train_feed_dict_supplier(x, y)
     val_supplier = ev_data.create_all_valid_feed_dict_supplier(x, y)
