@@ -106,9 +106,8 @@ def to_datasets(list_of_datasets):
     return Datasets(train, valid, test)
 
 
-def _dim(what):
-    sh = what.shape
-    return sh[0] if len(sh) == 1 else sh
+def _maybe_cast_to_scalar(what):
+    return what[0] if len(what) == 1 else what
 
 
 class Dataset:
@@ -146,7 +145,7 @@ class Dataset:
 
         :return: Number of examples in this dataset
         """
-        return len(self.data)
+        return self.data.shape[0]
 
     @property
     def dim_data(self):
@@ -154,7 +153,7 @@ class Dataset:
 
         :return: The data dimensionality as an integer, if input are vectors, or a tuple in the general case
         """
-        return _dim(self.data[0])
+        return _maybe_cast_to_scalar(self.data.shape[1:])
 
     @property
     def dim_target(self):
@@ -162,7 +161,7 @@ class Dataset:
 
         :return: The target dimensionality as an integer, if targets are vectors, or a tuple in the general case
         """
-        return _dim(self.target[0])
+        return 1 if self.target.ndim == 1 else _maybe_cast_to_scalar(self.target.shape[1:])
 
 
 def to_one_hot_enc(seq):
@@ -381,8 +380,10 @@ def load_20newsgroup_feed_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, par
         y_train = to_one_hot_enc(y_train)
         y_test = to_one_hot_enc(y_test)
 
-    d_train = Dataset(data=X_train.todense(), target=y_train, general_info_dict={'target names': data_train.target_names})
-    d_test = Dataset(data=X_test.todense(), target=y_test, general_info_dict={'target names': data_train.target_names})
+    d_train = Dataset(data=X_train.todense(),
+                      target=y_train, general_info_dict={'target names': data_train.target_names})
+    d_test = Dataset(data=X_test.todense(),
+                     target=y_test, general_info_dict={'target names': data_train.target_names})
     res = [d_train, d_test]
     if partitions_proportions:
         res = redivide_data([d_train, d_test], partition_proportions=partitions_proportions, shuffle=shuffle)
@@ -489,13 +490,13 @@ def load_timit(folder=TIMIT_DIR, only_primary=False, filters=None, maps=None, sm
         training_target = pd.read_csv(folder + '/timit_trainTargets%s.csv' % split_number, header=None).values
         training_data = pd.read_csv(folder + '/timit-preproc_traindata_norm_noctx%s.csv' %
                                     split_number, header=None).values
-        training_info_dict = {'dim_primary_target': _dim(training_target[0])}
+        training_info_dict = {'dim_primary_target': training_target.shape[1]}
         print('loaded primary training data')
         if not only_primary:
             training_secondary_target = pd.read_csv(folder + '/timit_trainTargetsPE%s.csv'
                                                     % split_number, header=None).values
             training_target = np.hstack([training_target, training_secondary_target])
-            training_info_dict['dim_secondary_target'] = _dim(training_secondary_target[0])
+            training_info_dict['dim_secondary_target'] = training_secondary_target.shape[1]
             print('loaded secondary task targets')
 
         validation_data = pd.read_csv(folder + '/timit-preproc_valdata_norm_noctx%s.csv'
@@ -891,6 +892,7 @@ class WindowedData(object):
 
 
 if __name__ == '__main__':
-    _datasets = load_XRMB()
-    print(_datasets.train[0].num_examples)
-    print(len(_datasets.train))
+    _datasets = load_20newsgroup_feed_vectorized(one_hot=False, binary_problem=True)
+    print(_datasets.train.dim_data)
+    print(_datasets.train.dim_target)
+    # print(len(_datasets.train))
