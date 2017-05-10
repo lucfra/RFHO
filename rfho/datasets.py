@@ -281,7 +281,7 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
         for fiat in filters:
             data_triple = [xy for i, xy in enumerate(data_triple) if fiat(xy[0], xy[1], xy[2], i)]
         all_data = np.vstack([e[0] for e in data_triple])
-        all_labels = stack_or_concat([e[1] for e in data_triple])
+        all_labels = np.vstack([e[1] for e in data_triple])
         all_infos = np.vstack([e[2] for e in data_triple])
 
     if maps:
@@ -290,7 +290,7 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
         for _map in maps:
             data_triple = [_map(xy[0], xy[1], xy[2], i) for i, xy in enumerate(data_triple)]
         all_data = np.vstack([e[0] for e in data_triple])
-        all_labels = stack_or_concat([e[1] for e in data_triple])
+        all_labels = np.vstack([e[1] for e in data_triple])
         all_infos = np.vstack([e[2] for e in data_triple])
 
     N = len(all_data)
@@ -892,7 +892,9 @@ class WindowedData(object):
 
 
 if __name__ == '__main__':
-    _datasets = load_20newsgroup_feed_vectorized(one_hot=False, binary_problem=True)
-    print(_datasets.train.dim_data)
-    print(_datasets.train.dim_target)
+    # _datasets = load_20newsgroup_feed_vectorized(one_hot=False, binary_problem=True)
+    # print(_datasets.train.dim_data)
+    # print(_datasets.train.dim_target)
+    mnist = load_mnist(partitions=[0.1, .2], filters=lambda x, y, d, k: True)
+
     # print(len(_datasets.train))
