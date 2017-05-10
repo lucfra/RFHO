@@ -27,7 +27,7 @@ settings = {
 
 
 FOLDER_NAMINGS = {  # TODO should go into a settings file?
-    'EXP_ROOT': os.path.expanduser(join_paths('~user', 'Experiments')),
+    'EXP_ROOT': join_paths(os.path.expanduser('~'), 'Experiments'),
     'OBJ_DIR': 'Obj_data',
     'PLOTS_DIR': 'Plots',
     'MODELS_DIR': 'Models',
@@ -48,8 +48,9 @@ def check_or_create_dir(directory, notebook_mode=True, create=True):
     return directory
 
 
-def save_fig(name, notebook_mode=True, default_overwrite=False):
-    directory = check_or_create_dir(FOLDER_NAMINGS['PLOTS_DIR'],
+def save_fig(name, root_dir=None, notebook_mode=True, default_overwrite=False):
+    if root_dir is None: root_dir = os.getcwd()
+    directory = check_or_create_dir(join_paths(root_dir, FOLDER_NAMINGS['PLOTS_DIR']),
                                     notebook_mode=notebook_mode)
 
     filename = join_paths(directory, '%s.pdf' % name)  # directory + '/%s.pdf' % name
@@ -64,8 +65,10 @@ def save_fig(name, notebook_mode=True, default_overwrite=False):
     print('file saved')
 
 
-def save_obj(obj, name, notebook_mode=True, default_overwrite=False):
-    directory = check_or_create_dir(FOLDER_NAMINGS['OBJ_DIR'], notebook_mode=notebook_mode)
+def save_obj(obj, name, root_dir=None, notebook_mode=True, default_overwrite=False):
+    if root_dir is None: root_dir = os.getcwd()
+    directory = check_or_create_dir(join_paths(root_dir, FOLDER_NAMINGS['OBJ_DIR']),
+                                    notebook_mode=notebook_mode)
 
     filename = join_paths(directory, '%s.pkgz' % name)  # directory + '/%s.pkgz' % name
     if not default_overwrite and os.path.isfile(filename):
@@ -79,18 +82,21 @@ def save_obj(obj, name, notebook_mode=True, default_overwrite=False):
         print('File saved!')
 
 
-def load_obj(name, notebook_mode=True):
-    directory = check_or_create_dir(FOLDER_NAMINGS['OBJ_DIR'], notebook_mode=notebook_mode, create=False)
+def load_obj(name, root_dir=None, notebook_mode=True):
+    if root_dir is None: root_dir = os.getcwd()
+    directory = check_or_create_dir(join_paths(root_dir, FOLDER_NAMINGS['OBJ_DIR']),
+                                    notebook_mode=notebook_mode)
 
-    filename = directory + '/%s.pkgz' % name
+    filename = join_paths(directory,  '%s.pkgz' % name)
     with gzip.open(filename, 'rb') as f:
         return pickle.load(f)
 
 
-def save_adjacency_matrix_for_gephi(matrix, name, notebook_mode=True, class_names=None):
-    directory = check_or_create_dir(FOLDER_NAMINGS['GEPHI_DIR'], notebook_mode=notebook_mode)
-
-    filename = directory + '/%s.csv' % name
+def save_adjacency_matrix_for_gephi(matrix, name, root_dir=None, notebook_mode=True, class_names=None):
+    if root_dir is None: root_dir = os.getcwd()
+    directory = check_or_create_dir(join_paths(root_dir, FOLDER_NAMINGS['GEPHI_DIR']),
+                                    notebook_mode=notebook_mode)
+    filename = join_paths(directory, '%s.csv' % name)
 
     m, n = np.shape(matrix)
     assert m == n, '%s should be a square matrix.' % matrix
@@ -105,7 +111,7 @@ def save_adjacency_matrix_for_gephi(matrix, name, notebook_mode=True, class_name
     np.savetxt(filename, matrix, delimiter=';', fmt='%s')
 
 
-def save_setting(local_variables, excluded=None, default_overwrite=False, collect_data=True,
+def save_setting(local_variables, root_dir=None, excluded=None, default_overwrite=False, collect_data=True,
                  notebook_mode=True, do_print=True, append_string=''):
     dictionary = generate_setting_dict(local_variables, excluded=excluded)
     if do_print:
@@ -113,7 +119,9 @@ def save_setting(local_variables, excluded=None, default_overwrite=False, collec
         for k, v in dictionary.items():
             print(k, v, sep=': ')
         print()
-    if collect_data: save_obj(dictionary, 'setting' + append_string, default_overwrite=default_overwrite,
+    if collect_data: save_obj(dictionary, 'setting' + append_string,
+                              root_dir=root_dir,
+                              default_overwrite=default_overwrite,
                               notebook_mode=notebook_mode)
 
 
@@ -261,9 +269,23 @@ class Saver:
         return save_dict
 
     def save_fig(self, name):
-        return save_fig(name, default_overwrite=self.default_overwrite, notebook_mode=False)
+        return save_fig(name, root_dir=self.directory,
+                        default_overwrite=self.default_overwrite, notebook_mode=False)
 
     def save_obj(self, obj, name):
-        return save_obj(obj, name, default_overwrite=self.default_overwrite, notebook_mode=False)
+        return save_obj(obj, name, root_dir=self.directory,
+                        default_overwrite=self.default_overwrite, notebook_mode=False)
+
+    def save_adjacency_matrix_for_gephi(self, matrix, name, class_names=None):
+        return save_adjacency_matrix_for_gephi(matrix, name, root_dir=self.directory,
+                                               notebook_mode=False, class_names=class_names)
+
+    def save_setting(self, local_variables, excluded=None, append_string=''):
+        return save_setting(local_variables, root_dir=self.directory, excluded=excluded,
+                            default_overwrite=self.default_overwrite, collect_data=self.collect_data,
+                            notebook_mode=False, do_print=self.do_print, append_string=append_string)
+
+    def load_obj(self, name):
+        return load_obj(name, root_dir=self.directory, notebook_mode=False)
 
     # def work in progress
