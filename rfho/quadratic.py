@@ -73,7 +73,7 @@ class Projection:
 
     def _run2(self, x):
         # keep the lambdas in [0,1] and  \sum{lambdas} < 1 for each example
-        _res2 = np.empty((self.dim, self.n_labels))
+        _res2 = np.zeros((self.dim, self.n_labels))
         for i in range(x.shape[0]):
             # print("start example {}".format(i))
             self.q = matrix(- np.array(x[i], dtype=np.float64))
@@ -83,7 +83,7 @@ class Projection:
 
     def _run3(self, x):
         # keep the lambdas in [0,1] and  \sum{lambdas} = 1 for each example
-        _res2 = np.empty((self.dim, self.n_labels))
+        _res2 = np.zeros((self.dim, self.n_labels))
         for i in range(x.shape[0]):
             # print("start example {}".format(i))
             self.q = matrix(- np.array(x[i], dtype=np.float64))
