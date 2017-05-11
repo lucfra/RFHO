@@ -7,7 +7,7 @@ presented in Forward and Reverse Gradient-Based Hyperparameter Optimization (htt
 import tensorflow as tf
 
 from rfho.optimizers import Optimizer, AdamOptimizer
-from rfho.utils import dot, MergedVariable, Vl_Mode, as_list, simple_name, GlobalStep, ZMergedMatrix
+from rfho.utils import dot, MergedVariable, Vl_Mode, as_list, simple_name, GlobalStep, ZMergedMatrix, flatten_list
 
 
 class ReverseHyperGradient:
@@ -104,9 +104,12 @@ class ReverseHyperGradient:
             with tf.name_scope('hyper_derivatives'):
                 # equation (10) without summation.
                 self.hyper_derivatives = [
-                    (self.val_error_dict[ve], tf.gradients(lagrangian, self.val_error_dict[ve])) for ve, lagrangian in
-                    self.lagrangians_dict.items()
-                    ]  # list of couples (hyper_list, list of symbolic hyper_gradients)  (lists are unhashable!)
+                    (self.val_error_dict[ve], tf.gradients(lagrangian, self.val_error_dict[ve]))
+                    for ve, lagrangian in self.lagrangians_dict.items()
+                    ]  # list of couples (hyper_list, list of tensors hyper_gradients)  (lists are unhashable!)
+                # check that all hyper-gradients are defined
+                assert all(e is not None for e in flatten_list(
+                    [e[1] for e in self.hyper_derivatives])),  'Some gradient of the validation error is None!'
 
             with tf.name_scope('hyper_gradients'):  # ADDED 28/3/17 keeps track of hyper-gradients as tf.Variable
                 self._grad_wrt_hypers_placeholder = tf.placeholder(tf.float32, name='placeholder')

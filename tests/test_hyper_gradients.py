@@ -5,9 +5,7 @@ from rfho.models import *
 from rfho.hyper_gradients import ReverseHyperGradient
 from rfho.optimizers import *
 from rfho.utils import dot, SummaryUtil, SummaryUtils as SSU, PrintUtils, norm, stepwise_pu, MergedUtils, \
-    cross_entropy_loss
-
-
+    cross_entropy_loss, flatten_list
 
 
 class TestD(unittest.TestCase):
@@ -388,12 +386,28 @@ class TestD(unittest.TestCase):
 
         self.assertLess(np.linalg.norm(res - res2), 1.e-5)
 
+    def test_hyper_gradient_none_check(self):
+        _w = tf.Variable(10.)
+        w, ww = vectorize_model([_w], _w)
+        a, b, c = tf.Variable(10.), tf.Variable(10.), tf.Variable(10.)
+        f = ww**2 + ww*a + b
+        optimizer = GradientDescentOptimizer.create(w, .1, loss=f)
+        with self.assertRaises(AssertionError):
+            # all this configurations should rise error!
+            hyper_dict = {f: [a, b, c]}
+            ReverseHyperGradient(optimizer, hyper_dict)
+            ReverseHyperGradient(optimizer, {f: c})
+            ReverseHyperGradient(optimizer, {f: b})
+        self.assertTrue(ReverseHyperGradient(optimizer, {f: a}))  # while this one should be fine
+
+
     def setUp(self):
         tf.reset_default_graph()
 
 
 if __name__ == '__main__':
-    unittest.main()
+    # unittest.main()
+    TestD().test_hyper_gradient_none_check()
 
 
 def build_model(augment=0, variable_initializer=(tf.zeros, tf.zeros)):
@@ -413,3 +427,5 @@ def build_model(augment=0, variable_initializer=(tf.zeros, tf.zeros)):
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
     return mnist, x, y, all_w, mod_y, mat_w, error, accuracy
+
+
