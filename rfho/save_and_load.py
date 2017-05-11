@@ -87,7 +87,7 @@ def load_obj(name, root_dir=None, notebook_mode=True):
     directory = check_or_create_dir(join_paths(root_dir, FOLDER_NAMINGS['OBJ_DIR']),
                                     notebook_mode=notebook_mode)
 
-    filename = join_paths(directory,  '%s.pkgz' % name)
+    filename = join_paths(directory,  name if name.endswith('.pkgz') else name+'.pkgz')
     with gzip.open(filename, 'rb') as f:
         return pickle.load(f)
 
@@ -184,13 +184,13 @@ class Timer:
 
 class Saver:
 
-    def __init__(self, experiment_name, *args, timer=None, root_directory=FOLDER_NAMINGS['EXP_ROOT'],
+    def __init__(self, experiment_name, *items, timer=None, root_directory=FOLDER_NAMINGS['EXP_ROOT'],
                  do_print=True, collect_data=True, default_overwrite=False):
         """
         Initialize a saver to collect data. (Intended to be used together with OnlinePlotStream.)
 
         :param experiment_name: string, name of experiment
-        :param args: a list of (from pairs to at most) 5-tuples that represent the things you want to save.
+        :param items: a list of (from pairs to at most) 5-tuples that represent the things you want to save.
                       The first arg of each tuple should be a string that will be the key of the save_dict.
                       Then there can be either a callable with signature (step) -> None
                       Should pass the various args in ths order:
@@ -208,7 +208,7 @@ class Saver:
         :param collect_data: (optional, default True) will save by default `save_dict` each time
                             method `save` is executed
         """
-        assert isinstance(args[0], str), 'Check args! first arg %s. Should be a string. All args: %s' % (args[0], args)
+        assert isinstance(items[0], str), 'Check args! first arg %s. Should be a string. All args: %s' % (items[0], items)
 
         self.directory = join_paths(root_directory, experiment_name)
         if collect_data:
@@ -221,23 +221,41 @@ class Saver:
 
         assert isinstance(timer, Timer) or timer is None or timer is False, 'timer param not good...'
 
-        processed_args = []
-        k = 0
-        while k < len(args):
-            part = [args[k]]
-            k += 1
-            while k < len(args) and not isinstance(args[k], str):
-                part.append(args[k])
-                k += 1
-            assert len(part) >= 2, 'Check args! Last part %s' % part
-            part += [None] * (5 - len(part))  # representing name, fetches, feeds, options, metadata
-            processed_args.append(part)
+        self.processed_items = []
+        self.add_items(*items)
 
         if timer is None:
             timer = Timer()
 
         self.timer = timer
-        self.processed_args = processed_args
+
+    def add_items(self, *items):
+        """
+        Add items to the save dictionary
+
+        :param items: a list of (from pairs to at most) 5-tuples that represent the things you want to save.
+                      The first arg of each tuple should be a string that will be the key of the save_dict.
+                      Then there can be either a callable with signature (step) -> None
+                      Should pass the various args in ths order:
+                          fetches: tensor or list of tensors to compute;
+                          feeds (optional): to be passed to tf.Session.run. Can be a
+                          callable with signature (step) -> feed_dict
+                          options (optional): to be passed to tf.Session.run
+                          run_metadata (optional): to be passed to tf.Session.run
+        :return: None
+        """
+        processed_args = []
+        k = 0
+        while k < len(items):
+            part = [items[k]]
+            k += 1
+            while k < len(items) and not isinstance(items[k], str):
+                part.append(items[k])
+                k += 1
+            assert len(part) >= 2, 'Check args! Last part %s' % part
+            part += [None] * (5 - len(part))  # representing name, fetches, feeds, options, metadata
+            processed_args.append(part)
+        self.processed_items += processed_args
 
     def save(self, step, append_string="", do_print=None, collect_data=None):
         from tensorflow import get_default_session
@@ -252,7 +270,7 @@ class Saver:
         save_dict = OrderedDict([(pt[0], pt[1](step) if callable(pt[1])
                                  else ss.run(pt[1], feed_dict=pt[2](step) if callable(pt[2]) else pt[2],
                                              options=pt[3], run_metadata=pt[4]))
-                                 for pt in self.processed_args])
+                                 for pt in self.processed_items])
 
         if self.timer: save_dict['Elapsed time (%s)' % self.timer.unit] = self.timer.elapsed_time()
 
@@ -267,6 +285,25 @@ class Saver:
         if self.timer: self.timer.start()
 
         return save_dict
+
+    def pack_save_dictionaries(self, name='pack', append_string='', erase_others=True):
+        import glob
+        all_files = sorted(glob.glob(join_paths(self.directory, FOLDER_NAMINGS['OBJ_DIR'], '*%s.pkgz' % append_string)),
+                           key=os.path.getctime)  # sort by creation time
+        if len(all_files) == 0:
+            print('No file found')
+            return
+
+        objs = [load_obj(path, root_dir='', notebook_mode=False) for path in all_files]
+
+        packed_dict = OrderedDict([(k, []) for k in objs[0]])
+        for obj in objs:
+            [packed_dict[k].append(v) for k, v in obj.items()]
+        self.save_obj(packed_dict, name=name)
+
+        if erase_others:
+            [os.remove(f) for f in all_files]
+
 
     def save_fig(self, name):
         return save_fig(name, root_dir=self.directory,
@@ -289,3 +326,17 @@ class Saver:
         return load_obj(name, root_dir=self.directory, notebook_mode=False)
 
     # def work in progress
+
+if __name__ == '__main__':
+    sav1 = Saver('tbd',
+                    'random', lambda step: np.random.randn(),
+                 default_overwrite=True
+                    )
+    sav1.timer.start()
+    sav1.save(0)
+    time.sleep(2)
+    sav1.save(1)
+    time.sleep(1)
+    sav1.save(2)
+    sav1.pack_save_dictionaries()
+
