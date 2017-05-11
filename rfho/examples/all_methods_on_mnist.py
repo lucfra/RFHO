@@ -10,6 +10,7 @@ import tensorflow as tf
 import rfho as rf
 from rfho.datasets import ExampleVisiting
 
+
 def load_dataset(partition_proportions=(.5, .3)):
     from rfho.datasets import load_mnist
     return load_mnist(partitions=partition_proportions)
@@ -102,13 +103,8 @@ def experiment(name_of_experiment, collect_data=True,
                hyper_iterations=100, hyper_batch_size=100, epochs=20, do_print=True):
     assert mode in HO_MODES
 
-    if synthetic_hypers is not None:
+    if synthetic_hypers:
         batch_size = synthetic_hypers  # altrimenti divento matto!
-
-    from rfho import Saver
-    from rfho import save_setting
-    if name_of_experiment is not None: rf.settings['NOTEBOOK_TITLE'] = name_of_experiment
-    save_setting(vars(), collect_data=collect_data, excluded=datasets, append_string='_%s' % mode)
 
     if datasets is None: datasets = load_dataset()
 
@@ -126,59 +122,31 @@ def experiment(name_of_experiment, collect_data=True,
     algorithmic_hyperparameters = []
     eta = tr_dynamics.learning_rate
     if isinstance(eta, tf.Variable):
-        if mode != 'reverse':
-            algorithmic_hyperparameters.append((eta, tr_dynamics.d_dynamics_d_learning_rate()))
-        else:
-            algorithmic_hyperparameters.append(eta)
+        algorithmic_hyperparameters.append(eta)
     if hasattr(tr_dynamics, 'momentum_factor'):
         mu = tr_dynamics.momentum_factor
         if isinstance(mu, tf.Variable):
-            if mode != 'reverse':
-                algorithmic_hyperparameters.append((mu, tr_dynamics.d_dynamics_d_momentum_factor()))
-            else:
-                algorithmic_hyperparameters.append(mu)
+            algorithmic_hyperparameters.append(mu)
 
     regularization_hyperparameters = []
     vec_w = s.var_list(rf.Vl_Mode.TENSOR)[0]  # vectorized representation of _model weights (always the first!)
     if rho_l1s is not None:
-        if mode != 'reverse':
-            regularization_hyperparameters += [(r1, tr_dynamics.d_dynamics_d_hyper_loss(
-                tf.gradients(er1, vec_w)[0])) for r1, er1 in zip(rho_l1s, reg_l1s)]
-        else:
-            regularization_hyperparameters += rho_l1s
+        regularization_hyperparameters += rho_l1s
     if rho_l2s is not None:
-        if mode != 'reverse':
-            regularization_hyperparameters += [(r2, tr_dynamics.d_dynamics_d_hyper_loss(
-                tf.gradients(er2, vec_w)[0])) for r2, er2 in zip(rho_l2s, reg_l2s)]
-        else:
-            regularization_hyperparameters += rho_l2s
+        regularization_hyperparameters += rho_l2s
 
     synthetic_hyperparameters = []
     if synthetic_hypers:
-        if mode != 'reverse':
-            da_grad = tf.transpose(tf.stack(
-                [tf.gradients(base_tr_error[k], vec_w)[0] for k in range(synthetic_hypers)]
-            ))
+        synthetic_hyperparameters.append(gamma)
 
-            d_phi_d_gamma = rf.utils.ZMergedMatrix([
-                - eta * da_grad,
-                da_grad
-            ])
-            synthetic_hyperparameters.append(
-                (gamma, d_phi_d_gamma)
-            )
-        else:
-            synthetic_hyperparameters.append(gamma)
-
+    hyper_dict = {error: regularization_hyperparameters + synthetic_hyperparameters}  # create hyper_dict
     # end of hyperparameters
 
-    # create hyper_dict
-    hyper_dict = {error: regularization_hyperparameters + synthetic_hyperparameters}
     if algo_hyper_wrt_tr_error:  # it is possible to optimize different hyperparameters wrt different validation errors
         hyper_dict[training_error] = algorithmic_hyperparameters
     else:
         hyper_dict[error] += algorithmic_hyperparameters
-    print(hyper_dict)
+    # print(hyper_dict)
 
     hyper_opt = rf.HyperOptimizer(tr_dynamics, hyper_dict,
                                   method=rf.ReverseHyperGradient if mode == 'reverse' else rf.ForwardHyperGradient,
@@ -187,7 +155,6 @@ def experiment(name_of_experiment, collect_data=True,
     positivity = rf.positivity(hyper_opt.hyper_list)
 
     # stochastic descent
-    import rfho.datasets as dt
     ev_data = ExampleVisiting(datasets, batch_size=batch_size, epochs=epochs)
     ev_data.generate_visiting_scheme()
     tr_supplier = ev_data.create_train_feed_dict_supplier(x, y)
@@ -221,33 +188,35 @@ def experiment(name_of_experiment, collect_data=True,
 
     hyper_grads = hyper_opt.hyper_gradients.hyper_gradients_dict
     # create a Saver object
-    saver = Saver(
-        'step', lambda step: step,
-        'mode', lambda step: mode,
-        'test accuracy', accuracy, test_supplier,
-        'validation accuracy', accuracy, val_supplier,
-        'training accuracy', accuracy, tr_supplier,
-        'validation error', error, val_supplier,
-        'memory usage (mb)', lambda step: calculate_memory_usage() * 9.5367e-7,
-        'weights', vec_w,
-        '# weights', lambda step: vec_w.get_shape().as_list()[0],
-        '# hyperparameters', lambda step: len(hyper_opt.hyper_list),
-        '# iterations', lambda step: T,
-        *rf.flatten_list([rf.simple_name(hyp), [hyp, hyper_grads[hyp]]]
-                         for hyp in hyper_opt.hyper_list),
-        do_print=do_print, collect_data=collect_data
-    )
+    if name_of_experiment:
+        saver = rf.Saver(name_of_experiment,
+                         'step', lambda step: step,
+                         'mode', lambda step: mode,
+                         'test accuracy', accuracy, test_supplier,
+                         'validation accuracy', accuracy, val_supplier,
+                         'training accuracy', accuracy, tr_supplier,
+                         'validation error', error, val_supplier,
+                         'memory usage (mb)', lambda step: calculate_memory_usage() * 9.5367e-7,
+                         'weights', vec_w,
+                         '# weights', lambda step: vec_w.get_shape().as_list()[0],
+                         '# hyperparameters', lambda step: len(hyper_opt.hyper_list),
+                         '# iterations', lambda step: T,
+                         *rf.flatten_list([rf.simple_name(hyp), [hyp, hyper_grads[hyp]]]
+                                          for hyp in hyper_opt.hyper_list),
+                         do_print=do_print, collect_data=collect_data
+                         )
+    else: saver = None
 
     save_dict_history = []
 
     with tf.Session(config=config).as_default() as ss:
-        saver.timer.start()
+        if saver: saver.timer.start()
         hyper_opt.initialize()
         for k in range(hyper_iterations):
             hyper_opt.run(T, train_feed_dict_supplier=tr_supplier, val_feed_dict_suppliers=val_feed_dict_suppliers,
                           hyper_constraints_ops=positivity)
 
-            save_dict_history.append(saver.save(k, append_string='_%s' % mode))
+            if saver: save_dict_history.append(saver.save(k, append_string='_%s' % mode))
 
             if mode != 'rtho':
                 hyper_opt.initialize()
@@ -266,7 +235,8 @@ def _check_adam():
             np.random.seed(1)
             tf.set_random_seed(1)
 
-            experiment('test_with_model_' + _model, collect_data=False, hyper_iterations=3, mode=_mode, epochs=3,
+            experiment('test_with_model_' + _model,
+                       collect_data=False, hyper_iterations=3, mode=_mode, epochs=3,
                        optimizer=rf.AdamOptimizer, optimizer_kwargs={'lr': tf.Variable(.001, name='eta_adam')},
                        model=_model,
                        model_kwargs=_model_kwargs,

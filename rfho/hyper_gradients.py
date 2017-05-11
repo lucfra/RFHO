@@ -371,16 +371,18 @@ class ForwardHyperGradient:
         self.hyper_dict = {}  # standardizes hyper_dict parameter
         for k, v in hyper_dict.items():
             list_v = as_list(v)
-            assert isinstance(list_v[0], tuple), "Something's wrong in hyper_dict %s, at least in entry%s. Check!"\
-                                                 % (hyper_dict, list_v[0])
+            # assert isinstance(list_v[0], tuple), "Something's wrong in hyper_dict %s, at least in entry%s. Check!"\
+            #                                      % (hyper_dict, list_v[0])
             self.hyper_dict[k] = list_v  # be sure values are lists!
-            self.hyper_list += [pair[0] for pair in list_v]
-            self.d_dynamics_d_hypers += [pair[1] for pair in list_v]
+            self.hyper_list += [pair[0] if isinstance(pair, (tuple, list)) else pair for pair in list_v]
+            self.d_dynamics_d_hypers += [pair[1] if isinstance(pair, (tuple, list)) else
+                                         optimizer.auto_d_dynamics_d_hyper(pair)   # try to compute it automatically
+                                         for pair in list_v]
 
         self.val_errors = []  # will follow the same order as hyper_list
         for hyp in self.hyper_list:  # find the right validation error for hyp!
             for k, v in hyper_dict.items():
-                all_hypers = [pair[0] for pair in as_list(v)]
+                all_hypers = [pair[0] if isinstance(pair, (list, tuple)) else pair for pair in as_list(v)]
                 if hyp in all_hypers:
                     self.val_errors.append(k)
                     break
@@ -507,7 +509,7 @@ class ForwardHyperGradient:
         val_sup_lst = []
         for hyp in self.hyper_list:  # find the right validation error for hyp!
             for k, v in self.hyper_dict.items():
-                all_hypers = [e[0] for e in v]
+                all_hypers = [e[0] if isinstance(e, (list, tuple)) else e for e in v]
                 if hyp in all_hypers:
                     val_sup_lst.append(val_feed_dict_supplier[k])
                     break
