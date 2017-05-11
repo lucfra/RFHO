@@ -88,6 +88,7 @@ CENSUS_TRAIN = os.path.join(DATA_FOLDER, 'census', "train.csv")
 CENSUS_TEST = os.path.join(DATA_FOLDER, 'census', "test.csv")
 CIFAR10_DIR = os.path.join(DATA_FOLDER, "CIFAR-10")
 CIFAR100_DIR = os.path.join(DATA_FOLDER, "CIFAR-100")
+REALSIM = os.path.join(DATA_FOLDER, "realsim")
 
 # scikit learn datasets
 SCIKIT_LEARN_DATA = os.path.join(DATA_FOLDER, 'scikit_learn_data')
@@ -126,8 +127,8 @@ class Dataset:
         if sample_info_dicts is None: sample_info_dicts = {}
         self.sample_info_dicts = np.array([sample_info_dicts] * self.num_examples)\
             if isinstance(sample_info_dicts, dict) else sample_info_dicts
-        assert len(self._data) == len(self.sample_info_dicts)
-        assert len(self._data) == len(self._target)
+        assert self._data.shape[0] == len(self.sample_info_dicts)
+        assert self._data.shape[0] == len(self._target)
 
         self.general_info_dict = general_info_dict or {}
 
@@ -389,6 +390,18 @@ def load_20newsgroup_feed_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, par
         res = redivide_data([d_train, d_test], partition_proportions=partitions_proportions, shuffle=shuffle)
 
     return to_datasets(res)
+
+
+def load_realsim(folder=REALSIM, one_hot=True, partitions_proportions=None, shuffle=True):
+    X, y = sk_dt.load_svmlight_file(folder + "/real-sim")
+    y = [int(yy) for yy in y]
+    if one_hot:
+        y = to_one_hot_enc(y)
+    res = [Dataset(data=X, target=y)]
+    if partitions_proportions:
+        res = redivide_data(res, shuffle=shuffle, partition_proportions=partitions_proportions)
+        res = to_datasets(res)
+    return res
 
 
 # noinspection PyPep8Naming
@@ -892,9 +905,10 @@ class WindowedData(object):
 
 
 if __name__ == '__main__':
-    # _datasets = load_20newsgroup_feed_vectorized(one_hot=False, binary_problem=True)
+    _datasets = load_20newsgroup_feed_vectorized(one_hot=False, binary_problem=True)
     # print(_datasets.train.dim_data)
     # print(_datasets.train.dim_target)
-    mnist = load_mnist(partitions=[0.1, .2], filters=lambda x, y, d, k: True)
-
+    # mnist = load_mnist(partitions=[0.1, .2], filters=lambda x, y, d, k: True)
+    realsim = load_realsim()
+    # print(realsim)
     # print(len(_datasets.train))
