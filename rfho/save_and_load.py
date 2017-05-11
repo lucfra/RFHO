@@ -208,8 +208,6 @@ class Saver:
         :param collect_data: (optional, default True) will save by default `save_dict` each time
                             method `save` is executed
         """
-        assert isinstance(items[0], str), 'Check args! first arg %s. Should be a string. All args: %s' % (items[0], items)
-
         self.directory = join_paths(root_directory, experiment_name)
         if collect_data:
             check_or_create_dir(root_directory, notebook_mode=False)
@@ -244,6 +242,9 @@ class Saver:
                           run_metadata (optional): to be passed to tf.Session.run
         :return: None
         """
+        assert len(items) == 0 or isinstance(items[0], str), 'Check items! first arg %s. Should be a string.' \
+                                                             'All args: %s' % (items[0], items)
+
         processed_args = []
         k = 0
         while k < len(items):
@@ -287,6 +288,15 @@ class Saver:
         return save_dict
 
     def pack_save_dictionaries(self, name='pack', append_string='', erase_others=True):
+        """
+        Creates an unique file starting from file created by method `save`.
+        The file contains a dictionary with keys equal to save_dict keys and values list of values form original files.
+
+        :param name:
+        :param append_string:
+        :param erase_others:
+        :return:
+        """
         import glob
         all_files = sorted(glob.glob(join_paths(self.directory, FOLDER_NAMINGS['OBJ_DIR'], '*%s.pkgz' % append_string)),
                            key=os.path.getctime)  # sort by creation time
