@@ -97,7 +97,7 @@ SCIKIT_LEARN_DATA = os.path.join(DATA_FOLDER, 'scikit_learn_data')
 def to_datasets(list_of_datasets):
     train, valid, test = None, None, None
     train = list_of_datasets[0]
-    if len(list_of_datasets) > 2:
+    if len(list_of_datasets) > 3:
         print('There are more then 3 Datasets here...')
         return list_of_datasets
     if len(list_of_datasets) > 1:
@@ -248,16 +248,21 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
     than one sample, for data augmentation)
     :return: a list of datasets of length equal to the (possibly augmented) partition_proportion
     """
+    import scipy.sparse as sp
+
     def stack_or_concat(list_of_arays):
         func = np.concatenate if list_of_arays[0].ndim == 1 else np.vstack
         return func(list_of_arays)
 
-    all_data = np.vstack([get_data(d) for d in datasets])
+    def vstack(lst):
+        return sp.vstack(lst) if isinstance(lst[0], sp.csr.csr_matrix) else np.vstack(lst)
+
+    all_data = vstack([get_data(d) for d in datasets])
     all_labels = stack_or_concat([get_targets(d) for d in datasets])
 
     all_infos = np.concatenate([d.sample_info_dicts for d in datasets])
 
-    N = len(all_data)
+    N = all_data.shape[0]
 
     if partition_proportions:  # argument check
         partition_proportions = list([partition_proportions] if isinstance(partition_proportions, float)
@@ -266,9 +271,10 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
         assert sum_proportions <= 1, "partition proportions must sum up to at most one: %d" % sum_proportions
         if sum_proportions < 1.: partition_proportions += [1. - sum_proportions]
     else:
-        partition_proportions = [1. * len(get_data(d)) / N for d in datasets]
+        partition_proportions = [1. * get_data(d).shape[0] / N for d in datasets]
 
     if shuffle:
+        if isinstance(all_data, sp.csr.csr_matrix): raise NotImplementedError()
         permutation = list(range(N))
         np.random.shuffle(permutation)
 
@@ -277,6 +283,7 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
         all_infos = np.array(all_infos[permutation])
 
     if filters:
+        if isinstance(all_data, sp.csr.csr_matrix): raise NotImplementedError()
         filters = as_list(filters)
         data_triple = [(x, y, d) for x, y, d in zip(all_data, all_labels, all_infos)]
         for fiat in filters:
@@ -286,6 +293,7 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
         all_infos = np.vstack([e[2] for e in data_triple])
 
     if maps:
+        if isinstance(all_data, sp.csr.csr_matrix): raise NotImplementedError()
         maps = as_list(maps)
         data_triple = [(x, y, d) for x, y, d in zip(all_data, all_labels, all_infos)]
         for _map in maps:
@@ -294,8 +302,8 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
         all_labels = np.vstack([e[1] for e in data_triple])
         all_infos = np.vstack([e[2] for e in data_triple])
 
-    N = len(all_data)
-    assert N == len(all_labels)
+    N = all_data.shape[0]
+    assert N == all_labels.shape[0]
 
     calculated_partitions = reduce(
         lambda v1, v2: v1 + [sum(v1) + v2],
@@ -305,7 +313,7 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
     calculated_partitions[-1] = N
 
     print('datasets.redivide_data:, computed partitions numbers -',
-          calculated_partitions, 'len all', len(all_data), end=' ')
+          calculated_partitions, 'len all', N, end=' ')
 
     new_general_info_dict = {}
     for data in datasets:
@@ -392,7 +400,7 @@ def load_20newsgroup_feed_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, par
     return to_datasets(res)
 
 
-def load_realsim(folder=REALSIM, one_hot=True, partitions_proportions=None, shuffle=True):
+def load_realsim(folder=REALSIM, one_hot=True, partitions_proportions=None, shuffle=False):
     X, y = sk_dt.load_svmlight_file(folder + "/real-sim")
     y = [int(yy) for yy in y]
     if one_hot:
@@ -905,10 +913,11 @@ class WindowedData(object):
 
 
 if __name__ == '__main__':
-    _datasets = load_20newsgroup_feed_vectorized(one_hot=False, binary_problem=True)
+    # _datasets = load_20newsgroup_feed_vectorized(one_hot=False, binary_problem=True)
     # print(_datasets.train.dim_data)
     # print(_datasets.train.dim_target)
     # mnist = load_mnist(partitions=[0.1, .2], filters=lambda x, y, d, k: True)
-    realsim = load_realsim()
-    # print(realsim)
+    realsim = load_realsim(partitions_proportions=[.5, .1])
+
+    print(realsim)
     # print(len(_datasets.train))
