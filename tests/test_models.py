@@ -1,6 +1,6 @@
 import unittest
 import tensorflow as tf
-from rfho.tests.test_base import iris_logistic_regression
+from tests.test_base import iris_logistic_regression
 
 
 class TestModelVectorization(unittest.TestCase):

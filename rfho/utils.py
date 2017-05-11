@@ -378,6 +378,18 @@ class MergedVariable:
     def get_tensor(v):
         return v.tensor if isinstance(v, MergedVariable) else v
 
+    def __pow__(self, power, modulo=None):
+        return self.tensor.__pow__(power)
+
+    def __add__(self, other):
+        return self.tensor.__add__(other)
+
+    def __sub__(self, other):
+        return self.tensor.__sub__(other)
+
+    def __mul__(self, other):
+        return self.tensor.__mul__(other)
+
 
 def flatten_list(lst):
     from itertools import chain
@@ -451,6 +463,14 @@ class ZMergedMatrix:
         assert isinstance(other, ZMergedMatrix)  # TODO make it a little bit more flexible (e.g. case of GD)
         assert len(other.components) == len(self.components)
         return ZMergedMatrix([c + v for c, v in zip(self.components, other.components)])
+
+    def get_shape(self):
+        """
+        Tensorflow
+
+        :return:
+        """
+        return self.tensor.get_shape()
 
     def eval(self, feed_dict=None):
         return self.tensor.eval(feed_dict=feed_dict)

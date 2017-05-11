@@ -142,13 +142,13 @@ def experiment(name_of_experiment, collect_data=True,
     vec_w = s.var_list(rf.Vl_Mode.TENSOR)[0]  # vectorized representation of _model weights (always the first!)
     if rho_l1s is not None:
         if mode != 'reverse':
-            regularization_hyperparameters += [(r1, tr_dynamics.d_dynamics_d_linear_loss_term(
+            regularization_hyperparameters += [(r1, tr_dynamics.d_dynamics_d_hyper_loss(
                 tf.gradients(er1, vec_w)[0])) for r1, er1 in zip(rho_l1s, reg_l1s)]
         else:
             regularization_hyperparameters += rho_l1s
     if rho_l2s is not None:
         if mode != 'reverse':
-            regularization_hyperparameters += [(r2, tr_dynamics.d_dynamics_d_linear_loss_term(
+            regularization_hyperparameters += [(r2, tr_dynamics.d_dynamics_d_hyper_loss(
                 tf.gradients(er2, vec_w)[0])) for r2, er2 in zip(rho_l2s, reg_l2s)]
         else:
             regularization_hyperparameters += rho_l2s

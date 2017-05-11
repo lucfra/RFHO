@@ -295,7 +295,7 @@ class Saver:
         :param name:
         :param append_string:
         :param erase_others:
-        :return:
+        :return: The generated dictionary
         """
         import glob
         all_files = sorted(glob.glob(join_paths(self.directory, FOLDER_NAMINGS['OBJ_DIR'], '*%s.pkgz' % append_string)),
@@ -313,6 +313,8 @@ class Saver:
 
         if erase_others:
             [os.remove(f) for f in all_files]
+
+        return packed_dict
 
 
     def save_fig(self, name):

@@ -4,8 +4,6 @@ from rfho.models import vectorize_model, LinearModel
 from rfho.utils import cross_entropy_loss
 
 
-
-
 def iris_logistic_regression(augment=0):
     iris = load_iris()
     x = tf.placeholder(tf.float32, name='x')

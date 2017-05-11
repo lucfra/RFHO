@@ -1,11 +1,14 @@
 import tensorflow as tf
 
-from rfho.utils import hvp, MergedVariable, Vl_Mode, GlobalStep, ZMergedMatrix
+from rfho.utils import hvp, MergedVariable, Vl_Mode, GlobalStep, ZMergedMatrix, simple_name
 
 
 class Optimizer:  # Gradient descent-like optimizer
+    """
+    Optimizers compatible with `HyperGradient` classes.
+    """
 
-    def __init__(self, raw_w, w, assign_ops, dynamics, jac_z, learning_rate, gradient):
+    def __init__(self, raw_w, w, assign_ops, dynamics, jac_z, learning_rate, gradient, loss):
         self.raw_w = raw_w
         self.w = w
         self.assign_ops = assign_ops
@@ -13,8 +16,18 @@ class Optimizer:  # Gradient descent-like optimizer
         self.jac_z = jac_z
         self.learning_rate = learning_rate
         self.gradient = gradient
+        self.loss = loss
+
+        self.algorithmic_hypers = {
+            self.learning_rate: self.d_dynamics_d_learning_rate
+        }
 
     def support_variables_initializer(self):
+        """
+        Returns an initialization op for the support variables (like velocity for momentum)
+
+        :return:
+        """
         return tf.variables_initializer(self.get_support_variables())
 
     def get_support_variables(self):
@@ -33,19 +46,46 @@ class Optimizer:  # Gradient descent-like optimizer
         """
         return ZMergedMatrix(-self.gradient)
 
-    def d_dynamics_d_linear_loss_term(self, grad_loss_term):
+    def d_dynamics_d_hyper_loss(self, grad_loss_term):
         """
-        Helper function for building the partial derivative of the dynamics w.r.t. an hyperparameter that
-        multiplies a loss term that concur in an additive way in forming the training error function.
-        E.g.: L + gamma R
+        Helper function for building the partial derivative of the dynamics w.r.t. an hyperparameter
+        inside the loss function, given the gradient or Jacobian of loss w.r.t.
 
         :param grad_loss_term: should be \nabla R
         :return: Partial derivative of dynamics w.r.t. weighting hyperparameter (e.g. gamma)
         """
         return ZMergedMatrix(-self.learning_rate * grad_loss_term)
 
-    @staticmethod  # maybe remove this?
+    def _auto_d_dynamics_d_hyper_no_zmm(self, hyper):
+        d_loss_d_lambda = tf.gradients(self.loss, hyper)[0]
+        assert d_loss_d_lambda is not None, "No gradient of tensor %s w.r.t hyperparameter %s" \
+                                            % (simple_name(self.loss), simple_name(hyper))
+
+        shape = d_loss_d_lambda.get_shape()
+        if shape.ndims == 1:  # hyper is a vector
+            return tf.stack([tf.gradients(d_loss_d_lambda[i], self.w)[0]
+                            for i in range(shape[0].value)], axis=1)
+
+        elif shape.ndims == 0:
+            return tf.gradients(d_loss_d_lambda, self.w)[0]
+        else:
+            raise NotImplementedError('For forward mode hyperparameters should be either scalar or vectors. \n'
+                                      '%s is a %d rank tensor instead' % (simple_name(hyper), shape.ndims))
+
+    def auto_d_dynamics_d_hyper(self, hyper):
+        if hyper in self.algorithmic_hypers:
+            return self.algorithmic_hypers[hyper]()  # the call to the function is here because otherwise it could
+        # rise an error at the initialization part in the case that the optimizer is used in gradient mode
+        # (i.e. loss is not provided in creation method)
+        return self.d_dynamics_d_hyper_loss(self._auto_d_dynamics_d_hyper_no_zmm(hyper))
+
+    @staticmethod
     def get_augmentation_multiplier():
+        """
+        Convenience method for `augment` param of `vectorize_model`
+
+        :return: Returns dim(state)/dim(parameter vector) for this optimizer.
+        """
         return 0
 
 
@@ -84,19 +124,22 @@ class GradientDescentOptimizer(Optimizer):
                              dynamics=dynamics,
                              jac_z=jac_z,
                              gradient=grad,
-                             learning_rate=lr)
+                             learning_rate=lr, loss=loss)
 
+    # noinspection PyMissingOrEmptyDocstring
     @staticmethod
     def get_augmentation_multiplier():
         return 0
 
 
 class MomentumOptimizer(Optimizer):
-    def __init__(self, raw_w, w, m, assign_ops, dynamics, jac_z, gradient, learning_rate, momentum_factor):
+    def __init__(self, raw_w, w, m, assign_ops, dynamics, jac_z, gradient, learning_rate, momentum_factor, loss):
         super(MomentumOptimizer, self).__init__(raw_w=raw_w, w=w, assign_ops=assign_ops, dynamics=dynamics, jac_z=jac_z,
-                                                learning_rate=learning_rate, gradient=gradient)
+                                                learning_rate=learning_rate, gradient=gradient, loss=loss)
         self.m = m
         self.momentum_factor = momentum_factor
+
+        self.algorithmic_hypers[self.momentum_factor] = self.d_dynamics_d_momentum_factor
 
     def get_support_variables(self):
         return [self.m]
@@ -112,12 +155,13 @@ class MomentumOptimizer(Optimizer):
     def d_dynamics_d_momentum_factor(self):
         return ZMergedMatrix([- (self.learning_rate * self.m), self.m])
 
-    def d_dynamics_d_linear_loss_term(self, grad_loss_term):
+    def d_dynamics_d_hyper_loss(self, grad_loss_term):
         return ZMergedMatrix([
             - self.learning_rate * grad_loss_term,
             grad_loss_term
         ])
 
+    # noinspection PyMissingOrEmptyDocstring
     @staticmethod
     def get_augmentation_multiplier():
         return 1
@@ -187,18 +231,21 @@ class MomentumOptimizer(Optimizer):
                 m=m,
                 assign_ops=[w_base_mv.assign(w_base_k), m_mv.assign(m_k)],
                 dynamics=dynamics,
-                jac_z=jac_z, gradient=grad, learning_rate=lr, momentum_factor=mu, raw_w=w
+                jac_z=jac_z, gradient=grad, learning_rate=lr, momentum_factor=mu, raw_w=w,
+                loss=loss
             )
 
 
 class AdamOptimizer(MomentumOptimizer):
     def __init__(self, raw_w, w, m, v, assign_ops, global_step, dynamics, jac_z, gradient, learning_rate,
-                 momentum_factor, second_momentum_factor):
+                 momentum_factor, second_momentum_factor, loss):
         super().__init__(w=w, m=m, assign_ops=assign_ops, dynamics=dynamics, jac_z=jac_z, gradient=gradient,
-                         learning_rate=learning_rate, momentum_factor=momentum_factor, raw_w=raw_w)
+                         learning_rate=learning_rate, momentum_factor=momentum_factor, raw_w=raw_w, loss=loss)
         self.v = v
         self.global_step = global_step
         self.second_momentum_factor = second_momentum_factor
+
+        self.algorithmic_hypers[self.second_momentum_factor] = self.d_dynamics_d_second_momentum_factor
 
     def support_variables_initializer(self):
         return tf.variables_initializer([self.m, self.v, self.global_step.var])
@@ -218,9 +265,10 @@ class AdamOptimizer(MomentumOptimizer):
     def d_dynamics_d_second_momentum_factor(self):
         raise NotImplementedError()  # TODO
 
-    def d_dynamics_d_linear_loss_term(self, grad_loss_term):
+    def d_dynamics_d_hyper_loss(self, grad_loss_term):
         raise NotImplementedError()  # TODO
 
+    # noinspection PyMissingOrEmptyDocstring
     @staticmethod
     def get_augmentation_multiplier():
         return 2
@@ -287,5 +335,5 @@ class AdamOptimizer(MomentumOptimizer):
                 assign_ops=[w_base_mv.assign(w_base_k), m_mv.assign(m_k), v_mv.assign(v_k)],
                 dynamics=dynamics,
                 jac_z=jac_z, gradient=grad, learning_rate=lr, momentum_factor=beta1, second_momentum_factor=beta2,
-                raw_w=w
+                raw_w=w, loss=loss
             )
