@@ -25,8 +25,11 @@ except ImportError:
 try:
     import scipy.io as scio
     from scipy import linalg
+    import scipy.sparse as sc_sp
+    SPARSE_SCIPY_MATRICES = (sc_sp.csr.csr_matrix, sc_sp.coo.coo_matrix)
 except ImportError:
-    scio, linalg = None, None
+    scio, linalg, scipy = None, None, None
+    SPARSE_SCIPY_MATRICES = ()
     print(sys.exc_info())
     print('scipy not found. Some load function might not work')
 
@@ -111,6 +114,14 @@ def _maybe_cast_to_scalar(what):
     return what[0] if len(what) == 1 else what
 
 
+def convert_sparse_matrix_to_sparse_tensor(X):
+    if isinstance(X, sc_sp.csr.csr_matrix):
+        coo = X.tocoo()
+        indices = np.mat([coo.row, coo.col]).transpose()
+    else: coo, indices = X, [X.row, X.col]
+    return tf.SparseTensor(indices, coo.data, coo.shape)
+
+
 class Dataset:
 
     def __init__(self, data, target, sample_info_dicts=None, general_info_dict=None):
@@ -163,6 +174,14 @@ class Dataset:
         :return: The target dimensionality as an integer, if targets are vectors, or a tuple in the general case
         """
         return 1 if self.target.ndim == 1 else _maybe_cast_to_scalar(self.target.shape[1:])
+
+    def convert_to_tensor(self, keep_sparse=True):
+        matrices = ['_data', '_target']
+        for att in matrices:
+            if keep_sparse and isinstance(self.__getattribute__(att), SPARSE_SCIPY_MATRICES):
+                self.__setattr__(att, convert_sparse_matrix_to_sparse_tensor(self.__getattribute__(att)))
+            else:
+                self.__setattr__(att, tf.convert_to_tensor(self.__getattribute__(att)))
 
 
 def to_one_hot_enc(seq):
@@ -371,8 +390,8 @@ def test_if_balanced(dataset):
     print('exemple by class: ', class_counter)
 
 
-def load_20newsgroup_feed_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, partitions_proportions=None,
-                                     shuffle=True, binary_problem=False):
+def load_20newsgroup_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, partitions_proportions=None,
+                                shuffle=True, binary_problem=False, as_tensor=True):
     data_train = sk_dt.fetch_20newsgroups_vectorized(data_home=folder, subset='train')
     data_test = sk_dt.fetch_20newsgroups_vectorized(data_home=folder, subset='test')
 
@@ -389,13 +408,15 @@ def load_20newsgroup_feed_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, par
         y_train = to_one_hot_enc(y_train)
         y_test = to_one_hot_enc(y_test)
 
-    d_train = Dataset(data=X_train.todense(),
+    d_train = Dataset(data=X_train,
                       target=y_train, general_info_dict={'target names': data_train.target_names})
-    d_test = Dataset(data=X_test.todense(),
+    d_test = Dataset(data=X_test,
                      target=y_test, general_info_dict={'target names': data_train.target_names})
     res = [d_train, d_test]
     if partitions_proportions:
         res = redivide_data([d_train, d_test], partition_proportions=partitions_proportions, shuffle=shuffle)
+
+    if as_tensor: [dat.convert_to_tensor() for dat in res]
 
     return to_datasets(res)
 
@@ -917,7 +938,10 @@ if __name__ == '__main__':
     # print(_datasets.train.dim_data)
     # print(_datasets.train.dim_target)
     # mnist = load_mnist(partitions=[0.1, .2], filters=lambda x, y, d, k: True)
-    realsim = load_realsim(partitions_proportions=[.5, .1])
+    realsim = load_20newsgroup_vectorized(partitions_proportions=[.5, .1], as_tensor=True)
+    print(realsim.train.data)
+    print(realsim.validation.data)
+    print(realsim.test.data)
 
     print(realsim)
     # print(len(_datasets.train))
