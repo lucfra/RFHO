@@ -507,12 +507,15 @@ class ForwardHyperGradient:
             val_feed_dict_supplier = {self.hyper_list[0]: val_feed_dict_supplier}
 
         val_sup_lst = []
-        for hyp in self.hyper_list:  # find the right validation error for hyp!
-            for k, v in self.hyper_dict.items():
-                all_hypers = [e[0] if isinstance(e, (list, tuple)) else e for e in v]
-                if hyp in all_hypers:
-                    val_sup_lst.append(val_feed_dict_supplier[k])
-                    break
+        if val_feed_dict_supplier is None:
+            val_sup_lst = [lambda _st: None]*len(self.hyper_list)
+        else:
+            for hyp in self.hyper_list:  # find the right validation error for hyp!
+                for k, v in self.hyper_dict.items():
+                    all_hypers = [e[0] if isinstance(e, (list, tuple)) else e for e in v]
+                    if hyp in all_hypers:
+                        val_sup_lst.append(val_feed_dict_supplier[k])
+                        break
 
         # NEW VARIABLE-BASED HYPER-GRADIENTS
         [assign_op.eval(feed_dict=vsl(self.global_step.eval())) for  # TODO this doesn't make that much sense... maybe

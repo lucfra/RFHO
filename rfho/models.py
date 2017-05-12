@@ -316,7 +316,10 @@ class LinearModel(Network):
             _W, _b, _activ, act_f = ac_func(self.inp[-1], self.dims)
             self.Ws.append(_W)
             self.bs.append(_b)  # put in the lists
-            self.inp.append(_activ)
+            if dim_output == 1:
+                self.inp.append(_activ[:, 0])
+            else:
+                self.inp.append(_activ)
             # self.act_fs.append(act_f)
 
         self.std_collections()

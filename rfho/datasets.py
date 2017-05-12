@@ -190,7 +190,7 @@ class Dataset:
             if keep_sparse and isinstance(self.__getattribute__(att), SPARSE_SCIPY_MATRICES):
                 self.__setattr__(att, convert_sparse_matrix_to_sparse_tensor(self.__getattribute__(att)))
             else:
-                self.__setattr__(att, tf.convert_to_tensor(self.__getattribute__(att)))
+                self.__setattr__(att, tf.convert_to_tensor(self.__getattribute__(att), dtype=tf.float32))
         self._tensor_mode = True
 
 
@@ -401,7 +401,7 @@ def test_if_balanced(dataset):
 
 
 def load_20newsgroup_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, partitions_proportions=None,
-                                shuffle=True, binary_problem=False, as_tensor=True):
+                                shuffle=False, binary_problem=False, as_tensor=True, minus_value=-1.):
     data_train = sk_dt.fetch_20newsgroups_vectorized(data_home=folder, subset='train')
     data_test = sk_dt.fetch_20newsgroups_vectorized(data_home=folder, subset='test')
 
@@ -410,9 +410,9 @@ def load_20newsgroup_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, partitio
     y_train = data_train.target
     y_test = data_test.target
     if binary_problem:
-        y_train[data_train.target < 10] = 0.
+        y_train[data_train.target < 10] = minus_value
         y_train[data_train.target >= 10] = 1.
-        y_test[data_test.target < 10] = 0.
+        y_test[data_test.target < 10] = minus_value
         y_test[data_test.target >= 10] = 1.
     if one_hot:
         y_train = to_one_hot_enc(y_train)
@@ -433,7 +433,7 @@ def load_20newsgroup_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, partitio
 
 def load_realsim(folder=REALSIM, one_hot=True, partitions_proportions=None, shuffle=False, as_tensor=True):
     X, y = sk_dt.load_svmlight_file(folder + "/real-sim")
-    y = [int(yy) for yy in y]
+    y = np.array([int(yy) for yy in y])
     if one_hot:
         y = to_one_hot_enc(y)
     res = [Dataset(data=X, target=y)]
@@ -962,10 +962,16 @@ if __name__ == '__main__':
     # print(_datasets.train.dim_data)
     # print(_datasets.train.dim_target)
     # mnist = load_mnist(partitions=[0.1, .2], filters=lambda x, y, d, k: True)
-    # print(len(_datasets.train))
-    dataset = generate_multiclass_dataset(n_samples=1000, n_features=2, classes=3, cluster_std=0.8, hot_encoded=False,
-                                          shuffle=True, random_state=0, partitions_proportions=[0.5, 0.3])
-    if dataset.train.dim_data == 2:
-        import matplotlib.pyplot as plt
-        plt.scatter(dataset.train.data[:, 0], dataset.train.data[:, 1], c=dataset.train.target)
-        plt.show()
+    # print(len(_datasets.train))\
+
+
+    # dataset = generate_multiclass_dataset(n_samples=1000, n_features=2, classes=3, cluster_std=0.8, hot_encoded=False,
+    #                                       shuffle=True, random_state=0, partitions_proportions=[0.5, 0.3])
+    # if dataset.train.dim_data == 2:
+    #     import matplotlib.pyplot as plt
+    #     plt.scatter(dataset.train.data[:, 0], dataset.train.data[:, 1], c=dataset.train.target)
+    #     plt.show()
+
+    dt = load_20newsgroup_vectorized()
+    print(dt.train.num_examples)
+    print(dt.train.num_examples)

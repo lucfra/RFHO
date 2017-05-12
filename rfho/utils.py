@@ -153,8 +153,9 @@ def binary_cross_entropy(y, targets, linear_input=True, eps=1.e-5, name='binary_
     """
     with tf.name_scope(name):
         sigmoid_out = tf.nn.sigmoid(y)[:, 0] if linear_input else y
-        return - (targets[:, 0] * tf.log(tf.clip_by_value(sigmoid_out, eps, 1. - eps)) +
-                  (1. - targets[:, 0]) * tf.log(tf.clip_by_value(1. - sigmoid_out, eps, 1. - eps)))
+        # tgs = targets if len(targets.)
+        return - (targets * tf.log(tf.clip_by_value(sigmoid_out, eps, 1. - eps)) +
+                  (1. - targets) * tf.log(tf.clip_by_value(1. - sigmoid_out, eps, 1. - eps)))
 
 
 def matmul(a, b, benchmark=True, name='mul'):  # TODO maybe put inside dot
