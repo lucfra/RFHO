@@ -1,6 +1,6 @@
 import unittest
-import tensorflow as tf
 from tests.test_base import iris_logistic_regression
+from rfho.models import *
 
 
 class TestModelVectorization(unittest.TestCase):
@@ -34,5 +34,34 @@ class TestModelVectorization(unittest.TestCase):
             print('gradients w.r.t. w, m, p', ss.run(grads_wrt_single_variables, feed_dict=fd), sep='\n')
 
 
+class TestModels(unittest.TestCase):
+
+    def test_sparse_input_models(self):
+        import numpy as np
+        import rfho.datasets as ddt
+
+        real_sim = ddt.load_realsim(partitions_proportions=[.5, .3])
+
+        model_train = LinearModel(real_sim.train.data, real_sim.train.dim_data, real_sim.train.dim_target,
+                                   init_w=tf.random_normal, init_b=tf.random_normal, benchmark=True)
+        model_train2 = model_train.for_input(real_sim.train.data)
+
+        model_valid = model_train.for_input(real_sim.validation.data)
+
+        with tf.Session().as_default():
+            tf.global_variables_initializer().run()
+            print(np.sum(model_train.Ws[0].eval() - model_valid.Ws[0].eval()))
+            print(np.sum(model_train.bs[0].eval() - model_valid.bs[0].eval()))
+
+            print(np.sum(model_train.inp[-1].eval() - model_train2.inp[-1].eval()))
+            print(np.sum(model_train.inp[-1].eval() - model_train2.inp[-1].eval()))
+            print(np.sum(model_train.inp[-1].eval() - model_train2.inp[-1].eval()))
+
+            print(np.sum(model_train.inp[-1].eval() - model_train.inp[-1].eval()))
+            print(np.sum(model_train.inp[-1].eval() - model_train.inp[-1].eval()))
+            # if sparse matmul is used then these last values are not 0!
+
+
 if __name__ == '__main__':
-    unittest.main()
+    # unittest.main()
+    TestModels().test_sparse_input_models()

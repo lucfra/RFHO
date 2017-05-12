@@ -173,8 +173,8 @@ def ffnn_layer(init_w=tf.contrib.layers.xavier_initializer(),  # OK
     return _int
 
 
-def ffnn_lin_out(init_w=tf.zeros, init_b=tf.zeros):  # OK
-    return ffnn_layer(init_w, init_b, tf.identity)
+def ffnn_lin_out(init_w=tf.zeros, init_b=tf.zeros, benchmark=True):  # OK
+    return ffnn_layer(init_w, init_b, tf.identity, benchmark=benchmark)
 
 # standard layers end ##############
 
@@ -265,9 +265,13 @@ class Network(object):
 
         self.Ws = []
         self.bs = []
-        self.act_fs = []  # activation functions at each layer
         self.inp = [_input]
         self.var_list = []
+
+        self.act_fs = []  # activation functions at each layer  # TODO to be deleted, substituted with followings
+
+        self.active_gen = []
+        self.active_gen_kwargs = []
 
     def std_collections(self):
         self.var_list = self.Ws + self.bs
@@ -289,7 +293,7 @@ class Network(object):
 class LinearModel(Network):
 
     def __init__(self, _input, dim_input, dim_output,
-                 active_gen=ffnn_lin_out()):
+                 active_gen=ffnn_lin_out, **activ_gen_kwargs):
         """
         Builds a single layer NN, by default with linear activation (this means it's just a linear model!)
 
@@ -301,21 +305,30 @@ class LinearModel(Network):
         # TODO infer input dimensions form _input....
         super(LinearModel, self).__init__(_input)
 
-        self.dims = [dim_input, dim_output]
+        self.dims = (dim_input, dim_output)
 
         with tf.name_scope('model_parameters'):
-            _W, _b, _activ, act_f = active_gen(self.inp[-1], [dim_input, dim_output])
+            self.active_gen.append(active_gen)
+            self.active_gen_kwargs.append(activ_gen_kwargs)
+
+            ac_func = active_gen(**activ_gen_kwargs)
+
+            _W, _b, _activ, act_f = ac_func(self.inp[-1], self.dims)
             self.Ws.append(_W)
             self.bs.append(_b)  # put in the lists
             self.inp.append(_activ)
-            self.act_fs.append(act_f)
+            # self.act_fs.append(act_f)
 
         self.std_collections()
 
     def for_input(self, new_input):
         # TODO this works only with default value of active_gen...solve this!
+        new_active_gen_kwargs = dict(self.active_gen_kwargs[0])
+        new_active_gen_kwargs['init_w'] = self.Ws[0]
+        new_active_gen_kwargs['init_b'] = self.bs[0]
+
         return LinearModel(new_input, self.dims[0], self.dims[1],
-                           active_gen=ffnn_lin_out(self.Ws[0], self.bs[0]))
+                           active_gen=self.active_gen[0], **new_active_gen_kwargs)
 
 
 
@@ -448,35 +461,3 @@ class SimpleDeCNN(Network):
             self.inp += conv_part.inp
 
         self.std_collections()
-
-
-if __name__ == '__main__':
-    import rfho.datasets as dt
-    import time
-    import numpy as np
-    data = dt.load_realsim(partitions_proportions=[.5,.3])
-
-    model_train = LinearModel(data.train.data, data.train.dim_data, data.train.dim_target,
-                              active_gen=ffnn_lin_out(init_w=tf.random_normal))
-    model_valid = model_train.for_input(data.validation.data)
-
-    td = data.train.data
-
-    # indices = tf.SparseTensor(indices=)
-    #
-    # sparse_embedding_mul = tf.nn.embedding_lookup_sparse(model_train.Ws[0], td, td)
-
-    with tf.Session().as_default() as ss:
-        tf.global_variables_initializer().run()
-
-
-        # times = []
-        # for k in range(10):
-        #     st = time.time()
-        #     model_train.inp[-1].eval()
-        #     times.append(time.time() - st)
-        # print(np.mean(times))
-        # print(np.max(times))
-        # print(np.min(times))
-
-

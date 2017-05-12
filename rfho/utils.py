@@ -196,6 +196,8 @@ def matmul(a, b, benchmark=True, name='mul'):  # TODO maybe put inside dot
 
                 mul = sorted(statistics.items(), key=lambda v: v[1][0])[0][0]  # returns best one w.r.t. avg exe time
 
+                print(mul, 'selected')
+
         else:
             mul = wsr(tf.matmul(a, b))
     return mul
