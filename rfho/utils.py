@@ -21,6 +21,10 @@ def wsr(node):  # warning on session running
     return node
 
 
+CONFIG_GPU_GROWTH = tf.ConfigProto()
+CONFIG_GPU_GROWTH.gpu_options.allow_growth = True
+
+
 def simple_name(tensor):
     return tensor.name.split(':')[0]
 
@@ -44,7 +48,6 @@ class SummaryUtil:
 
 
 class SummaryUtils:
-
     def __init__(self, *summary_utils_list):
         self.summary_list = summary_utils_list
 
@@ -80,7 +83,6 @@ class PrintUtils:  # TODO fix this class... Looks horrible now
 
 
 class MergedUtils:
-
     def __init__(self, *utils):
         self.merged = utils
 
@@ -151,8 +153,52 @@ def binary_cross_entropy(y, targets, linear_input=True, eps=1.e-5, name='binary_
     """
     with tf.name_scope(name):
         sigmoid_out = tf.nn.sigmoid(y)[:, 0] if linear_input else y
-        return - (targets[:, 0]*tf.log(tf.clip_by_value(sigmoid_out, eps, 1. - eps)) +
-                  (1. - targets[:, 0])*tf.log(tf.clip_by_value(1. - sigmoid_out, eps, 1. - eps)))
+        return - (targets[:, 0] * tf.log(tf.clip_by_value(sigmoid_out, eps, 1. - eps)) +
+                  (1. - targets[:, 0]) * tf.log(tf.clip_by_value(1. - sigmoid_out, eps, 1. - eps)))
+
+
+def matmul(a, b, benchmark=True, name='mul'):  # TODO maybe put inside dot
+    """
+    Interface function for matmul that works also with sparse tensors
+
+    :param a:
+    :param b:
+    :param benchmark:
+    :param name:
+    :return:
+    """
+    a_is_sparse = isinstance(a, tf.SparseTensor)
+    with tf.name_scope(name):
+        if a_is_sparse:
+            mul = wsr(tf.matmul(tf.sparse_tensor_to_dense(a, default_value=0.), b))
+            if benchmark:
+                mul_ops = [wsr(tf.sparse_tensor_dense_matmul(a, b)),
+                           mul,  # others ?
+                           # wsr(tf.nn.embedding_lookup_sparse())  # I couldn't figure out how this works......
+                           ]
+
+                def _avg_exe_times(op, repetitions):
+                    from time import time
+                    ex_times = []
+                    for _ in range(repetitions):
+                        st = time()
+                        op.eval()
+                        ex_times.append(time() - st)
+                    return np.mean(ex_times[1:]), np.max(ex_times), np.min(ex_times)
+
+                with tf.Session(config=CONFIG_GPU_GROWTH).as_default():
+                    tf.global_variables_initializer().run()  # TODO here should only initialize necessary variable
+                    # (downstream in the computation graph)
+
+                    statistics = {op: _avg_exe_times(op, repetitions=10) for op in mul_ops}
+
+                [print(k, v) for k, v in statistics.items()]
+
+                mul = sorted(statistics.items(), key=lambda v: v[1][0])[0][0]  # returns best one w.r.t. avg exe time
+
+        else:
+            mul = wsr(tf.matmul(a, b))
+    return mul
 
 
 def dot(v1, v2):
@@ -177,8 +223,10 @@ def dot(v1, v2):
     elif v1_shape == 1 and v2_shape == 2:  # fine for mat
         # this is a thing that is useful in DirectDoh
         res = tf.reduce_sum(v1 * tf.transpose(v2), reduction_indices=[1])
-        if v2.get_shape().as_list()[1] == 1: return res[0]
-        else: return res
+        if v2.get_shape().as_list()[1] == 1:
+            return res[0]
+        else:
+            return res
     elif v1_shape == 1 and v2_shape == 1:
         return tf.reduce_sum(v1 * v2)
     else:
@@ -223,8 +271,8 @@ def hvp(loss, w, v):
     if not isinstance(w, list) and not isinstance(v, list):  # single inputs
         if len(v.get_shape().as_list()) == 2 and len(w.get_shape().as_list()) == 1:
             return tf.stack([
-                hvp(loss, w, v[:, k]) for k in range(v.get_shape().as_list()[1])
-                ], axis=1)
+                                hvp(loss, w, v[:, k]) for k in range(v.get_shape().as_list()[1])
+                                ], axis=1)
         return wsr(_hvp(loss, [w], [v])[0])
     return wsr(_hvp(loss, w, v))
 
@@ -251,20 +299,20 @@ def reshape_generator(original_var, start, end):
 def cleaner_accuracy(x, correct_labels, epsilon):
     n_examples = x.shape[0]
     correct_guesses = np.abs(x - correct_labels) < epsilon
-    return np.count_nonzero(correct_guesses)/n_examples
+    return np.count_nonzero(correct_guesses) / n_examples
 
 
 def one_hot_confidence(vec, epsilon):
     n_examples = vec.shape[0]
     near_one_hot = np.amax(vec, 1) > 1 - epsilon
     # print("near_one_hot ({}/{}): {}".format(near_one_hot.size, n_examples, near_one_hot)) #DEBUG
-    return np.count_nonzero(near_one_hot)/n_examples
+    return np.count_nonzero(near_one_hot) / n_examples
 
 
 def one_or_zero_similarity(x):
     n_examples = x.shape[0]
     one_or_zero_similarity_vector = np.abs(x - 0.5) * 2
-    return np.sum(one_or_zero_similarity_vector)/n_examples
+    return np.sum(one_or_zero_similarity_vector) / n_examples
 
 
 Vl_Mode = Enum('Vl_Mode', 'RAW BASE TENSOR')  # allowed modes for MergedVariable.var_list (maybe not that convenient..)
@@ -435,7 +483,6 @@ class GlobalStep:
 
 
 class ZMergedMatrix:
-
     def __init__(self, matrix_list):
 
         self.components = as_list(matrix_list)

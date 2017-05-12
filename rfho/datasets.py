@@ -119,7 +119,8 @@ def convert_sparse_matrix_to_sparse_tensor(X):
         coo = X.tocoo()
         indices = np.mat([coo.row, coo.col]).transpose()
     else: coo, indices = X, [X.row, X.col]
-    return tf.SparseTensor(indices, coo.data, coo.shape)
+    # data = np.array(coo.data, dtype=)
+    return tf.SparseTensor(indices, tf.constant(coo.data, dtype=tf.float32), coo.shape)
 
 
 class Dataset:
@@ -133,15 +134,22 @@ class Dataset:
                                   dicts.
         :param general_info_dict: (optional) dictionary with further info about the dataset
         """
+        self._tensor_mode = False
+
         self._data = data
         self._target = target
-        if sample_info_dicts is None: sample_info_dicts = {}
-        self.sample_info_dicts = np.array([sample_info_dicts] * self.num_examples)\
+        if sample_info_dicts is None:
+            sample_info_dicts = {}
+        self.sample_info_dicts = np.array([sample_info_dicts] * self.num_examples) \
             if isinstance(sample_info_dicts, dict) else sample_info_dicts
-        assert self._data.shape[0] == len(self.sample_info_dicts)
-        assert self._data.shape[0] == len(self._target)
+
+        assert self.num_examples == len(self.sample_info_dicts)
+        assert self.num_examples == self._shape(self._target)[0]
 
         self.general_info_dict = general_info_dict or {}
+
+    def _shape(self, what):
+        return what.get_shape().as_list() if self._tensor_mode else what.shape
 
     @property
     def data(self):
@@ -157,7 +165,7 @@ class Dataset:
 
         :return: Number of examples in this dataset
         """
-        return self.data.shape[0]
+        return self._shape(self.data)[0]
 
     @property
     def dim_data(self):
@@ -165,7 +173,7 @@ class Dataset:
 
         :return: The data dimensionality as an integer, if input are vectors, or a tuple in the general case
         """
-        return _maybe_cast_to_scalar(self.data.shape[1:])
+        return _maybe_cast_to_scalar(self._shape(self.data)[1:])
 
     @property
     def dim_target(self):
@@ -173,7 +181,8 @@ class Dataset:
 
         :return: The target dimensionality as an integer, if targets are vectors, or a tuple in the general case
         """
-        return 1 if self.target.ndim == 1 else _maybe_cast_to_scalar(self.target.shape[1:])
+        shape = self._shape(self.target)
+        return 1 if len(shape) == 1 else _maybe_cast_to_scalar(shape[1:])
 
     def convert_to_tensor(self, keep_sparse=True):
         matrices = ['_data', '_target']
@@ -182,6 +191,7 @@ class Dataset:
                 self.__setattr__(att, convert_sparse_matrix_to_sparse_tensor(self.__getattribute__(att)))
             else:
                 self.__setattr__(att, tf.convert_to_tensor(self.__getattribute__(att)))
+        self._tensor_mode = True
 
 
 def to_one_hot_enc(seq):
@@ -421,7 +431,7 @@ def load_20newsgroup_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, partitio
     return to_datasets(res)
 
 
-def load_realsim(folder=REALSIM, one_hot=True, partitions_proportions=None, shuffle=False):
+def load_realsim(folder=REALSIM, one_hot=True, partitions_proportions=None, shuffle=False, as_tensor=True):
     X, y = sk_dt.load_svmlight_file(folder + "/real-sim")
     y = [int(yy) for yy in y]
     if one_hot:
@@ -430,6 +440,9 @@ def load_realsim(folder=REALSIM, one_hot=True, partitions_proportions=None, shuf
     if partitions_proportions:
         res = redivide_data(res, shuffle=shuffle, partition_proportions=partitions_proportions)
         res = to_datasets(res)
+
+    if as_tensor: [dat.convert_to_tensor() for dat in res]
+
     return res
 
 

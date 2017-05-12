@@ -6,6 +6,7 @@ from functools import reduce
 import tensorflow as tf
 from rfho.utils import MergedVariable
 import tensorflow.contrib.graph_editor as ge
+import rfho.utils as utils
 
 test = False
 do_print = False
@@ -157,12 +158,15 @@ def mixed_activation(*activations, proportions=None):
 
 def ffnn_layer(init_w=tf.contrib.layers.xavier_initializer(),  # OK
                init_b=tf.zeros,
-               activ=tf.nn.relu):
+               activ=tf.nn.relu, benchmark=True):
     def _int(_input, _shape):
         pvars(vars(), 1)
         _W = create_or_reuse(init_w, _shape, name='W')
         _b = create_or_reuse(init_b, [_shape[1]], name='b')
-        _lin_activ = tf.matmul(_input, _W) + _b
+
+        mul = utils.matmul(_input, _W, benchmark=benchmark)
+
+        _lin_activ = mul + _b
         _activ = activ(_lin_activ, name='activation')
         return _W, _b, _activ, activ
 
@@ -242,6 +246,9 @@ def vectorize_model(model_vars, *o_outs, augment=0):
 
 
 class Network(object):
+    """
+    Base object for models
+    """
 
     def __init__(self, _input):
         """
@@ -269,6 +276,15 @@ class Network(object):
         [tf.add_to_collection(tf.GraphKeys.GLOBAL_VARIABLES, _v) for _v in self.var_list]
         [tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, _v) for _v in self.inp]
 
+    def for_input(self, new_input):
+        """
+        Returns the same model computed on an other input...
+
+        :param new_input:
+        :return:
+        """
+        raise NotImplementedError()
+
 
 class LinearModel(Network):
 
@@ -282,7 +298,7 @@ class LinearModel(Network):
         :param dim_output: output dimension
         :param active_gen: callable that genera
         """
-        # TODO infer input and output dimensions form input....
+        # TODO infer input dimensions form _input....
         super(LinearModel, self).__init__(_input)
 
         self.dims = [dim_input, dim_output]
@@ -295,6 +311,12 @@ class LinearModel(Network):
             self.act_fs.append(act_f)
 
         self.std_collections()
+
+    def for_input(self, new_input):
+        # TODO this works only with default value of active_gen...solve this!
+        return LinearModel(new_input, self.dims[0], self.dims[1],
+                           active_gen=ffnn_lin_out(self.Ws[0], self.bs[0]))
+
 
 
 class FFNN(Network):
@@ -426,3 +448,35 @@ class SimpleDeCNN(Network):
             self.inp += conv_part.inp
 
         self.std_collections()
+
+
+if __name__ == '__main__':
+    import rfho.datasets as dt
+    import time
+    import numpy as np
+    data = dt.load_realsim(partitions_proportions=[.5,.3])
+
+    model_train = LinearModel(data.train.data, data.train.dim_data, data.train.dim_target,
+                              active_gen=ffnn_lin_out(init_w=tf.random_normal))
+    model_valid = model_train.for_input(data.validation.data)
+
+    td = data.train.data
+
+    # indices = tf.SparseTensor(indices=)
+    #
+    # sparse_embedding_mul = tf.nn.embedding_lookup_sparse(model_train.Ws[0], td, td)
+
+    with tf.Session().as_default() as ss:
+        tf.global_variables_initializer().run()
+
+
+        # times = []
+        # for k in range(10):
+        #     st = time.time()
+        #     model_train.inp[-1].eval()
+        #     times.append(time.time() - st)
+        # print(np.mean(times))
+        # print(np.max(times))
+        # print(np.min(times))
+
+

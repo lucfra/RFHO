@@ -19,9 +19,6 @@ def load_dataset(partition_proportions=(.5, .3)):
 IMPLEMENTED_MODEL_TYPES = ['log_reg', 'ffnn']
 HO_MODES = ['forward', 'reverse', 'rtho']
 
-config = tf.ConfigProto()
-config.gpu_options.allow_growth = True
-
 
 def create_model(datasets, model_creator='log_reg', **model_kwargs):
     dataset = datasets.train
@@ -209,7 +206,7 @@ def experiment(name_of_experiment, collect_data=True,
 
     save_dict_history = []
 
-    with tf.Session(config=config).as_default() as ss:
+    with tf.Session(config=rf.CONFIG_GPU_GROWTH).as_default() as ss:
         if saver: saver.timer.start()
         hyper_opt.initialize()
         for k in range(hyper_iterations):
