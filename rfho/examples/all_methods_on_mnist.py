@@ -16,7 +16,7 @@ def load_dataset(partition_proportions=(.5, .3)):
     return load_mnist(partitions=partition_proportions)
 
 
-IMPLEMENTED_MODEL_TYPES = ['log_reg', 'ffnn']
+IMPLEMENTED_MODEL_TYPES = ['log_reg', 'ffnn', 'cnn']
 HO_MODES = ['forward', 'reverse', 'rtho']
 
 

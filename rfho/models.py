@@ -33,21 +33,8 @@ def pvars(_vars, _tabs=0):
 
 # layers util funcs ########
 
-# this comes form tensorflow tutorials...
 
-def new_weight(_shape, std_dev=.1): return tf.Variable(tf.truncated_normal(_shape, stddev=std_dev))
-
-
-def new_bias(_shape, _init=.1): return tf.Variable(tf.constant(_init, shape=_shape))  # striding: andare a lunghi passi
-
-
-def conv2d(_x, _W): return tf.nn.conv2d(_x, _W, strides=[1, 1, 1, 1], padding='SAME')
-
-
-def max_pool_2x2(_x): return tf.nn.max_pool(_x, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
-
-
-def unpool(value, name='unpool'):
+def uppool(value, name='uppool'):  # TODO TBD??
     """N-dimensional version of the unpooling operation from
     https://www.robots.ox.ac.uk/~vgg/rg/papers/Dosovitskiy_Learning_to_Generate_2015_CVPR_paper.pdf
     Note that the only dimension that can be unspecified is the first one (b)
@@ -70,51 +57,51 @@ def unpool(value, name='unpool'):
     return out
 
 
-def conv_layer(_input, _shape, _activ=tf.nn.relu, _stdder=.1, _bias_init=.1):
-    pvars(vars(), 1)
-    _wc = new_weight(_shape, _stdder)  # [width, height, channes, features ->
-    #                                     channels for upper layer] for the sliding window
-    _bc = new_bias([_shape[-1]], _bias_init)
-    _lin_conv = conv2d(_input, _wc) + _bc
-    _h_conv = _activ(_lin_conv, name='conv_activ')
-    return _wc, _bc, _h_conv
+def convolutional_layer_2d(init_w=None, init_b=tf.zeros, strides=(1, 1, 1, 1),
+                           padding='SAME', act=tf.nn.relu):
+    """
+    Helper function for 2d convolutional layer
+
+    :param padding:
+    :param init_w:
+    :param init_b:
+    :param strides:
+    :param act:
+    :return: an initializer
+    """
+    init_w = lambda shape: tf.truncated_normal(shape, stddev=.1)
+
+    def _init(_input, shape):
+        _W = create_or_reuse(init_w, shape, name='W')
+        _b = create_or_reuse(init_b, shape, name='b')
+        linear_activation = tf.nn.conv2d(_input, _W, strides=strides, padding=padding, name='linear_activation') + _b
+        activation = act(linear_activation)
+        return _W, _b, activation
+
+    return _init
 
 
-def relu_conv_layer2x2_max_pool(_input, _shape):
-    _wc, _bc, _h_conv = conv_layer(_input, _shape)
-    return _wc, _bc, max_pool_2x2(_h_conv)
+def convolutional_layer2d_maxpool(init_w=None, init_b=tf.zeros, strides=(1, 1, 1, 1),
+                                  padding='SAME', act=tf.nn.relu, **maxpool_kwargs):
+    init_cnv = convolutional_layer_2d(init_w, init_b, strides, padding, act)
+    maxpool_kwargs.setdefault('ksize', (1, 1, 1, 1))
+    maxpool_kwargs.setdefault('strides', (1, 2, 2, 1))
+    maxpool_kwargs.setdefault('padding', 'SAME')
+
+    def _init(_input, shape):
+        _W, _b, activation = init_cnv(_input, shape)
+        return _W, _b, tf.nn.max_pool(activation, **maxpool_kwargs)
+    return _init
 
 
-def relu_conv_layer2x2_up_pool(_input, _shape):
-    _wc, _bc, _h_conv = conv_layer(_input, _shape, _stdder=.01, _bias_init=0.)
-    return _wc, _bc, unpool(_h_conv)
+def convolutional_layer2d_uppool(init_w=None, init_b=tf.zeros, strides=(1, 1, 1, 1),
+                           padding='SAME', act=tf.nn.relu, **uppool_kwargs):
+    init_cnv = convolutional_layer_2d(init_w, init_b, strides, padding, act)
 
-
-def relu_conv_layer_2x2_up_pool_dropout(keep_prob):
-    def _int(_input, _shape):
-        _wc, _bc, _h_conv = conv_layer(_input, _shape, _stdder=.01, _bias_init=0.)
-        return _wc, _bc, tf.nn.dropout(unpool(_h_conv), keep_prob)
-    return _int
-
-
-def sigm_conv_layer2x2_up_pool(_input, _shape):
-    _wc, _bc, _h_conv = conv_layer(_input, _shape, _activ=tf.nn.sigmoid, _stdder=.1, _bias_init=0.1)
-    return _wc, _bc, unpool(_h_conv)
-
-
-def sig_cnv_layer(_input, _shape):
-    _wc, _bc, _h_conv = conv_layer(_input, _shape, _activ=tf.nn.sigmoid, _stdder=.01, _bias_init=0.)
-    return _wc, _bc, _h_conv
-
-
-def tanh_conv_layer(_input, _shape):
-    _wc, _bc, _h_conv = conv_layer(_input, _shape, _activ=tf.tanh, _stdder=.01, _bias_init=0.)
-    return _wc, _bc, _h_conv
-
-
-def lin_conv_layer_2x2_up_pool(_input, _shape):
-    _wc, _bc, _h_conv = conv_layer(_input, _shape, _activ=tf.identity)
-    return _wc, _bc, unpool(_h_conv)
+    def _init(_input, shape):
+        _W, _b, activation = init_cnv(_input, shape)
+        return _W, _b, uppool(activation, **uppool_kwargs)
+    return _init
 
 
 def dropout_activation(_keep_prob, _activ=tf.nn.relu):
@@ -125,7 +112,14 @@ def dropout_activation(_keep_prob, _activ=tf.nn.relu):
 
 
 def create_or_reuse(init_or_variable, shape, name='var'):  # TODO check usage if this function
-    # (should be present also in cnn helpers..
+    """
+    Creates a variable given a shape or does nothing if `init_or_variable` is already a Variable.
+
+    :param init_or_variable:
+    :param shape:
+    :param name:
+    :return:
+    """
     return init_or_variable if isinstance(init_or_variable, tf.Variable) \
         else tf.Variable(init_or_variable(shape), name=name)
 
@@ -159,6 +153,15 @@ def mixed_activation(*activations, proportions=None):
 def ffnn_layer(init_w=tf.contrib.layers.xavier_initializer(),  # OK
                init_b=tf.zeros,
                activ=tf.nn.relu, benchmark=True):
+    """
+    Helper for fully connected layer
+
+    :param init_w:
+    :param init_b:
+    :param activ:
+    :param benchmark:
+    :return:
+    """
     def _int(_input, _shape):
         pvars(vars(), 1)
         _W = create_or_reuse(init_w, _shape, name='W')
@@ -168,13 +171,13 @@ def ffnn_layer(init_w=tf.contrib.layers.xavier_initializer(),  # OK
 
         _lin_activ = mul + _b
         _activ = activ(_lin_activ, name='activation')
-        return _W, _b, _activ, activ
+        return _W, _b, _activ
 
     return _int
 
 
-def ffnn_lin_out(init_w=tf.zeros, init_b=tf.zeros, benchmark=True):  # OK
-    return ffnn_layer(init_w, init_b, tf.identity, benchmark=benchmark)
+# def ffnn_lin_out(init_w=tf.zeros, init_b=tf.zeros, benchmark=True):
+#     return ffnn_layer(init_w, init_b, tf.identity, benchmark=benchmark)
 
 # standard layers end ##############
 
@@ -250,7 +253,7 @@ class Network(object):
     Base object for models
     """
 
-    def __init__(self, _input):
+    def __init__(self, _input, name):
         """
         Creates an object that represent a network. Important attributes of a Network object are
 
@@ -263,12 +266,12 @@ class Network(object):
         """
         super(Network, self).__init__()
 
+        self.name = name
+
         self.Ws = []
         self.bs = []
         self.inp = [_input]
         self.var_list = []
-
-        self.act_fs = []  # activation functions at each layer  # TODO to be deleted, substituted with followings
 
         self.active_gen = []
         self.active_gen_kwargs = []
@@ -280,20 +283,30 @@ class Network(object):
         [tf.add_to_collection(tf.GraphKeys.GLOBAL_VARIABLES, _v) for _v in self.var_list]
         [tf.add_to_collection(tf.GraphKeys.ACTIVATIONS, _v) for _v in self.inp]
 
-    def for_input(self, new_input):
+    def for_input(self, new_input, new_name=None):
         """
         Returns the same model computed on an other input...
 
+        :param new_name:
         :param new_input:
         :return:
         """
         raise NotImplementedError()
 
+    def _for_input_new_activ_kwargs(self):
+        new_active_gen_kwargs = []
+        for ag_kw, _W, _b in zip(self.active_gen_kwargs, self.Ws, self.bs):
+            n_ag_kw = dict(ag_kw)
+            n_ag_kw['init_w'] = _W
+            n_ag_kw['init_b'] = _b
+            new_active_gen_kwargs.append(n_ag_kw)
+        return new_active_gen_kwargs
+
 
 class LinearModel(Network):
 
-    def __init__(self, _input, dim_input, dim_output,
-                 active_gen=ffnn_lin_out, **activ_gen_kwargs):
+    def __init__(self, _input, dim_input, dim_output, name='Linear_Model',
+                 active_gen=ffnn_layer, **activ_gen_kwargs):
         """
         Builds a single layer NN, by default with linear activation (this means it's just a linear model!)
 
@@ -303,79 +316,87 @@ class LinearModel(Network):
         :param active_gen: callable that genera
         """
         # TODO infer input dimensions form _input....
-        super(LinearModel, self).__init__(_input)
+        super(LinearModel, self).__init__(_input, name)
 
         self.dims = (dim_input, dim_output)
 
-        with tf.name_scope('model_parameters'):
+        activ_gen_kwargs.setdefault('activ', tf.identity)  # linear model by default
+
+        with tf.name_scope(name):
             self.active_gen.append(active_gen)
             self.active_gen_kwargs.append(activ_gen_kwargs)
 
             ac_func = active_gen(**activ_gen_kwargs)
 
-            _W, _b, _activ, act_f = ac_func(self.inp[-1], self.dims)
+            _W, _b, _activ = ac_func(self.inp[-1], self.dims)
             self.Ws.append(_W)
             self.bs.append(_b)  # put in the lists
             if dim_output == 1:
                 self.inp.append(_activ[:, 0])
             else:
                 self.inp.append(_activ)
-            # self.act_fs.append(act_f)
 
         self.std_collections()
 
-    def for_input(self, new_input):
-        # TODO this works only with default value of active_gen...solve this!
-        new_active_gen_kwargs = dict(self.active_gen_kwargs[0])
-        new_active_gen_kwargs['init_w'] = self.Ws[0]
-        new_active_gen_kwargs['init_b'] = self.bs[0]
+    def for_input(self, new_input, new_name=None):
+        new_active_gen_kwargs = self._for_input_new_activ_kwargs()
 
-        return LinearModel(new_input, self.dims[0], self.dims[1],
-                           active_gen=self.active_gen[0], **new_active_gen_kwargs)
-
+        return LinearModel(new_input, self.dims[0], self.dims[1], name=new_name or self.name,
+                           active_gen=self.active_gen[0], **new_active_gen_kwargs[0])
 
 
 class FFNN(Network):
 
-    def __init__(self, _input, dims,
-                 activ_gen=(ffnn_layer(), ffnn_lin_out()),
-                 name='FFNN'):
+    def __init__(self, _input, dims, name='FFNN',
+                 active_gen=ffnn_layer, active_gen_kwargs=None
+                 ):
         """
         Creates a feed-forward neural network.
 
         :param _input:
         :param dims:
-        :param activ_gen:
+        :param active_gen:
         :param name:
         """
-        # TODO infer input and output dimensions form input....
-        super(FFNN, self).__init__(_input)
+        super(FFNN, self).__init__(_input, name)
 
         pvars(vars())
         self.dims = dims
 
-        if len(activ_gen) != len(dims) - 1:  # assume (hidden, output)
-            activ_gen = [activ_gen[0]] * (len(dims) - 2) + [activ_gen[1]]
+        active_gen = utils.as_list(active_gen)
+        if len(active_gen) != len(dims) - 1:  # assume (hidden, output)
+            active_gen = [active_gen[0]] * (len(dims) - 2) + [active_gen[-1]]
+
+        active_gen_kwargs = utils.as_list(active_gen_kwargs or {})
+        if len(active_gen_kwargs) != len(dims) - 1:  # assume (hidden, output)
+            active_gen = [dict(active_gen_kwargs[0])] * (len(dims) - 2) + [dict(active_gen_kwargs[-1])]
+        active_gen_kwargs[-1].setdefault('activ', tf.identity)  # sets linear output by default
 
         with tf.name_scope(name):
-            for d0, d1, ag, l_num in zip(dims, dims[1:], activ_gen, range(len(dims))):
+            for d0, d1, ag, ag_kw, l_num in zip(dims, dims[1:], active_gen, active_gen_kwargs, range(len(dims))):
                 with tf.name_scope('layer_' + str(l_num)):
-                    _W, _b, _activ, act_f = ag(self.inp[-1], [d0, d1])
+
+                    self.active_gen.append(ag)
+                    self.active_gen_kwargs.append(ag_kw)
+
+                    _W, _b, _activ = ag(ag_kw)(self.inp[-1], [d0, d1])
 
                     self.Ws.append(_W)
                     self.bs.append(_b)  # put in the lists
                     self.inp.append(_activ)
-                    self.act_fs.append(act_f)  # store also activation functions (might be useful..)
 
         self.std_collections()
 
-        # FFNN class end ###
+    def for_input(self, new_input, new_name=None):
+        new_active_gen_kwargs = self._for_input_new_activ_kwargs()
+        return FFNN(new_input, self.dims, name=new_name or self.name, active_gen=self.active_gen,
+                    active_gen_kwargs=new_active_gen_kwargs)
 
 
-class SimpleConvolutionalOnly(Network):  # TODO STORE ACTIVATION FUNCTIONS
+class SimpleConvolutionalOnly(Network):
 
-    def __init__(self, _input, _dims, conv_gen=relu_conv_layer2x2_max_pool,
-                 name='Simple_Convolutional'):
+    def __init__(self, _input, _dims, conv_gen=convolutional_layer2d_maxpool,
+                 conv_gen_kwargs=None, name='Simple_Convolutional'):
         """
         Creates a simple convolutional network, by default 2 dimensional. Only convolutional part! Use
         `SimpleCNN` for an usual CNN classifier.
@@ -391,13 +412,20 @@ class SimpleConvolutionalOnly(Network):  # TODO STORE ACTIVATION FUNCTIONS
 
         self.dims = _dims
 
-        with tf.name_scope(name):
-            if not isinstance(conv_gen, (list, tuple)):  # assume all identical
-                conv_gen = [conv_gen] * len(_dims)
+        if not isinstance(conv_gen, (list, tuple)):  # assume all identical
+            conv_gen = [conv_gen] * len(_dims)
 
-            for sh, ag, l_num in zip(_dims, conv_gen, range(len(_dims))):
+        if not isinstance(conv_gen_kwargs, (list, tuple)):  # assume all keyword arguments identical
+            conv_gen_kwargs = [conv_gen_kwargs or {}]*len(_dims)
+
+        with tf.name_scope(name):
+
+            for sh, ag, ag_kw, l_num in zip(_dims, conv_gen, conv_gen_kwargs, range(len(_dims))):
                 with tf.name_scope('layer_' + str(l_num)):
-                    _W, _b, _out = ag(self.inp[-1], sh)
+                    self.active_gen.append(ag)
+                    self.active_gen_kwargs.append(ag_kw)
+
+                    _W, _b, _out = ag(ag_kw)(self.inp[-1], sh)
 
                     self.Ws.append(_W)
                     self.bs.append(_b)  # put in the lists
@@ -405,15 +433,20 @@ class SimpleConvolutionalOnly(Network):  # TODO STORE ACTIVATION FUNCTIONS
 
         self.std_collections()
 
+    def for_input(self, new_input, new_name=None):
+        return SimpleConvolutionalOnly(new_input, _dims=self.dims, conv_gen=self.active_gen,
+                                       conv_gen_kwargs=self._for_input_new_activ_kwargs(),
+                                       name=new_name or self.name)
+
 
 class SimpleCNN(Network):  # TODO check that class works fine... # STORE ACTIVATION FUNCTIONS
 
     def __init__(self, _input, conv_dims, ffnn_dims,
-                 conv_gen=relu_conv_layer2x2_max_pool,
-                 activ_gen=(ffnn_layer(), ffnn_lin_out()),
+                 conv_gen=convolutional_layer2d_maxpool, conv_gen_kwargs=None,
+                 activ_gen=ffnn_layer, active_gen_kwargs=None,
                  name='SimpCNN'):
         """_input must be given in the right (2d) shape"""
-        super(SimpleCNN, self).__init__(_input)
+        super(SimpleCNN, self).__init__(_input, name)
         pvars(vars())
 
         self.dims = conv_dims + ffnn_dims

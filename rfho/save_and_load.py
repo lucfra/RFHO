@@ -149,6 +149,9 @@ def generate_setting_dict(local_variables, excluded=None):
 
 
 class Timer:
+    """
+    Stopwatch class for timing the experiments. Uses `time` module.
+    """
 
     _div_unit = {'ms': 1. / 1000,
                  'sec': 1.,
@@ -387,7 +390,6 @@ class Saver:
         """
         return load_obj(name, root_dir=self.directory, notebook_mode=False)
 
-    # def work in progress
 
 if __name__ == '__main__':
     sav1 = Saver('tbd',
