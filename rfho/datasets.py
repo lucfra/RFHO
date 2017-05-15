@@ -26,6 +26,7 @@ try:
     import scipy.io as scio
     from scipy import linalg
     import scipy.sparse as sc_sp
+    import scipy as sp
     SPARSE_SCIPY_MATRICES = (sc_sp.csr.csr_matrix, sc_sp.coo.coo_matrix)
 except ImportError:
     scio, linalg, scipy = None, None, None

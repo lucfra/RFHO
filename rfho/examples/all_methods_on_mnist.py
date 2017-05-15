@@ -98,6 +98,34 @@ def experiment(name_of_experiment, collect_data=True,
                algo_hyper_wrt_tr_error=False,
                mode='reverse', hyper_optimizer=rf.AdamOptimizer, hyper_optimizer_kwargs=None,
                hyper_iterations=100, hyper_batch_size=100, epochs=20, do_print=True):
+    """
+    General method for conducting various simple experiments (on MNIST dataset) with RFHO package.
+
+    :param name_of_experiment: a name for the experiment. Will be used as root folder for the saver (this is the only
+                                positional parameter..)
+    :param collect_data: (default True) wheter to save data
+    :param datasets: (some dataset, usually MNIST....)
+    :param model: (default logarithmic regression) model type
+    :param model_kwargs:
+    :param l1: Initial value for l1 regularizer weight (if None does not uses it)
+    :param l2: Initial value for l2 regularizer weight (if None does not uses it)
+    :param synthetic_hypers: (default None, for benchmarking purposes) if integer adds some synthetic hyperparameters
+                                to the task.
+    :param set_T:
+    :param optimizer: (default `MomentumOptimizer`) optimizer for parameters
+    :param optimizer_kwargs:
+    :param batch_size:
+    :param epochs: number of ephocs
+    :param algo_hyper_wrt_tr_error: (default False) if True optimizes the algorithmic hyperparameters (learning rate, ..
+                                    w.r.t. training error instead of validation error
+    :param mode: forward reverse or rtho
+    :param hyper_optimizer: optimizer for the hyperparameters
+    :param hyper_optimizer_kwargs:
+    :param hyper_iterations: number of hyper-iterations
+    :param hyper_batch_size: hyper-batch size when RTHO is used
+    :param do_print: if True (default) prints intermediate results...
+    :return:
+    """
     assert mode in HO_MODES
 
     if synthetic_hypers:
@@ -158,14 +186,14 @@ def experiment(name_of_experiment, collect_data=True,
     val_supplier = ev_data.create_all_valid_feed_dict_supplier(x, y)
     test_supplier = ev_data.create_all_test_feed_dict_supplier(x, y)
 
-    def all_training_supplier(step=None):
+    def _all_training_supplier(step=None):
         return {x: datasets.train.data, y: datasets.train.target}
 
     # feed_dict supplier for validation errors
     val_feed_dict_suppliers = {error: val_supplier}
-    if algo_hyper_wrt_tr_error: val_feed_dict_suppliers[training_error] = all_training_supplier
+    if algo_hyper_wrt_tr_error: val_feed_dict_suppliers[training_error] = _all_training_supplier
 
-    def calculate_memory_usage():
+    def _calculate_memory_usage():
         memory_usage = rf.simple_size_of_with_pickle([
             hyper_opt.hyper_gradients.w.eval(),
             [h.eval() for h in hyper_opt.hyper_gradients.hyper_list]
@@ -193,7 +221,7 @@ def experiment(name_of_experiment, collect_data=True,
                          'validation accuracy', accuracy, val_supplier,
                          'training accuracy', accuracy, tr_supplier,
                          'validation error', error, val_supplier,
-                         'memory usage (mb)', lambda step: calculate_memory_usage() * 9.5367e-7,
+                         'memory usage (mb)', lambda step: _calculate_memory_usage() * 9.5367e-7,
                          'weights', vec_w,
                          '# weights', lambda step: vec_w.get_shape().as_list()[0],
                          '# hyperparameters', lambda step: len(hyper_opt.hyper_list),
@@ -206,7 +234,7 @@ def experiment(name_of_experiment, collect_data=True,
 
     save_dict_history = []
 
-    with tf.Session(config=rf.CONFIG_GPU_GROWTH).as_default() as ss:
+    with tf.Session(config=rf.CONFIG_GPU_GROWTH).as_default():
         if saver: saver.timer.start()
         hyper_opt.initialize()
         for k in range(hyper_iterations):

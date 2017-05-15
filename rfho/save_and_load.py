@@ -25,9 +25,14 @@ settings = {
     'NOTEBOOK_TITLE': ''
 }
 
+_EXP_ROOT_FOLDER = os.getenv('RFHO_EXP_FOLDER')
+if _EXP_ROOT_FOLDER is None:
+    print('Environment variable RFHO_DATA_FOLDER not found. Current directory will be used')
+    _EXP_ROOT_FOLDER = join_paths(os.getcwd(), 'Experiments')
+print('Experiment save directory is ', _EXP_ROOT_FOLDER)
 
 FOLDER_NAMINGS = {  # TODO should go into a settings file?
-    'EXP_ROOT': join_paths(os.path.expanduser('~'), 'Experiments'),
+    'EXP_ROOT': _EXP_ROOT_FOLDER,
     'OBJ_DIR': 'Obj_data',
     'PLOTS_DIR': 'Plots',
     'MODELS_DIR': 'Models',
@@ -259,6 +264,16 @@ class Saver:
         self.processed_items += processed_args
 
     def save(self, step, append_string="", do_print=None, collect_data=None):
+        """
+        Builds and save a dictionary with the keys and values specified at construction time or by method
+        `add_items`
+
+        :param step: (int preferred, otherwise does not work well with `pack_save_dictionaries`).
+        :param append_string: (optional str) string to append at the file name to `str(step)`
+        :param do_print: (default as object field)
+        :param collect_data: (default as object field)
+        :return: the dictionary
+        """
         from tensorflow import get_default_session
 
         if do_print is None: do_print = self.do_print
@@ -316,25 +331,59 @@ class Saver:
 
         return packed_dict
 
-
     def save_fig(self, name):
+        """
+        Object-oriented version of `save_fig`
+
+        :param name: name of the figure (.pdf extension automatically added)
+        :return:
+        """
         return save_fig(name, root_dir=self.directory,
                         default_overwrite=self.default_overwrite, notebook_mode=False)
 
     def save_obj(self, obj, name):
+        """
+         Object-oriented version of `save_obj`
+
+        :param obj: object to save
+        :param name: name of the file (.pkgz extension automatically added)
+        :return:
+        """
         return save_obj(obj, name, root_dir=self.directory,
                         default_overwrite=self.default_overwrite, notebook_mode=False)
 
     def save_adjacency_matrix_for_gephi(self, matrix, name, class_names=None):
+        """
+        Object-oriented version of `save_adjacency_matrix_for_gephi`
+
+        :param matrix:
+        :param name:
+        :param class_names:
+        :return:
+        """
         return save_adjacency_matrix_for_gephi(matrix, name, root_dir=self.directory,
                                                notebook_mode=False, class_names=class_names)
 
     def save_setting(self, local_variables, excluded=None, append_string=''):
+        """
+        Object-oriented version of `save_setting`
+
+        :param local_variables:
+        :param excluded:
+        :param append_string:
+        :return:
+        """
         return save_setting(local_variables, root_dir=self.directory, excluded=excluded,
                             default_overwrite=self.default_overwrite, collect_data=self.collect_data,
                             notebook_mode=False, do_print=self.do_print, append_string=append_string)
 
     def load_obj(self, name):
+        """
+         Object-oriented version of `load_obj`
+
+        :param name: name of the file (.pkgz extension automatically added)
+        :return: unpacked object
+        """
         return load_obj(name, root_dir=self.directory, notebook_mode=False)
 
     # def work in progress
