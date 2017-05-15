@@ -201,13 +201,14 @@ class ReverseHyperGradient:
 
         if summary_utils: summary_utils.run(ss, T)
 
-        for _ in range(T - 1, -1, -1):
+        for t in range(T - 1, -1, -1):
+            self.global_step.decrease.eval()
 
             # revert w_t to w_(t-1)
-            ss.run(self._back_hist_op, feed_dict={self._w_placeholder: self.w_hist[_]})
+            ss.run(self._back_hist_op, feed_dict={self._w_placeholder: self.w_hist[t]})
 
             # noinspection PyNoneFunctionAssignment
-            fds = train_feed_dict_supplier(_)
+            fds = train_feed_dict_supplier(self.global_step.eval())
             # TODO read below
             """ Unfortunately it looks like that the following two lines cannot be run together (will this
             degrade the performances???
@@ -219,7 +220,7 @@ class ReverseHyperGradient:
             if check_if_zero:
                 if self._abs_sum_p.eval() < 1.e-20:
                     # ss.run([self.bk_ops, self.global_step.decrease], feed_dict=fds)
-                    print('exiting backward pass at iteration %d.' % _)
+                    print('exiting backward pass at iteration %d.' % t)
                     return {k: list(reversed(v)) for k, v in hyper_derivatives.items()}
 
             # compute partial results for hyper_derivatives: alpha_t*B_t and concatenates them
@@ -231,9 +232,10 @@ class ReverseHyperGradient:
                     hyper_derivatives[hyper_list[j]].append(mr[j])
 
             # computes alpha_t = alpha_(t+1)*A_(t+1)
-            ss.run([self._bk_ops, self.global_step.decrease], feed_dict=fds)  # check this global_step here.. (for Adam)
 
-            if summary_utils: summary_utils.run(ss, _)
+            ss.run([self._bk_ops], feed_dict=fds)  # check this global_step here.. (for Adam)
+
+            if summary_utils: summary_utils.run(ss, t)
 
         hyper_derivatives = {k: list(reversed(v)) for k, v in hyper_derivatives.items()}
 
