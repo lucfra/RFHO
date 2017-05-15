@@ -157,7 +157,8 @@ class ReverseHyperGradient:
 
         for t in range(T):
             self.w_hist.append(self.w_t.eval())
-            ss.run([self.w_t, self._fw_ops, self.global_step.increase], feed_dict=train_feed_dict_supplier(t))
+            ss.run([self._fw_ops], feed_dict=train_feed_dict_supplier(t))
+            self.global_step.increase.eval()
             if summary_utils:
                 summary_utils.run(ss, t)
 
@@ -203,7 +204,7 @@ class ReverseHyperGradient:
         for _ in range(T - 1, -1, -1):
 
             # revert w_t to w_(t-1)
-            ss.run(self._back_hist_op, feed_dict={self._w_placeholder: self.w_hist[_ - 1]})
+            ss.run(self._back_hist_op, feed_dict={self._w_placeholder: self.w_hist[_]})
 
             # noinspection PyNoneFunctionAssignment
             fds = train_feed_dict_supplier(_)
@@ -583,11 +584,15 @@ class HyperOptimizer:
         if not hyper_grad_kwargs: hyper_grad_kwargs = {}
         self.hyper_iteration_step = GlobalStep(name='hyper_iteration_step')
         self._report_hyper_it_init = tf.report_uninitialized_variables([self.hyper_iteration_step.var])
-        self.hyper_batch_step = GlobalStep(name='hyper_batch_step')
+        # self.hyper_batch_step = GlobalStep(name='hyper_batch_step')
+        self.hyper_batch_step = GlobalStep(name='batch_step')
 
         # automatically links eventual optimizer global step (like in Adam) to HyperGradient global step
         hyper_grad_kwargs['global_step'] = hyper_grad_kwargs.get(
             'global_step', optimizer.global_step if hasattr(optimizer, 'global_step') else GlobalStep())
+
+        # automatically links eventual hyper-optimizer global step (like in Adam) to batch_step
+        optimizers_kwargs['global_step'] = self.hyper_batch_step if hyper_optimizer_class == AdamOptimizer else None
 
         self.hyper_gradients = method(optimizer, hyper_dict, **hyper_grad_kwargs)
 
@@ -622,12 +627,12 @@ class HyperOptimizer:
             # Session run block (for instance in a Ipython book)
             tf.variables_initializer(self.hyper_gradients.hyper_list).run()
             [opt.support_variables_initializer().run() for opt in self.hyper_optimizers]
-            tf.variables_initializer([self.hyper_iteration_step.var]).run()
+            tf.variables_initializer([self.hyper_iteration_step.var, self.hyper_batch_step.var]).run()
         else:
             self.hyper_iteration_step.increase.eval()
 
         self.hyper_gradients.initialize()
-        tf.variables_initializer([self.hyper_batch_step.var]).run()
+        # tf.variables_initializer([self.hyper_batch_step.var]).run()
 
     def run(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None, hyper_constraints_ops=None):
         """
@@ -647,6 +652,7 @@ class HyperOptimizer:
                                      val_feed_dict_suppliers=val_feed_dict_suppliers)
         [tf.get_default_session().run(hod.assign_ops) for hod in self.hyper_optimizers]
         if hyper_constraints_ops: [op.eval() for op in as_list(hyper_constraints_ops)]
+        # self.hyper_batch_step.increase.eval()
         self.hyper_batch_step.increase.eval()
 
 
