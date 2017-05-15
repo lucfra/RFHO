@@ -313,7 +313,8 @@ class Saver:
         :return: The generated dictionary
         """
         import glob
-        all_files = sorted(glob.glob(join_paths(self.directory, FOLDER_NAMINGS['OBJ_DIR'], '*%s.pkgz' % append_string)),
+        all_files = sorted(glob.glob(join_paths(
+            self.directory, FOLDER_NAMINGS['OBJ_DIR'], '[0-9]*%s.pkgz' % append_string)),
                            key=os.path.getctime)  # sort by creation time
         if len(all_files) == 0:
             print('No file found')
