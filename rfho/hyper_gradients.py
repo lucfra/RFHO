@@ -231,7 +231,9 @@ class ReverseHyperGradient:
                     hyper_derivatives[hyper_list[j]].append(mr[j])
 
             # computes alpha_t = alpha_(t+1)*A_(t+1)
-            ss.run([self._bk_ops, self.global_step.decrease], feed_dict=fds)  # check this global_step here.. (for Adam)
+            self.global_step.decrease.eval()
+
+            ss.run([self._bk_ops], feed_dict=fds)  # check this global_step here.. (for Adam)
 
             if summary_utils: summary_utils.run(ss, _)
 
