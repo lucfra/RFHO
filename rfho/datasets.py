@@ -731,10 +731,13 @@ def load_cifar100(folder=CIFAR100_DIR, one_hot=True, partitions=None, filters=No
 
 
 def generate_multiclass_dataset(n_samples=100, n_features=2, classes=3, cluster_std=1.0, center_box=(-10.0, 10.0),
-                                shuffle=True, random_state=None, hot_encoded=True, partitions_proportions=None):
+                                shuffle=True, random_state=None, hot_encoded=True, partitions_proportions=None,
+                                negative_labels=-1.):
     X, y = sk_dt.make_blobs(n_samples, n_features, classes, cluster_std, center_box, shuffle, random_state)
     if hot_encoded:
         y = to_one_hot_enc(y)
+    else:
+        y[y == 0] = negative_labels
     res = Dataset(data=np.array(X, dtype=np.float32), target=np.array(y, dtype=np.float32),
                   general_info_dict={'cluster_std':cluster_std, 'center_box':center_box})
     if partitions_proportions:

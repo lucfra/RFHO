@@ -44,7 +44,7 @@ def create_logistic_regressor(x, dimensions, **model_kwargs):
 
 def create_ffnn(x, d0, d1, **model_kwargs):
     dimensions = model_kwargs.get('dims', None)
-    if dimensions is None: dimensions = [None, 50, 50, 50, 50, 50, None]  # like in MacLaurin (maybe deeper)
+    if dimensions is None: dimensions = [None, 50, 50, 50, 50, None]  # like in MacLaurin (maybe deeper)
     dimensions[0], dimensions[-1] = d0, d1
     model_kwargs['dims'] = dimensions
     return rf.FFNN(x, **model_kwargs)
