@@ -288,7 +288,23 @@ def canonical_base(n):
 # ChunksInfo = collections.namedtuple('ChunksInfo', ['start', 'end', 'reshape'])
 
 def as_list(obj):
+    """
+    Makes sure `obj` is a list or otherwise converts it to a list with a single element.
+
+    :param obj:
+    :return: A `list`
+    """
     return obj if isinstance(obj, list) else [obj]
+
+
+def as_tuple_or_list(obj):
+    """
+    Make sure that `obj` is a tuple or a list and eventually converts it into a list with a single element
+
+    :param obj:
+    :return: A `tuple` or a `list`
+    """
+    return obj if isinstance(obj, (list, tuple)) else [obj]
 
 
 def merge_dicts(*dicts):

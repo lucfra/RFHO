@@ -598,6 +598,9 @@ class HyperOptimizer:
 
         self.hyper_gradients = method(optimizer, hyper_dict, **hyper_grad_kwargs)
 
+        if hyper_optimizer_class is AdamOptimizer:
+            optimizers_kwargs.setdefault('lr', .005)  # default value for Adam optimizer
+
         self.hyper_optimizers = create_hyperparameter_optimizers(
             self.hyper_gradients, optimizer_class=hyper_optimizer_class, **optimizers_kwargs)
 
@@ -667,7 +670,7 @@ def create_hyperparameter_optimizers(rf_hyper_gradients, optimizer_class, **opti
     :param optimizers_kw_args: arguments to pass to `optimizer_creator`
     :return: List of `Optimizer` objects
     """
-    # assert isinstance(optimizer_class, Optimizer), '%s should be an Optimizer' % optimizer_class
+    assert issubclass(optimizer_class, Optimizer), '%s should be an Optimizer' % optimizer_class
     return [optimizer_class.create(hyp, **optimizers_kw_args, grad=hg, w_is_state=False)
             for hyp, hg in zip(rf_hyper_gradients.hyper_list, rf_hyper_gradients.hyper_gradient_vars)]
 

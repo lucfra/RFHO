@@ -40,7 +40,7 @@ class TestModels(unittest.TestCase):
         import numpy as np
         import rfho.datasets as ddt
 
-        real_sim = ddt.load_realsim(partitions_proportions=[.5, .3])
+        real_sim = ddt.load_20newsgroup_vectorized(partitions_proportions=[.5, .3])
 
         model_train = LinearModel(real_sim.train.data, real_sim.train.dim_data, real_sim.train.dim_target,
                                    init_w=tf.random_normal, init_b=tf.random_normal, benchmark=True)
@@ -50,8 +50,8 @@ class TestModels(unittest.TestCase):
 
         with tf.Session().as_default():
             tf.global_variables_initializer().run()
-            print(np.sum(model_train.Ws[0].eval() - model_valid.Ws[0].eval()))
-            print(np.sum(model_train.bs[0].eval() - model_valid.bs[0].eval()))
+            self.assertEqual(np.sum(model_train.Ws[0].eval()),  np.sum(model_valid.Ws[0].eval()))
+            self.assertEqual(np.sum(model_train.bs[0].eval()), np.sum(model_valid.bs[0].eval()))
 
             print(np.sum(model_train.inp[-1].eval() - model_train2.inp[-1].eval()))
             print(np.sum(model_train.inp[-1].eval() - model_train2.inp[-1].eval()))
@@ -59,9 +59,38 @@ class TestModels(unittest.TestCase):
 
             print(np.sum(model_train.inp[-1].eval() - model_train.inp[-1].eval()))
             print(np.sum(model_train.inp[-1].eval() - model_train.inp[-1].eval()))
-            # if sparse matmul is used then these last values are not 0!
+            # if sparse matmul is used then on gpu these last values are not 0!
 
+    def test_ffnn(self):
+        x, y = tf.placeholder(tf.float32), tf.placeholder(tf.float32)
+        model = FFNN(x, dims=[10, 123, 89, 47], active_gen_kwargs=(
+            {'activ': mixed_activation(tf.identity, tf.nn.sigmoid)},
+            {}
+        ))
+
+        mod_y = model.for_input(y)
+        self.assertEqual(model.var_list, mod_y.var_list)  # share variables
+        self.assertNotEqual(model.inp[1:], mod_y.inp[1:])  # various activations are different nodes!
+
+    def test_simpleCNN(self):
+        x, y = tf.placeholder(tf.float32), tf.placeholder(tf.float32)
+        model = SimpleCNN(tf.reshape(x, [-1, 15, 15, 1]),
+                     conv_dims=[
+                         [5, 5, 1, 4],
+                         [5, 5, 4, 8],
+                     ], ffnn_dims=[20, 10],
+                          active_gen_kwargs=(
+                              {'activ': mixed_activation(tf.identity, tf.nn.sigmoid)},
+                              {}
+                          ))
+
+        mod_y = model.for_input(tf.reshape(y, [-1, 15, 15, 1]))
+
+        self.assertEqual(model.ffnn_part.var_list, mod_y.ffnn_part.var_list)
+
+        self.assertEqual(model.var_list, mod_y.var_list)  # share variables
+        self.assertNotEqual(model.inp[1:], mod_y.inp[1:])  # various activations are different nodes!
 
 if __name__ == '__main__':
     # unittest.main()
-    TestModels().test_sparse_input_models()
+    TestModels().test_simpleCNN()

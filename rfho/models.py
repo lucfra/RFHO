@@ -11,9 +11,6 @@ import rfho.utils as utils
 test = False
 do_print = False
 
-# TODO lot of work to do in this module...
-# TODO FFNN part is more mor less fine... instead CNN part is completely to rewrite
-
 
 def calc_mb(_shape, _type=32):
     from functools import reduce
@@ -24,7 +21,7 @@ def calc_mb(_shape, _type=32):
 def pvars(_vars, _tabs=0):
     """utility function to print the arg variables"""
     if do_print:
-    
+
         print('\t' * _tabs, '-' * 10, 'START', '-' * 10)
         for k, v in _vars.items():
             print('\t' * _tabs, k, ':', v)
@@ -69,11 +66,11 @@ def convolutional_layer_2d(init_w=None, init_b=tf.zeros, strides=(1, 1, 1, 1),
     :param act:
     :return: an initializer
     """
-    init_w = lambda shape: tf.truncated_normal(shape, stddev=.1)
+    if init_w is None: init_w = lambda shape: tf.truncated_normal(shape, stddev=.1)
 
     def _init(_input, shape):
         _W = create_or_reuse(init_w, shape, name='W')
-        _b = create_or_reuse(init_b, shape, name='b')
+        _b = create_or_reuse(init_b, [shape[-1]], name='b')
         linear_activation = tf.nn.conv2d(_input, _W, strides=strides, padding=padding, name='linear_activation') + _b
         activation = act(linear_activation)
         return _W, _b, activation
@@ -91,16 +88,18 @@ def convolutional_layer2d_maxpool(init_w=None, init_b=tf.zeros, strides=(1, 1, 1
     def _init(_input, shape):
         _W, _b, activation = init_cnv(_input, shape)
         return _W, _b, tf.nn.max_pool(activation, **maxpool_kwargs)
+
     return _init
 
 
 def convolutional_layer2d_uppool(init_w=None, init_b=tf.zeros, strides=(1, 1, 1, 1),
-                           padding='SAME', act=tf.nn.relu, **uppool_kwargs):
+                                 padding='SAME', act=tf.nn.relu, **uppool_kwargs):
     init_cnv = convolutional_layer_2d(init_w, init_b, strides, padding, act)
 
     def _init(_input, shape):
         _W, _b, activation = init_cnv(_input, shape)
         return _W, _b, uppool(activation, **uppool_kwargs)
+
     return _init
 
 
@@ -111,7 +110,7 @@ def dropout_activation(_keep_prob, _activ=tf.nn.relu):
     return _int
 
 
-def create_or_reuse(init_or_variable, shape, name='var'):  # TODO check usage if this function
+def create_or_reuse(init_or_variable, shape, name='var'):
     """
     Creates a variable given a shape or does nothing if `init_or_variable` is already a Variable.
 
@@ -132,7 +131,7 @@ def mixed_activation(*activations, proportions=None):
             assert sum_proportions <= 1, "proportions must sum up to at most 1: instead %d" % sum_proportions
             if sum_proportions < 1.: proportions += [1. - sum_proportions]
         else:
-            proportions = [1/len(activations)]*len(activations)
+            proportions = [1 / len(activations)] * len(activations)
 
         N = lin_act.get_shape().as_list()[1]
 
@@ -147,6 +146,7 @@ def mixed_activation(*activations, proportions=None):
             parts = [act(lin_act[:, d1:d2]) for act, d1, d2
                      in zip(activations, calculated_partitions, calculated_partitions[1:])]
             return tf.concat(parts, 1)
+
     return generate
 
 
@@ -162,6 +162,7 @@ def ffnn_layer(init_w=tf.contrib.layers.xavier_initializer(),  # OK
     :param benchmark:
     :return:
     """
+
     def _int(_input, _shape):
         pvars(vars(), 1)
         _W = create_or_reuse(init_w, _shape, name='W')
@@ -304,7 +305,6 @@ class Network(object):
 
 
 class LinearModel(Network):
-
     def __init__(self, _input, dim_input, dim_output, name='Linear_Model',
                  active_gen=ffnn_layer, **activ_gen_kwargs):
         """
@@ -346,7 +346,6 @@ class LinearModel(Network):
 
 
 class FFNN(Network):
-
     def __init__(self, _input, dims, name='FFNN',
                  active_gen=ffnn_layer, active_gen_kwargs=None
                  ):
@@ -363,23 +362,23 @@ class FFNN(Network):
         pvars(vars())
         self.dims = dims
 
-        active_gen = utils.as_list(active_gen)
+        active_gen = utils.as_tuple_or_list(active_gen)
         if len(active_gen) != len(dims) - 1:  # assume (hidden, output)
             active_gen = [active_gen[0]] * (len(dims) - 2) + [active_gen[-1]]
 
-        active_gen_kwargs = utils.as_list(active_gen_kwargs or {})
+        active_gen_kwargs = utils.as_tuple_or_list(active_gen_kwargs or {})
         if len(active_gen_kwargs) != len(dims) - 1:  # assume (hidden, output)
-            active_gen = [dict(active_gen_kwargs[0])] * (len(dims) - 2) + [dict(active_gen_kwargs[-1])]
+            active_gen_kwargs = [dict(active_gen_kwargs[0]) if active_gen_kwargs[0] else {}] * (len(dims) - 2) \
+                                + [dict(active_gen_kwargs[-1]) if active_gen_kwargs[-1] else {}]
         active_gen_kwargs[-1].setdefault('activ', tf.identity)  # sets linear output by default
 
         with tf.name_scope(name):
             for d0, d1, ag, ag_kw, l_num in zip(dims, dims[1:], active_gen, active_gen_kwargs, range(len(dims))):
                 with tf.name_scope('layer_' + str(l_num)):
-
                     self.active_gen.append(ag)
                     self.active_gen_kwargs.append(ag_kw)
 
-                    _W, _b, _activ = ag(ag_kw)(self.inp[-1], [d0, d1])
+                    _W, _b, _activ = ag(**ag_kw)(self.inp[-1], [d0, d1])
 
                     self.Ws.append(_W)
                     self.bs.append(_b)  # put in the lists
@@ -387,6 +386,7 @@ class FFNN(Network):
 
         self.std_collections()
 
+    # noinspection PyTypeChecker
     def for_input(self, new_input, new_name=None):
         new_active_gen_kwargs = self._for_input_new_activ_kwargs()
         return FFNN(new_input, self.dims, name=new_name or self.name, active_gen=self.active_gen,
@@ -394,7 +394,6 @@ class FFNN(Network):
 
 
 class SimpleConvolutionalOnly(Network):
-
     def __init__(self, _input, _dims, conv_gen=convolutional_layer2d_maxpool,
                  conv_gen_kwargs=None, name='Simple_Convolutional'):
         """
@@ -407,7 +406,7 @@ class SimpleConvolutionalOnly(Network):
         :param conv_gen:
         :param name:
         """
-        super(SimpleConvolutionalOnly, self).__init__(_input)
+        super(SimpleConvolutionalOnly, self).__init__(_input, name)
         pvars(vars())
 
         self.dims = _dims
@@ -416,7 +415,7 @@ class SimpleConvolutionalOnly(Network):
             conv_gen = [conv_gen] * len(_dims)
 
         if not isinstance(conv_gen_kwargs, (list, tuple)):  # assume all keyword arguments identical
-            conv_gen_kwargs = [conv_gen_kwargs or {}]*len(_dims)
+            conv_gen_kwargs = [conv_gen_kwargs or {}] * len(_dims)
 
         with tf.name_scope(name):
 
@@ -425,7 +424,7 @@ class SimpleConvolutionalOnly(Network):
                     self.active_gen.append(ag)
                     self.active_gen_kwargs.append(ag_kw)
 
-                    _W, _b, _out = ag(ag_kw)(self.inp[-1], sh)
+                    _W, _b, _out = ag(**ag_kw)(self.inp[-1], sh)
 
                     self.Ws.append(_W)
                     self.bs.append(_b)  # put in the lists
@@ -433,67 +432,100 @@ class SimpleConvolutionalOnly(Network):
 
         self.std_collections()
 
+    # noinspection PyTypeChecker
     def for_input(self, new_input, new_name=None):
         return SimpleConvolutionalOnly(new_input, _dims=self.dims, conv_gen=self.active_gen,
                                        conv_gen_kwargs=self._for_input_new_activ_kwargs(),
                                        name=new_name or self.name)
 
 
-class SimpleCNN(Network):  # TODO check that class works fine... # STORE ACTIVATION FUNCTIONS
+class SimpleCNN(Network):
 
-    def __init__(self, _input, conv_dims, ffnn_dims,
+    def __init__(self, _input, conv_part=None, ffnn_part=None, conv_dims=None, ffnn_dims=None,
                  conv_gen=convolutional_layer2d_maxpool, conv_gen_kwargs=None,
                  activ_gen=ffnn_layer, active_gen_kwargs=None,
-                 name='SimpCNN'):
-        """_input must be given in the right (2d) shape"""
+                 name='SimpleCNN'):
+        """
+        Builds a simple convolutional network a la LeNet5.
+
+        :param _input: input tensor or placeholder (must be given in the right (2d) shape)
+        :param conv_part:
+        :param ffnn_part:
+        :param conv_dims:
+        :param ffnn_dims: dimensions for the feed-forward part. Note, the input dimension is inferred
+        :param conv_gen:
+        :param conv_gen_kwargs:
+        :param activ_gen:
+        :param active_gen_kwargs:
+        :param name:
+        """
+        assert conv_part or conv_dims
+        assert ffnn_part or ffnn_dims
+
         super(SimpleCNN, self).__init__(_input, name)
         pvars(vars())
 
-        self.dims = conv_dims + ffnn_dims
-
         with tf.name_scope(name):
-            conv_part = SimpleConvolutionalOnly(_input, conv_dims, conv_gen, name='conv_part')
-            self.Ws += conv_part.Ws
-            self.bs += conv_part.bs
-            self.inp += conv_part.inp
+            self.conv_part = conv_part or SimpleConvolutionalOnly(_input, conv_dims,
+                                                                  conv_gen=conv_gen, conv_gen_kwargs=conv_gen_kwargs,
+                                                                  name='conv_part')
+            self.Ws += self.conv_part.Ws
+            self.bs += self.conv_part.bs
+            self.inp += self.conv_part.inp
+            self.active_gen += self.conv_part.active_gen
+            self.active_gen_kwargs += self.conv_part.active_gen_kwargs
 
-            ffnn_dims[0] *= conv_dims[-1][-1]  # adjust ffnn inp. dim to consider the channels in the last conv layer
-            ffnn_part = FFNN(tf.reshape(self.inp[-1], [-1, ffnn_dims[0]]),
-                             ffnn_dims, activ_gen,
-                             name='ffnn_part')
-            self.Ws += ffnn_part.Ws
-            self.bs += ffnn_part.bs
-            self.inp += ffnn_part.inp
+            if ffnn_dims:
+                ffnn_input = tf.reshape(self.inp[-1], [-1, ffnn_dims[0]])
+                ffnn_dims = [ffnn_input.get_shape().as_list()[1]] + ffnn_dims
+                self.ffnn_part = FFNN(ffnn_input,
+                                      ffnn_dims, active_gen=activ_gen,
+                                      active_gen_kwargs=active_gen_kwargs, name='ffnn_part')
+            else:
+                self.ffnn_part = ffnn_part
 
+            self.Ws += self.ffnn_part.Ws
+            self.bs += self.ffnn_part.bs
+            self.inp += self.ffnn_part.inp
+            self.active_gen += self.ffnn_part.active_gen
+            self.active_gen_kwargs += self.ffnn_part.active_gen_kwargs
+
+        self.dims = self.conv_part.dims + self.ffnn_part.dims
         self.std_collections()
 
+    def for_input(self, new_input, new_name=None):
+        new_conv = self.conv_part.for_input(new_input)
+        new_ffnn_input = tf.reshape(self.inp[-1], [-1, self.ffnn_part.dims[0]])
+        new_ffnn = self.ffnn_part.for_input(new_ffnn_input)
+        return SimpleCNN(new_input, conv_part=new_conv, ffnn_part=new_ffnn,
+                         name=new_name or self.name)
 
-class SimpleDeCNN(Network):
-    def __init__(self, _input, ffnn_dims, conv_dims,
-                 activ_gen=(ffnn_layer(), ffnn_layer()),
-                 conv_gen=(relu_conv_layer2x2_up_pool, conv_layer),
-                 name='SimpDeCNN'):
-        """_x must be given in the right (2d) shape
-        NOTE: first component of conv_dims must be that of the 2d tensor given as input to the
-        convolutional part of the network"""
-        super(SimpleDeCNN, self).__init__(_input)
-        pvars(vars())
-
-        self.dims = ffnn_dims + conv_dims
-
-        with tf.name_scope(name):
-            ffnn_part = FFNN(_input, ffnn_dims, activ_gen,
-                             name='ffnn_part')
-            self.Ws += ffnn_part.Ws
-            self.bs += ffnn_part.bs
-            self.inp += ffnn_part.inp
-
-            _conv_input = tf.reshape(self.inp[-1], [-1] + conv_dims[0], name='conv_input')
-            if len(conv_gen) != len(conv_dims) - 1:  # assume len(conv_gen) == 2
-                conv_gen = [conv_gen[0]]*(len(conv_dims) - 2) + [conv_gen[1]]
-            conv_part = SimpleConvolutionalOnly(_conv_input, conv_dims[1:], conv_gen, name='conv_part')
-            self.Ws += conv_part.Ws
-            self.bs += conv_part.bs
-            self.inp += conv_part.inp
-
-        self.std_collections()
+# class SimpleDeCNN(Network):
+#     def __init__(self, _input, ffnn_dims, conv_dims,
+#                  activ_gen=(ffnn_layer(), ffnn_layer()),
+#                  conv_gen=(relu_conv_layer2x2_up_pool, conv_layer),
+#                  name='SimpDeCNN'):
+#         """_x must be given in the right (2d) shape
+#         NOTE: first component of conv_dims must be that of the 2d tensor given as input to the
+#         convolutional part of the network"""
+#         super(SimpleDeCNN, self).__init__(_input)
+#         pvars(vars())
+#
+#         self.dims = ffnn_dims + conv_dims
+#
+#         with tf.name_scope(name):
+#             ffnn_part = FFNN(_input, ffnn_dims, activ_gen,
+#                              name='ffnn_part')
+#             self.Ws += ffnn_part.Ws
+#             self.bs += ffnn_part.bs
+#             self.inp += ffnn_part.inp
+#
+#             _conv_input = tf.reshape(self.inp[-1], [-1] + conv_dims[0], name='conv_input')
+#             if len(conv_gen) != len(conv_dims) - 1:  # assume len(conv_gen) == 2
+#                 conv_gen = [conv_gen[0]]*(len(conv_dims) - 2) + [conv_gen[1]]
+#             conv_part = SimpleConvolutionalOnly(_conv_input, conv_dims[1:], conv_gen, name='conv_part')
+#             self.Ws += conv_part.Ws
+#             self.bs += conv_part.bs
+#             self.inp += conv_part.inp
+#
+#         self.std_collections()
