@@ -90,7 +90,10 @@ class TestModels(unittest.TestCase):
 
         self.assertEqual(model.var_list, mod_y.var_list)  # share variables
         self.assertNotEqual(model.inp[1:], mod_y.inp[1:])  # various activations are different nodes!
+        w, out, out_y = vectorize_model(model.var_list, model.inp[-1], mod_y.inp[-1])
+        self.assertIsNotNone(out)
+
 
 if __name__ == '__main__':
-    # unittest.main()
-    TestModels().test_simpleCNN()
+    unittest.main()
+    # TestModels().test_simpleCNN()

@@ -191,7 +191,7 @@ def matmul(a, b, benchmark=True, name='mul'):  # TODO maybe put inside dot
                     tf.global_variables_initializer().run()  # TODO here should only initialize necessary variable
                     # (downstream in the computation graph)
 
-                    statistics = {op: _avg_exe_times(op, repetitions=10) for op in mul_ops}
+                    statistics = {op: _avg_exe_times(op, repetitions=4) for op in mul_ops}
 
                 [print(k, v) for k, v in statistics.items()]
 

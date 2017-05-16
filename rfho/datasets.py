@@ -735,11 +735,13 @@ def generate_multiclass_dataset(n_samples=100, n_features=2, classes=3, cluster_
     X, y = sk_dt.make_blobs(n_samples, n_features, classes, cluster_std, center_box, shuffle, random_state)
     if hot_encoded:
         y = to_one_hot_enc(y)
-    res = Dataset(data=X, target=y, general_info_dict={'cluster_std':cluster_std, 'center_box':center_box})
+    res = Dataset(data=np.array(X, dtype=np.float32), target=np.array(y, dtype=np.float32),
+                  general_info_dict={'cluster_std':cluster_std, 'center_box':center_box})
     if partitions_proportions:
         res = redivide_data([res], shuffle=shuffle, partition_proportions=partitions_proportions)
         res = to_datasets(res)
     return res
+
 
 def get_data(d_set):
     if hasattr(d_set, 'images'):
