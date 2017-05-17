@@ -16,6 +16,7 @@ import os
 from rfho.utils import as_list, np_normalize_data
 
 import sys
+
 try:
     import pandas as pd
 except ImportError:
@@ -27,6 +28,7 @@ try:
     from scipy import linalg
     import scipy.sparse as sc_sp
     import scipy as sp
+
     SPARSE_SCIPY_MATRICES = (sc_sp.csr.csr_matrix, sc_sp.coo.coo_matrix)
 except ImportError:
     scio, linalg, scipy = None, None, None
@@ -49,14 +51,13 @@ except ImportError:
 
 import _pickle as cpickle
 
-
 from_env = os.getenv('RFHO_DATA_FOLDER')
 if from_env:
-    DATA_FOLDER=from_env
+    DATA_FOLDER = from_env
     print('Congratulations, RFHO_DATA_FOLDER found!')
 else:
     print('Environment variable RFHO_DATA_FOLDER not found. Variables HELP_WIN and HELP_UBUNTU contain info.')
-    DATA_FOLDER=os.getcwd()
+    DATA_FOLDER = os.getcwd()
     _COMMON_BEGIN = "You can set environment variable RFHO_DATA_FOLDER to" \
                     "specify root folder in which you store various datasets. \n"
     _COMMON_END = """\n
@@ -75,7 +76,6 @@ else:
     """ + _COMMON_END
 
 print('Data folder is', DATA_FOLDER)
-
 
 # kind of private
 TIMIT_DIR = os.path.join(DATA_FOLDER, 'timit4python')
@@ -119,13 +119,13 @@ def convert_sparse_matrix_to_sparse_tensor(X):
     if isinstance(X, sc_sp.csr.csr_matrix):
         coo = X.tocoo()
         indices = np.mat([coo.row, coo.col]).transpose()
-    else: coo, indices = X, [X.row, X.col]
+    else:
+        coo, indices = X, [X.row, X.col]
     # data = np.array(coo.data, dtype=)
     return tf.SparseTensor(indices, tf.constant(coo.data, dtype=tf.float32), coo.shape)
 
 
 class Dataset:
-
     def __init__(self, data, target, sample_info_dicts=None, general_info_dict=None):
         """
 
@@ -355,8 +355,8 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
             for d1, d2 in zip(calculated_partitions[:-1], calculated_partitions[1:-1]):
                 indices = np.array(get_indices_balanced_classes(d2 - d1, all_labels, forbidden_indices))
                 dataset = Dataset(data=all_data[indices], target=all_labels[indices],
-                                            sample_info_dicts=all_infos[indices],
-                                            general_info_dict=new_general_info_dict)
+                                  sample_info_dicts=all_infos[indices],
+                                  general_info_dict=new_general_info_dict)
                 new_datasets.append(dataset)
                 forbidden_indices = np.append(forbidden_indices, indices)
                 test_if_balanced(dataset)
@@ -369,7 +369,7 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
                 Dataset(data=all_data[d1:d2], target=all_labels[d1:d2], sample_info_dicts=all_infos[d1:d2],
                         general_info_dict=new_general_info_dict)
                 for d1, d2 in zip(calculated_partitions, calculated_partitions[1:])
-            ]
+                ]
 
         print('DONE')
 
@@ -395,9 +395,9 @@ def get_indices_balanced_classes(n_examples, labels, forbidden_indices):
 def test_if_balanced(dataset):
     labels = dataset.target
     n_classes = len(labels[0])
-    class_counter = [0]*n_classes
+    class_counter = [0] * n_classes
     for l in labels:
-        class_counter[np.argmax(l)]+=1
+        class_counter[np.argmax(l)] += 1
     print('exemple by class: ', class_counter)
 
 
@@ -506,8 +506,9 @@ def load_XRMB(folder=XRMB_DIR, half_window=2, max_speakers=100, only_independent
 
         for _set_type in set_types:  # sample-wise speaker info to the general datasets
             res[_set_type][0].sample_info_dicts = np.concatenate([
-                np.array([{'speaker': k + 1}] * ds.num_examples) for k, ds in enumerate(res[_set_type][1:])
-            ])
+                                                                     np.array([{'speaker': k + 1}] * ds.num_examples)
+                                                                     for k, ds in enumerate(res[_set_type][1:])
+                                                                     ])
 
         return Datasets(train=res['train'], validation=res['val'], test=res['test'])
     else:
@@ -518,7 +519,6 @@ def load_XRMB(folder=XRMB_DIR, half_window=2, max_speakers=100, only_independent
 # noinspection PyUnusedLocal
 def load_timit(folder=TIMIT_DIR, only_primary=False, filters=None, maps=None, small=False, context=None,
                fake=False, process_all=False):
-
     def load_timit_sentence_bound():
         def sentence_bound_reader(name):
             bnd = pd.read_csv(folder + '/timit_%sSentenceBound.csv' % name, header=None).values
@@ -601,7 +601,7 @@ def load_caltech101_30(folder=CALTECH101_30_DIR, tiny_problem=False):
         pattern_step = 5
         fraction_limit = 0.2
         k_train = k_train[:int(len(label_tr) * fraction_limit):pattern_step,
-                          :int(len(label_tr) * fraction_limit):pattern_step]
+                  :int(len(label_tr) * fraction_limit):pattern_step]
         label_tr = label_tr[:int(len(label_tr) * fraction_limit):pattern_step]
 
     U, s, Vh = linalg.svd(k_train)
@@ -730,16 +730,30 @@ def load_cifar100(folder=CIFAR100_DIR, one_hot=True, partitions=None, filters=No
     return dataset
 
 
-def generate_multiclass_dataset(n_samples=100, n_features=2, classes=3, cluster_std=1.0, center_box=(-10.0, 10.0),
+def generate_multiclass_dataset(n_samples=100, n_features=10,
+                                n_informative=5, n_redundant=3, n_repeated=2,
+                                n_classes=2, n_clusters_per_class=2,
+                                weights=None, flip_y=0.01, class_sep=1.0,
+                                hypercube=True, shift=0.0, scale=1.0,
                                 shuffle=True, random_state=None, hot_encoded=True, partitions_proportions=None,
                                 negative_labels=-1.):
-    X, y = sk_dt.make_blobs(n_samples, n_features, classes, cluster_std, center_box, shuffle, random_state)
+    X, y = sk_dt.make_classification(n_samples=n_samples, n_features=n_features,
+                                     n_informative=n_informative, n_redundant=n_redundant, n_repeated=n_repeated,
+                                     n_classes=n_classes, n_clusters_per_class=n_clusters_per_class,
+                                     weights=weights, flip_y=flip_y, class_sep=class_sep,
+                                     hypercube=hypercube, shift=shift, scale=scale,
+                                     shuffle=True, random_state=random_state)
     if hot_encoded:
         y = to_one_hot_enc(y)
     else:
         y[y == 0] = negative_labels
     res = Dataset(data=np.array(X, dtype=np.float32), target=np.array(y, dtype=np.float32),
-                  general_info_dict={'cluster_std':cluster_std, 'center_box':center_box})
+                  general_info_dict={'n_informative': n_informative, 'n_redundant': n_redundant,
+                                     'n_repeated': n_repeated,
+                                     'n_classes': n_classes, 'n_clusters_per_class': n_clusters_per_class,
+                                     'weights': weights, 'flip_y': flip_y, 'class_sep': class_sep,
+                                     'hypercube': hypercube, 'shift': shift, 'scale': scale,
+                                     'shuffle': True, 'random_state': random_state})
     if partitions_proportions:
         res = redivide_data([res], shuffle=shuffle, partition_proportions=partitions_proportions)
         res = to_datasets(res)
@@ -897,7 +911,6 @@ def pad(_example, _size): return np.concatenate([_example] * _size)
 
 
 class WindowedData(object):
-
     def __init__(self, data, row_sentence_bounds, window=5, process_all=False):
         """
         Class for managing windowed input data (like TIMIT).
@@ -970,14 +983,15 @@ if __name__ == '__main__':
     # mnist = load_mnist(partitions=[0.1, .2], filters=lambda x, y, d, k: True)
     # print(len(_datasets.train))\
 
+    dataset = generate_multiclass_dataset(n_samples=1000, n_features=2, n_informative=2, n_redundant=0, n_repeated=0,
+                                          n_classes=2, n_clusters_per_class=1, weights=None, flip_y=0.01, class_sep=1.0,
+                                          hypercube=True, shift=0.0, scale=1.0, shuffle=True, random_state=None,
+                                          hot_encoded=False, partitions_proportions=[0.3, 0.3], negative_labels=-1.)
+    if dataset.train.dim_data == 2:
+        import matplotlib.pyplot as plt
+        plt.scatter(dataset.train.data[:, 0], dataset.train.data[:, 1], c=dataset.train.target)
+        plt.show()
 
-    # dataset = generate_multiclass_dataset(n_samples=1000, n_features=2, classes=3, cluster_std=0.8, hot_encoded=False,
-    #                                       shuffle=True, random_state=0, partitions_proportions=[0.5, 0.3])
-    # if dataset.train.dim_data == 2:
-    #     import matplotlib.pyplot as plt
-    #     plt.scatter(dataset.train.data[:, 0], dataset.train.data[:, 1], c=dataset.train.target)
-    #     plt.show()
-
-    dt = load_20newsgroup_vectorized()
-    print(dt.train.num_examples)
-    print(dt.train.num_examples)
+    # dt = load_20newsgroup_vectorized()
+    # print(dt.train.num_examples)
+    # print(dt.train.num_examples)
