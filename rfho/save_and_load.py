@@ -192,8 +192,8 @@ class Timer:
 
 class Saver:
 
-    def __init__(self, experiment_name, *items, timer=None, root_directory=FOLDER_NAMINGS['EXP_ROOT'],
-                 do_print=True, collect_data=True, default_overwrite=False):
+    def __init__(self, experiment_name, *items, append_date_to_name=True, root_directory=FOLDER_NAMINGS['EXP_ROOT'],
+                 timer=None, do_print=True, collect_data=True, default_overwrite=False):
         """
         Initialize a saver to collect data. (Intended to be used together with OnlinePlotStream.)
 
@@ -216,6 +216,10 @@ class Saver:
         :param collect_data: (optional, default True) will save by default `save_dict` each time
                             method `save` is executed
         """
+        self.experiment_name = experiment_name
+        if append_date_to_name:
+            import datetime
+            experiment_name += datetime.date.today().strftime('_%d_%m_%y')
         self.directory = join_paths(root_directory, experiment_name)
         if collect_data:
             check_or_create_dir(root_directory, notebook_mode=False)
