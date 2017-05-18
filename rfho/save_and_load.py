@@ -219,7 +219,7 @@ class Saver:
         self.experiment_name = experiment_name
         if append_date_to_name:
             import datetime
-            experiment_name += datetime.date.today().strftime('_%d_%m_%y')
+            experiment_name += datetime.date.today().strftime('@%d-%m-%y')
         self.directory = join_paths(root_directory, experiment_name)
         if collect_data:
             check_or_create_dir(root_directory, notebook_mode=False)

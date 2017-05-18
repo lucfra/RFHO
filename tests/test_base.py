@@ -2,6 +2,7 @@ import tensorflow as tf
 from rfho.datasets import load_iris
 from rfho.models import vectorize_model, LinearModel
 from rfho.utils import cross_entropy_loss
+import unittest
 
 
 def iris_logistic_regression(augment=0):
@@ -18,3 +19,5 @@ def iris_logistic_regression(augment=0):
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
     return iris, x, y, model, model_w, model_y, error, accuracy
+
+
