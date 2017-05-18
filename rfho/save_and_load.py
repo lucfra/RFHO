@@ -43,7 +43,7 @@ FOLDER_NAMINGS = {  # TODO should go into a settings file?
 def check_or_create_dir(directory, notebook_mode=True, create=True):
     if not os.path.exists(directory) and create:
         os.mkdir(directory)
-        print('folder ', directory, 'has been created')
+        print('folder', directory, 'has been created')
 
     if notebook_mode and settings['NOTEBOOK_TITLE']:
         directory = join_paths(directory, settings['NOTEBOOK_TITLE'])  # += '/' + settings['NOTEBOOK_TITLE']
@@ -90,7 +90,7 @@ def save_obj(obj, name, root_dir=None, notebook_mode=True, default_overwrite=Fal
 def load_obj(name, root_dir=None, notebook_mode=True):
     if root_dir is None: root_dir = os.getcwd()
     directory = check_or_create_dir(join_paths(root_dir, FOLDER_NAMINGS['OBJ_DIR']),
-                                    notebook_mode=notebook_mode)
+                                    notebook_mode=notebook_mode, create=False)
 
     filename = join_paths(directory,  name if name.endswith('.pkgz') else name+'.pkgz')
     with gzip.open(filename, 'rb') as f:
@@ -332,7 +332,7 @@ class Saver:
         packed_dict = OrderedDict([(k, []) for k in objs[0]])
         for obj in objs:
             [packed_dict[k].append(v) for k, v in obj.items()]
-        self.save_obj(packed_dict, name=name)
+        self.save_obj(packed_dict, name=name + append_string)
 
         if erase_others:
             [os.remove(f) for f in all_files]

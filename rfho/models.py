@@ -321,6 +321,7 @@ class LinearModel(Network):
         self.dims = (dim_input, dim_output)
 
         activ_gen_kwargs.setdefault('activ', tf.identity)  # linear model by default
+        activ_gen_kwargs.setdefault('init_w', tf.zeros)
 
         with tf.name_scope(name):
             self.active_gen.append(active_gen)
@@ -371,6 +372,7 @@ class FFNN(Network):
             active_gen_kwargs = [dict(active_gen_kwargs[0]) if active_gen_kwargs[0] else {}] * (len(dims) - 2) \
                                 + [dict(active_gen_kwargs[-1]) if active_gen_kwargs[-1] else {}]
         active_gen_kwargs[-1].setdefault('activ', tf.identity)  # sets linear output by default
+        active_gen_kwargs[-1].setdefault('init_w', tf.zeros)   # sets weight matrix of last layer to zero by default
 
         with tf.name_scope(name):
             for d0, d1, ag, ag_kw, l_num in zip(dims, dims[1:], active_gen, active_gen_kwargs, range(len(dims))):

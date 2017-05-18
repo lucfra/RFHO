@@ -754,6 +754,7 @@ def generate_multiclass_dataset(n_samples=100, n_features=10,
                                      'weights': weights, 'flip_y': flip_y, 'class_sep': class_sep,
                                      'hypercube': hypercube, 'shift': shift, 'scale': scale,
                                      'shuffle': True, 'random_state': random_state})
+    np.random.seed(random_state)
     if partitions_proportions:
         res = redivide_data([res], shuffle=shuffle, partition_proportions=partitions_proportions)
         res = to_datasets(res)
