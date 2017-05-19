@@ -10,7 +10,6 @@ to create training and validation `feed_dict` suppliers).
 import numpy as np
 from functools import reduce
 import tensorflow as tf
-from tensorflow.contrib.learn.python.learn.datasets.base import Datasets
 from tensorflow.examples.tutorials.mnist.input_data import read_data_sets
 import os
 from rfho.utils import as_list, np_normalize_data
@@ -31,7 +30,7 @@ try:
 
     SPARSE_SCIPY_MATRICES = (sc_sp.csr.csr_matrix, sc_sp.coo.coo_matrix)
 except ImportError:
-    scio, linalg, scipy = None, None, None
+    scio, linalg, sp, sc_sp = None, None, None, None
     SPARSE_SCIPY_MATRICES = ()
     print(sys.exc_info())
     print('scipy not found. Some load function might not work')
@@ -98,17 +97,28 @@ REALSIM = os.path.join(DATA_FOLDER, "realsim")
 SCIKIT_LEARN_DATA = os.path.join(DATA_FOLDER, 'scikit_learn_data')
 
 
-def to_datasets(list_of_datasets):
-    train, valid, test = None, None, None
-    train = list_of_datasets[0]
-    if len(list_of_datasets) > 3:
-        print('There are more then 3 Datasets here...')
-        return list_of_datasets
-    if len(list_of_datasets) > 1:
-        test = list_of_datasets[-1]
-        if len(list_of_datasets) == 3:
-            valid = list_of_datasets[1]
-    return Datasets(train, valid, test)
+class Datasets:
+
+    def __init__(self, train=None, validation=None, test=None):
+        self.train = train
+        self.validation = validation
+        self.test = test
+
+    def setting(self):
+        return {k: v.setting() if hasattr(v, 'setting') else None for k, v in vars(self).items()}
+
+    @staticmethod
+    def from_list(list_of_datasets):
+        train, valid, test = None, None, None
+        train = list_of_datasets[0]
+        if len(list_of_datasets) > 3:
+            print('There are more then 3 Datasets here...')
+            return list_of_datasets
+        if len(list_of_datasets) > 1:
+            test = list_of_datasets[-1]
+            if len(list_of_datasets) == 3:
+                valid = list_of_datasets[1]
+        return Datasets(train, valid, test)
 
 
 def _maybe_cast_to_scalar(what):
@@ -151,6 +161,14 @@ class Dataset:
 
     def _shape(self, what):
         return what.get_shape().as_list() if self._tensor_mode else what.shape
+
+    def setting(self):
+        return {
+            'num_examples': self.num_examples,
+            'dim_data': self.dim_data,
+            'dim_target': self.dim_target,
+            'info': self.general_info_dict
+        }
 
     @property
     def data(self):
@@ -429,7 +447,7 @@ def load_20newsgroup_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, partitio
 
     if as_tensor: [dat.convert_to_tensor() for dat in res]
 
-    return to_datasets(res)
+    return Datasets.from_list(res)
 
 
 def load_realsim(folder=REALSIM, one_hot=True, partitions_proportions=None, shuffle=False, as_tensor=True):
@@ -440,7 +458,7 @@ def load_realsim(folder=REALSIM, one_hot=True, partitions_proportions=None, shuf
     res = [Dataset(data=X, target=y)]
     if partitions_proportions:
         res = redivide_data(res, shuffle=shuffle, partition_proportions=partitions_proportions)
-        res = to_datasets(res)
+        res = Datasets.from_list(res)
 
     if as_tensor: [dat.convert_to_tensor() for dat in res]
 
@@ -635,7 +653,7 @@ def load_iros15(folder=IROS15_BASE_FOLDER, resolution=15, legs='all', part_propo
         dat = scio.loadmat(base_name_by_leg(_leg))
         data, target = dat['X'], to_one_hot_enc(dat['Y']) if one_hot else dat['Y']
         # maybe pre-processing??? or it is already done? ask...
-        datasets[_leg] = to_datasets(
+        datasets[_leg] = Datasets.from_list(
             redivide_data([Dataset(data, target, general_info_dict={'leg': _leg})],
                           partition_proportions=part_proportions, shuffle=shuffle))
     return datasets
@@ -757,7 +775,7 @@ def generate_multiclass_dataset(n_samples=100, n_features=10,
     np.random.seed(random_state)
     if partitions_proportions:
         res = redivide_data([res], shuffle=shuffle, partition_proportions=partitions_proportions)
-        res = to_datasets(res)
+        res = Datasets.from_list(res)
     return res
 
 
@@ -794,7 +812,10 @@ class ExampleVisiting:
 
     def setting(self):
         excluded = ['training_schedule', 'datasets']
-        return {k: v for k, v in vars(self).items() if k not in excluded}
+        dictionary = {k: v for k, v in vars(self).items() if k not in excluded}
+        if hasattr(self.datasets, 'setting'):
+            dictionary['datasets'] = self.datasets.setting()
+        return dictionary
 
     @property
     def train_data(self):
@@ -983,8 +1004,7 @@ if __name__ == '__main__':
     # print(_datasets.train.dim_target)
     # mnist = load_mnist(partitions=[0.1, .2], filters=lambda x, y, d, k: True)
     # print(len(_datasets.train))\
-
-    dataset = generate_multiclass_dataset(n_samples=1000, n_features=2, n_informative=2, n_redundant=0, n_repeated=0,
+    dataset = generate_multiclass_dataset(n_samples=10000, n_features=10000, n_informative=2, n_redundant=0, n_repeated=0,
                                           n_classes=2, n_clusters_per_class=1, weights=None, flip_y=0.01, class_sep=1.0,
                                           hypercube=True, shift=0.0, scale=1.0, shuffle=True, random_state=None,
                                           hot_encoded=False, partitions_proportions=[0.3, 0.3], negative_labels=-1.)
