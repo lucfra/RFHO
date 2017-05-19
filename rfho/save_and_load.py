@@ -27,7 +27,7 @@ settings = {
 
 _EXP_ROOT_FOLDER = os.getenv('RFHO_EXP_FOLDER')
 if _EXP_ROOT_FOLDER is None:
-    print('Environment variable RFHO_DATA_FOLDER not found. Current directory will be used')
+    print('Environment variable RFHO_EXP_FOLDER not found. Current directory will be used')
     _EXP_ROOT_FOLDER = join_paths(os.getcwd(), 'Experiments')
 print('Experiment save directory is ', _EXP_ROOT_FOLDER)
 

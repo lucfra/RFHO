@@ -288,8 +288,8 @@ class Network(object):
         """
         Returns the same model computed on an other input...
 
-        :param new_name:
         :param new_input:
+        :param new_name:
         :return:
         """
         raise NotImplementedError()
