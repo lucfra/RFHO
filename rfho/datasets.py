@@ -53,7 +53,7 @@ import _pickle as cpickle
 from_env = os.getenv('RFHO_DATA_FOLDER')
 if from_env:
     DATA_FOLDER = from_env
-    print('Congratulations, RFHO_DATA_FOLDER found!')
+    # print('Congratulations, RFHO_DATA_FOLDER found!')
 else:
     print('Environment variable RFHO_DATA_FOLDER not found. Variables HELP_WIN and HELP_UBUNTU contain info.')
     DATA_FOLDER = os.getcwd()
@@ -326,11 +326,11 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
         partition_proportions = [1. * get_data(d).shape[0] / N for d in datasets]
 
     if shuffle:
-        if isinstance(all_data, sp.csr.csr_matrix): raise NotImplementedError()
+        # if isinstance(all_data, sp.csr.csr_matrix): raise NotImplementedError()
         permutation = list(range(N))
         np.random.shuffle(permutation)
 
-        all_data = np.array(all_data[permutation])
+        all_data = all_data[permutation]
         all_labels = np.array(all_labels[permutation])
         all_infos = np.array(all_infos[permutation])
 
@@ -601,14 +601,14 @@ def load_timit(folder=TIMIT_DIR, only_primary=False, filters=None, maps=None, sm
     return res
 
 
-def load_mnist(folder=MNIST_DIR, one_hot=True, partitions=None, filters=None, maps=None):
+def load_mnist(folder=MNIST_DIR, one_hot=True, partitions=None, filters=None, maps=None, shuffle=False):
     datasets = read_data_sets(folder, one_hot=one_hot)
     train = Dataset(datasets.train.images, datasets.train.labels)
     validation = Dataset(datasets.validation.images, datasets.validation.labels)
     test = Dataset(datasets.test.images, datasets.test.labels)
     res = [train, validation, test]
     if partitions:
-        res = redivide_data(res, partition_proportions=partitions, filters=filters, maps=maps)
+        res = redivide_data(res, partition_proportions=partitions, filters=filters, maps=maps, shuffle=shuffle)
         res += [None] * (3 - len(res))
     return Datasets(train=res[0], validation=res[1], test=res[2])
 
@@ -1009,18 +1009,24 @@ if __name__ == '__main__':
     # mnist = load_mnist(partitions=[0.1, .2], filters=lambda x, y, d, k: True)
     # print(len(_datasets.train))\
 
+    # dataset = generate_multiclass_dataset(n_samples=100, n_features=100, n_informative=2, n_redundant=0, n_repeated=0,
+    #                                       n_classes=2, n_clusters_per_class=1, weights=None, flip_y=0.01, class_sep=1.0,
+    #                                       hypercube=True, shift=0.0, scale=1.0, shuffle=True, random_state=None,
+    #                                       hot_encoded=False, partitions_proportions=[0.3, 0.3], negative_labels=-1.)
+    # if dataset.train.dim_data == 2:
+    #     import matplotlib.pyplot as plt
+    #     plt.scatter(dataset.train.data[:, 0], dataset.train.data[:, 1], c=dataset.train.target)
+    #     plt.show()
+    #
+    # for d in dataset:
+    #     print(d)
 
-    dataset = generate_multiclass_dataset(n_samples=100, n_features=100, n_informative=2, n_redundant=0, n_repeated=0,
-                                          n_classes=2, n_clusters_per_class=1, weights=None, flip_y=0.01, class_sep=1.0,
-                                          hypercube=True, shift=0.0, scale=1.0, shuffle=True, random_state=None,
-                                          hot_encoded=False, partitions_proportions=[0.3, 0.3], negative_labels=-1.)
-    if dataset.train.dim_data == 2:
-        import matplotlib.pyplot as plt
-        plt.scatter(dataset.train.data[:, 0], dataset.train.data[:, 1], c=dataset.train.target)
-        plt.show()
+    load_20newsgroup_vectorized(one_hot=False, shuffle=True, partitions_proportions=(1/3, 1/3))
 
-    for d in dataset:
-        print(d)
+    mnist = load_mnist(partitions=(.1, .1), shuffle=True)
+
+    print(mnist.train.data)
+    print(type(mnist.train.data))
 
     # dt = load_20newsgroup_vectorized()
     # print(dt.train.num_examples)
