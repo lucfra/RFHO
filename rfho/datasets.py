@@ -37,8 +37,9 @@ except ImportError:
 
 try:
     import sklearn.datasets as sk_dt
+    from sklearn.utils import shuffle as sk_shuffle
 except ImportError:
-    sk_dt = None
+    sk_dt, sk_shuffle = None, None
     print('sklearn not found. Some load function might not work')
 
 try:
@@ -326,8 +327,12 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
         partition_proportions = [1. * get_data(d).shape[0] / N for d in datasets]
 
     if shuffle:
-        # if isinstance(all_data, sp.csr.csr_matrix): raise NotImplementedError()
-        permutation = list(range(N))
+        if isinstance(all_data, sp.csr.csr_matrix): raise NotImplementedError()
+        # if sk_shuffle:  # TODO this does not work!!! find a way to shuffle these matrices while
+        # keeping compatibility with tensorflow!
+        #     all_data, all_labels, all_infos = sk_shuffle(all_data, all_labels, all_infos)
+        # else:
+        permutation = np.arange(all_data.shape[0])
         np.random.shuffle(permutation)
 
         all_data = all_data[permutation]
@@ -441,13 +446,17 @@ def load_20newsgroup_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, partitio
         y_train = to_one_hot_enc(y_train)
         y_test = to_one_hot_enc(y_test)
 
+    # if shuffle and sk_shuffle:
+    #     xtr = X_train.tocoo()
+    #     xts = X_test.tocoo()
+
     d_train = Dataset(data=X_train,
                       target=y_train, general_info_dict={'target names': data_train.target_names})
     d_test = Dataset(data=X_test,
                      target=y_test, general_info_dict={'target names': data_train.target_names})
     res = [d_train, d_test]
     if partitions_proportions:
-        res = redivide_data([d_train, d_test], partition_proportions=partitions_proportions, shuffle=shuffle)
+        res = redivide_data([d_train, d_test], partition_proportions=partitions_proportions, shuffle=False)
 
     if as_tensor: [dat.convert_to_tensor() for dat in res]
 

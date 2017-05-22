@@ -315,10 +315,23 @@ class AdamOptimizer(MomentumOptimizer):
 
             lr_k = lr * tf.sqrt(1. - tf.pow(beta2, tf.to_float(global_step.var + 1))) / (
                 1. - tf.pow(beta1, tf.to_float(global_step.var + 1)))
-            w_base_k = w_base - lr_k * (beta1 * m + (1. - beta1) * grad) / tf.sqrt(
-                beta2 * v + (1. - beta2) * grad ** 2 + eps)
 
-            jac_z = None  # TODO!!!!!
+            v_epsilon_k = beta2 * v + (1. - beta2) * grad ** 2 + eps
+            v_tilde_k = tf.sqrt(v_epsilon_k)
+            w_base_k = w_base - lr_k * (beta1 * m + (1. - beta1) * grad) / v_tilde_k
+
+            def jac_z(z):
+                r, u, s = z.var_list(Vl_Mode.TENSOR)
+
+                hessian_r_product = hvp(loss=loss, w=w_base, v=r)
+
+                j_11_r = r - lr_k * (
+                    (1 - beta1)/v_tilde_k +
+                    ( (1 - beta2)* m_k * grad)/( v_epsilon_k * v_tilde_k)
+                ) * hessian_r_product
+                j_12_u = - lr_k * beta1 / v_tilde_k * u
+                j_13_s = - (lr_k * beta2)/ (2. * v_epsilon_k * v_tilde_k) * s
+                # TODO be continued...
 
             # noinspection PyUnresolvedReferences
             dynamics = tf.concat([w_base_k, m_k, v_k], 0) if w_base_k.get_shape().ndims != 0 \
