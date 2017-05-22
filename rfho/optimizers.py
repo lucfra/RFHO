@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from rfho.utils import hvp, MergedVariable, Vl_Mode, GlobalStep, ZMergedMatrix, simple_name
+from rfho.utils import hvp, MergedVariable, Vl_Mode, GlobalStep, ZMergedMatrix, simple_name, l_diag_mul
 
 
 class Optimizer:  # Gradient descent-like optimizer
@@ -64,7 +64,7 @@ class Optimizer:  # Gradient descent-like optimizer
         shape = d_loss_d_lambda.get_shape()
         if shape.ndims == 1:  # hyper is a vector
             return tf.stack([tf.gradients(d_loss_d_lambda[i], self.w)[0]
-                            for i in range(shape[0].value)], axis=1)
+                             for i in range(shape[0].value)], axis=1)
 
         elif shape.ndims == 0:
             return tf.gradients(d_loss_d_lambda, self.w)[0]
@@ -90,7 +90,6 @@ class Optimizer:  # Gradient descent-like optimizer
 
 
 class GradientDescentOptimizer(Optimizer):
-
     # noinspection PyUnusedLocal
     @staticmethod
     def create(w, lr, loss=None, grad=None, w_is_state=True, name='GradientDescent'):
@@ -114,17 +113,17 @@ class GradientDescentOptimizer(Optimizer):
                 # TODO add type checking for w (should work only with vectors...)
                 integral = tf.reduce_sum(MergedVariable.get_tensor(w) ** 2) / 2. - lr * loss
 
-                def jac_z(z):
+                def _jac_z(z):
                     return ZMergedMatrix(hvp(integral, MergedVariable.get_tensor(w), z.tensor))
             else:
-                jac_z = None
+                _jac_z = None
 
             return GradientDescentOptimizer(raw_w=w, w=MergedVariable.get_tensor(w),
-                             assign_ops=[w.assign(dynamics)],  # TODO complete here...
-                             dynamics=dynamics,
-                             jac_z=jac_z,
-                             gradient=grad,
-                             learning_rate=lr, loss=loss)
+                                            assign_ops=[w.assign(dynamics)],  # TODO complete here...
+                                            dynamics=dynamics,
+                                            jac_z=_jac_z,
+                                            gradient=grad,
+                                            learning_rate=lr, loss=loss)
 
     # noinspection PyMissingOrEmptyDocstring
     @staticmethod
@@ -200,7 +199,7 @@ class MomentumOptimizer(Optimizer):
             w_base_k = w_base - lr * (mu * m + grad)  # * (mu * m + (1. - mu) * grad)   old
             m_k = mu * m + grad  # * (1. - mu)
 
-            def jac_z(z):
+            def _jac_z(z):
                 r, u = z.var_list(Vl_Mode.TENSOR)
 
                 assert loss is not None, 'Should specify loss to use jac_z'
@@ -231,19 +230,21 @@ class MomentumOptimizer(Optimizer):
                 m=m,
                 assign_ops=[w_base_mv.assign(w_base_k), m_mv.assign(m_k)],
                 dynamics=dynamics,
-                jac_z=jac_z, gradient=grad, learning_rate=lr, momentum_factor=mu, raw_w=w,
+                jac_z=_jac_z, gradient=grad, learning_rate=lr, momentum_factor=mu, raw_w=w,
                 loss=loss
             )
 
 
 class AdamOptimizer(MomentumOptimizer):
     def __init__(self, raw_w, w, m, v, assign_ops, global_step, dynamics, jac_z, gradient, learning_rate,
-                 momentum_factor, second_momentum_factor, loss):
+                 momentum_factor, second_momentum_factor, loss, d_dyn_d_lr):
         super().__init__(w=w, m=m, assign_ops=assign_ops, dynamics=dynamics, jac_z=jac_z, gradient=gradient,
                          learning_rate=learning_rate, momentum_factor=momentum_factor, raw_w=raw_w, loss=loss)
         self.v = v
         self.global_step = global_step
         self.second_momentum_factor = second_momentum_factor
+
+        self._d_dyn_d_lr = d_dyn_d_lr
 
         self.algorithmic_hypers[self.second_momentum_factor] = self.d_dynamics_d_second_momentum_factor
 
@@ -260,7 +261,7 @@ class AdamOptimizer(MomentumOptimizer):
         raise NotImplementedError()  # TODO
 
     def d_dynamics_d_learning_rate(self):
-        raise NotImplementedError()  # TODO
+        return self._d_dyn_d_lr()
 
     def d_dynamics_d_second_momentum_factor(self):
         raise NotImplementedError()  # TODO
@@ -313,25 +314,72 @@ class AdamOptimizer(MomentumOptimizer):
             m_k = beta1 * m + (1. - beta1) * grad
             v_k = beta2 * v + (1. - beta2) * grad ** 2
 
-            lr_k = lr * tf.sqrt(1. - tf.pow(beta2, tf.to_float(global_step.var + 1))) / (
+            bias_correction = tf.sqrt(1. - tf.pow(beta2, tf.to_float(global_step.var + 1))) / (
                 1. - tf.pow(beta1, tf.to_float(global_step.var + 1)))
+            lr_k = lr * bias_correction
 
             v_epsilon_k = beta2 * v + (1. - beta2) * grad ** 2 + eps
             v_tilde_k = tf.sqrt(v_epsilon_k)
             w_base_k = w_base - lr_k * (beta1 * m + (1. - beta1) * grad) / v_tilde_k
 
-            def jac_z(z):
+            def _jac_z(z):
+                # FIXME!!!! somethings wrong...........:(
+                assert loss is not None, 'Should specify loss to use jac_z'
+
                 r, u, s = z.var_list(Vl_Mode.TENSOR)
 
                 hessian_r_product = hvp(loss=loss, w=w_base, v=r)
+                print('HESSIAN VECTOR PRODUCT')
+                print(hessian_r_product)
 
-                j_11_r = r - lr_k * (
-                    (1 - beta1)/v_tilde_k +
-                    ( (1 - beta2)* m_k * grad)/( v_epsilon_k * v_tilde_k)
-                ) * hessian_r_product
-                j_12_u = - lr_k * beta1 / v_tilde_k * u
-                j_13_s = - (lr_k * beta2)/ (2. * v_epsilon_k * v_tilde_k) * s
-                # TODO be continued...
+                j_11_r = - lr_k * (
+                    (1. - beta1) / v_tilde_k +
+                    ((1. - beta2) * m_k * grad) / (v_epsilon_k * v_tilde_k)
+                )
+                # j_11_r = - lr_k*(
+                #     (1.-beta1)*v_epsilon_k + (1.- beta2) * (m_k * grad)
+                # )/(v_epsilon_k*v_tilde_k)
+
+                j_11_r = l_diag_mul(j_11_r, hessian_r_product)
+                j_11_r += r
+
+                j_12_u = - lr_k * beta1 / v_tilde_k
+                j_12_u = l_diag_mul(j_12_u, u)
+
+                j_13_s = - (lr_k * beta2) / (2. * v_epsilon_k * v_tilde_k)
+                j_13_s = l_diag_mul(j_13_s, s)
+
+                jac_z_1 = j_11_r + j_12_u + j_13_s
+                # end first bock
+
+                j_21_r = (1. - beta1) * hessian_r_product
+                j_22_u = beta1*u
+                # j_23_s = tf.zeros_like(s)  # would be...
+
+                jac_z_2 = j_21_r + j_22_u
+                # end second block
+
+                j_31_r = 2.*(1. - beta2) * grad
+                j_31_r = l_diag_mul(j_31_r, hessian_r_product)
+                # j_32_u = tf.zeros_like(u)  # would be
+                j_33_s = beta2*s
+                jac_z_3 = j_31_r + j_33_s
+
+                res = [jac_z_1, jac_z_2, jac_z_3]
+                print('res', res)
+
+                return ZMergedMatrix(res)
+
+            # algorithmic partial derivatives (as functions so that we do not create unnecessary nodes
+            def _d_dyn_d_lr():
+                res = [
+                    - bias_correction* m_k / v_tilde_k,
+                    tf.zeros_like(m_k),
+                    tf.zeros_like(v_k)  # just aesthetics
+                ]
+                print('_d_dyn_d_lr')
+                print(res)
+                return ZMergedMatrix(res)
 
             # noinspection PyUnresolvedReferences
             dynamics = tf.concat([w_base_k, m_k, v_k], 0) if w_base_k.get_shape().ndims != 0 \
@@ -347,6 +395,6 @@ class AdamOptimizer(MomentumOptimizer):
                 m=m, v=v, global_step=global_step,
                 assign_ops=[w_base_mv.assign(w_base_k), m_mv.assign(m_k), v_mv.assign(v_k)],
                 dynamics=dynamics,
-                jac_z=jac_z, gradient=grad, learning_rate=lr, momentum_factor=beta1, second_momentum_factor=beta2,
-                raw_w=w, loss=loss
+                jac_z=_jac_z, gradient=grad, learning_rate=lr, momentum_factor=beta1, second_momentum_factor=beta2,
+                raw_w=w, loss=loss, d_dyn_d_lr=_d_dyn_d_lr
             )

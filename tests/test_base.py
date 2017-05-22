@@ -6,7 +6,13 @@ import unittest
 
 
 def iris_logistic_regression(augment=0):
-    iris = load_iris()
+    """
+    Simple model for testing purposes
+    
+    :param augment: 
+    :return: 
+    """
+    iris = load_iris(partitions_proportions=(.3,.3))
     x = tf.placeholder(tf.float32, name='x')
     y = tf.placeholder(tf.float32, name='y')
     model = LinearModel(x, 4, 3)

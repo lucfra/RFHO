@@ -117,7 +117,7 @@ def norm(v, name='norm'):
         return wsr(tf.sqrt(tf.reduce_sum(tf.square(v))))
 
 
-def cross_entropy_loss(y, targets, linear_input=True, eps=1.e-5, name='cross_entropy_loss'):
+def cross_entropy_loss(model_out, targets, linear_input=True, eps=1.e-5, name='cross_entropy_loss'):
     """
     Clipped standard-version cross entropy loss. Implemented because  the standard function
     tf.nn.softmax_cross_entropy_with_logits has wrong (?) Hessian.
@@ -125,15 +125,15 @@ def cross_entropy_loss(y, targets, linear_input=True, eps=1.e-5, name='cross_ent
 
     Maybe the code could be optimized since ln(softmax(z_j)) = z_j - prod z_i . Should benchmark it.
 
-    :param y: softmax or linear output of the model
+    :param model_out: softmax or linear output of the model
     :param targets: labels
-    :param linear_input: True is y is linear in which case tf.nn.softmax will be applied to y
+    :param linear_input: True (default) if y is linear in which case tf.nn.softmax will be applied to y
     :param eps: (optional, default 1.e-5) clipping value for log.
     :param name: (optional, default cross_entropy_loss) name scope for the defined operations.
     :return: tensor for the cross_entropy_loss (WITHOUT MEAN ON THE EXAMPLES)
     """
     with tf.name_scope(name):
-        softmax_out = tf.nn.softmax(y) if linear_input else y
+        softmax_out = tf.nn.softmax(model_out) if linear_input else model_out
         return -tf.reduce_sum(
             targets * tf.log(tf.clip_by_value(softmax_out, eps, 1. - eps)), reduction_indices=[1]
         )
@@ -156,6 +156,19 @@ def binary_cross_entropy(y, targets, linear_input=True, eps=1.e-5, name='binary_
         # tgs = targets if len(targets.)
         return - (targets * tf.log(tf.clip_by_value(sigmoid_out, eps, 1. - eps)) +
                   (1. - targets) * tf.log(tf.clip_by_value(1. - sigmoid_out, eps, 1. - eps)))
+
+
+def l_diag_mul(d, m, name='diag_matrix_product'):
+    """
+    Performs diag(d) * m product
+    
+    :param d: n-dimensional vector
+    :param m: n x k matrix
+    :param name: optional name
+    :return: n x k matrix
+    """
+    with tf.name_scope(name):
+        return tf.transpose(d*tf.transpose(m))
 
 
 def matmul(a, b, benchmark=True, name='mul'):  # TODO maybe put inside dot
@@ -509,8 +522,13 @@ class ZMergedMatrix:
         # assumes that you want matrices and not vectors. This means that eventual vectors are casted to matrices
         # of dimension (n, 1)
         for i, c in enumerate(self.components):
-            if len(c.get_shape().as_list()) == 1:
+            if c.get_shape().ndims == 1:
                 self.components[i] = tf.transpose(tf.stack([c]))
+
+        # print()
+        # print('components')
+        # print(self.components)
+        # print()
 
         self.tensor = tf.concat(self.components, 0)
 

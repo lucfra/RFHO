@@ -1,8 +1,9 @@
 import unittest
 import numpy as np
+from tests.test_base import iris_logistic_regression
 from rfho.datasets import load_iris, load_mnist
 from rfho.models import *
-from rfho.hyper_gradients import ReverseHyperGradient
+from rfho.hyper_gradients import ReverseHyperGradient, ForwardHyperGradient, HyperOptimizer
 from rfho.optimizers import *
 from rfho.utils import dot, SummaryUtil, SummaryUtils as SSU, PrintUtils, norm, stepwise_pu, MergedUtils, \
     cross_entropy_loss, flatten_list
@@ -400,6 +401,20 @@ class TestD(unittest.TestCase):
             ReverseHyperGradient(optimizer, {f: b})
         self.assertTrue(ReverseHyperGradient(optimizer, {f: a}))  # while this one should be fine
 
+    def test_adam_forward(self, method=None):
+        iris, x, y, model, model_w, model_y, error, accuracy = iris_logistic_regression(2)
+
+        eta = tf.Variable(.001, name='eta')
+        dyn = AdamOptimizer.create(model_w, eta, loss=error)
+        tr_sup = lambda s: {x: iris.train.data, y: iris.train.target}
+        val_sup = lambda s=None: {x: iris.validation.data, y: iris.validation.target}
+
+        hy_opt_fw = HyperOptimizer(dyn, {error: eta}, method=method)
+        with tf.Session().as_default() as ss:
+            hy_opt_fw.initialize()
+            for k in range(10):
+                hy_opt_fw.run(10, tr_sup, {error: val_sup})
+                print(hy_opt_fw.hyper_gradients.hyper_gradient_vars[0].eval())
 
     def setUp(self):
         tf.reset_default_graph()
@@ -407,7 +422,9 @@ class TestD(unittest.TestCase):
 
 if __name__ == '__main__':
     # unittest.main()
-    TestD().test_hyper_gradient_none_check()
+    TestD().test_adam_forward(method=ForwardHyperGradient)
+    tf.reset_default_graph()
+    TestD().test_adam_forward(method=ReverseHyperGradient)
 
 
 def build_model(augment=0, variable_initializer=(tf.zeros, tf.zeros)):
@@ -415,7 +432,8 @@ def build_model(augment=0, variable_initializer=(tf.zeros, tf.zeros)):
     x = tf.placeholder(tf.float32)
     y = tf.placeholder(tf.float32)
     lin_model = LinearModel(x, 28 * 28, 10,
-                            active_gen=ffnn_lin_out(variable_initializer[0], variable_initializer[1]))
+                            active_gen_kwars={'init_w': variable_initializer[0],
+                                              'init_b': variable_initializer[1]})
 
     all_w, mod_y, mat_w = vectorize_model(lin_model.var_list, lin_model.inp[-1], lin_model.Ws[0], augment=augment)
 
