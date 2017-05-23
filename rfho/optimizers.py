@@ -73,6 +73,12 @@ class Optimizer:  # Gradient descent-like optimizer
                                       '%s is a %d rank tensor instead' % (simple_name(hyper), shape.ndims))
 
     def auto_d_dynamics_d_hyper(self, hyper):
+        """
+        Automatic attempt to build the term d(phi)/(d hyper)
+        
+        :param hyper: 
+        :return: 
+        """
         if hyper in self.algorithmic_hypers:
             return self.algorithmic_hypers[hyper]()  # the call to the function is here because otherwise it could
         # rise an error at the initialization part in the case that the optimizer is used in gradient mode
@@ -90,6 +96,10 @@ class Optimizer:  # Gradient descent-like optimizer
 
 
 class GradientDescentOptimizer(Optimizer):
+    """
+    Class for gradient descent to be used with HyperGradients
+    """
+
     # noinspection PyUnusedLocal
     @staticmethod
     def create(w, lr, loss=None, grad=None, w_is_state=True, name='GradientDescent'):
@@ -131,6 +141,7 @@ class GradientDescentOptimizer(Optimizer):
         return 0
 
 
+# noinspection PyMissingOrEmptyDocstring
 class MomentumOptimizer(Optimizer):
     def __init__(self, raw_w, w, m, assign_ops, dynamics, jac_z, gradient, learning_rate, momentum_factor, loss):
         super(MomentumOptimizer, self).__init__(raw_w=raw_w, w=w, assign_ops=assign_ops, dynamics=dynamics, jac_z=jac_z,
@@ -160,16 +171,16 @@ class MomentumOptimizer(Optimizer):
             grad_loss_term
         ])
 
-    # noinspection PyMissingOrEmptyDocstring
     @staticmethod
     def get_augmentation_multiplier():
         return 1
 
     @staticmethod
-    def create(w, lr, mu, loss=None, grad=None, w_is_state=True, name='Momentum'):
+    def create(w, lr, mu=.9, loss=None, grad=None, w_is_state=True, name='Momentum', _debug_jac_z=False):
         """
+        Constructor for momentum optimizer
 
-
+        :param _debug_jac_z: 
         :param mu:
         :param w:
         :param lr:
@@ -199,26 +210,61 @@ class MomentumOptimizer(Optimizer):
             w_base_k = w_base - lr * (mu * m + grad)  # * (mu * m + (1. - mu) * grad)   old
             m_k = mu * m + grad  # * (1. - mu)
 
-            def _jac_z(z):
-                r, u = z.var_list(Vl_Mode.TENSOR)
-
-                assert loss is not None, 'Should specify loss to use jac_z'
-
-                hessian_r_product = hvp(loss=loss, w=w_base, v=r)
-
-                print('hessian_r_product', hessian_r_product)
-
-                res = [
-                    r - lr * mu * u - lr * hessian_r_product,
-                    hessian_r_product + mu * u
-                ]
-
-                print('res', res)
-
-                return ZMergedMatrix(res)
-
+            # noinspection PyUnresolvedReferences
             dynamics = tf.concat([w_base_k, m_k], 0) if w_base_k.get_shape().ndims != 0 \
                 else tf.stack([w_base_k, m_k], 0)  # for scalar w
+
+            # noinspection PyUnresolvedReferences
+            def _jac_z(z):
+                if _debug_jac_z:  # I guess this would take an incredible long time to compile for large systems
+                    d = dynamics.get_shape().as_list()[0]
+                    d2 = d // 2
+                    jac_1_1 = tf.stack([
+                        tf.gradients(w_base_k[i], w_base)[0] for i in range(d2)
+                    ])
+                    jac_2_1 = tf.stack([
+                        tf.gradients(m_k[i], w_base)[0] for i in range(d2)
+                    ])
+                    jac_1 = tf.concat([jac_1_1, jac_2_1], axis=0)
+
+                    jac_1_2 = tf.stack([
+                        tf.gradients(w_base_k[i], m)[0] for i in range(d2)
+                    ])
+                    jac_2_2 = tf.stack([
+                        tf.gradients(m_k[i], m)[0] for i in range(d2)
+                    ])
+                    jac_2 = tf.concat([jac_1_2, jac_2_2], axis=0)
+
+                    jac = tf.concat([jac_1, jac_2], axis=1, name='Jacobian')
+
+                    # mul = tf.matmul(jac, z.tensor)
+                    #
+                    # return ZMergedMatrix([
+                    #     mul[:d2, :],
+                    #     mul[d2, :]
+                    # ])
+                    r, u = z.var_list(Vl_Mode.TENSOR)
+                    return ZMergedMatrix([
+                        tf.matmul(jac_1_1, r) + tf.matmul(jac_1_2, u),
+                        tf.matmul(jac_2_1, r) + tf.matmul(jac_2_2, u)
+                    ])
+                else:
+                    r, u = z.var_list(Vl_Mode.TENSOR)
+
+                    assert loss is not None, 'Should specify loss to use jac_z'
+
+                    hessian_r_product = hvp(loss=loss, w=w_base, v=r)
+
+                    print('hessian_r_product', hessian_r_product)
+
+                    res = [
+                        r - lr * mu * u - lr * hessian_r_product,
+                        hessian_r_product + mu * u
+                    ]
+
+                    print('res', res)
+
+                    return ZMergedMatrix(res)
 
             if w_is_state:
                 w_base_mv, m_mv = w.var_list(Vl_Mode.RAW)
@@ -236,6 +282,9 @@ class MomentumOptimizer(Optimizer):
 
 
 class AdamOptimizer(MomentumOptimizer):
+    """
+    Class for adam optimizer 
+    """
     def __init__(self, raw_w, w, m, v, assign_ops, global_step, dynamics, jac_z, gradient, learning_rate,
                  momentum_factor, second_momentum_factor, loss, d_dyn_d_lr):
         super().__init__(w=w, m=m, assign_ops=assign_ops, dynamics=dynamics, jac_z=jac_z, gradient=gradient,
@@ -276,19 +325,22 @@ class AdamOptimizer(MomentumOptimizer):
 
     @staticmethod
     def create(w, lr=1.e-3, beta1=.9, beta2=.999, eps=1.e-8, global_step=None,
-               loss=None, grad=None, w_is_state=True, name='Adam'):  # FIXME rewrite this
+               loss=None, grad=None, w_is_state=True, name='Adam',
+               _debug_jac_z=False):  # FIXME rewrite this
         """
         Adam optimizer.
-        :param w:
-        :param lr:
-        :param beta1:
-        :param beta2:
-        :param eps:
-        :param global_step:
-        :param loss:
-        :param grad:
+        
+        :param w: all weight vector
+        :param lr: learning rate
+        :param beta1: first momentum factor
+        :param beta2: second momentum factor
+        :param eps: term for numerical stability (higher than proposed default)
+        :param global_step: 
+        :param loss: scalar tensor 
+        :param grad: vector tensor
         :param w_is_state:
         :param name:
+        :param _debug_jac_z: 
         :return:
         """
         # beta1_pow = tf.Variable(beta1)  # for the moment skip the implementation of this optimization.
@@ -322,53 +374,95 @@ class AdamOptimizer(MomentumOptimizer):
             v_tilde_k = tf.sqrt(v_epsilon_k)
             w_base_k = w_base - lr_k * (beta1 * m + (1. - beta1) * grad) / v_tilde_k
 
+            # noinspection PyUnresolvedReferences
             def _jac_z(z):
-                # FIXME!!!! somethings wrong...........:(
-                assert loss is not None, 'Should specify loss to use jac_z'
+                if _debug_jac_z:  # I guess this would take an incredible long time to compile for large systems
+                    d = dynamics.get_shape().as_list()[0] // 3
+                    r, u, s = z.var_list(Vl_Mode.TENSOR)
 
-                r, u, s = z.var_list(Vl_Mode.TENSOR)
+                    j11 = tf.stack([
+                        tf.gradients(w_base_k[i], w_base)[0] for i in range(d)
+                    ])
+                    j12 = tf.stack([
+                        tf.gradients(w_base_k[i], m)[0] for i in range(d)
+                    ])
+                    j13 = tf.stack([
+                        tf.gradients(w_base_k[i], v)[0] for i in range(d)
+                    ])
+                    j1 = tf.concat([j11, j12, j13], axis=1)
+                    jz1 = tf.matmul(j11, r) + tf.matmul(j12, u) + tf.matmul(j13, s)
 
-                hessian_r_product = hvp(loss=loss, w=w_base, v=r)
-                print('HESSIAN VECTOR PRODUCT')
-                print(hessian_r_product)
+                    # second block
+                    j21 = tf.stack([
+                        tf.gradients(m_k[i], w_base)[0] for i in range(d)
+                    ])
+                    j22 = tf.stack([
+                        tf.gradients(m_k[i], m)[0] for i in range(d)
+                    ])
+                    j23 = tf.stack([
+                        tf.gradients(m_k[i], v)[0] for i in range(d)
+                    ])
+                    j2 = tf.concat([j21, j22, j23], axis=1)
+                    jz2 = tf.matmul(j21, r) + tf.matmul(j22, u) + tf.matmul(j23, s)
 
-                j_11_r = - lr_k * (
-                    (1. - beta1) / v_tilde_k +
-                    ((1. - beta2) * m_k * grad) / (v_epsilon_k * v_tilde_k)
-                )
-                # j_11_r = - lr_k*(
-                #     (1.-beta1)*v_epsilon_k + (1.- beta2) * (m_k * grad)
-                # )/(v_epsilon_k*v_tilde_k)
+                    # third block
+                    j31 = tf.stack([
+                        tf.gradients(v_k[i], w_base)[0] for i in range(d)
+                    ])
+                    j32 = tf.stack([
+                        tf.gradients(v_k[i], m)[0] for i in range(d)
+                    ])
+                    j33 = tf.stack([
+                        tf.gradients(v_k[i], v)[0] for i in range(d)
+                    ])
+                    j3 = tf.concat([j31, j32, j33], axis=1)
+                    jz3 = tf.matmul(j31, r) + tf.matmul(j32, u) + tf.matmul(j33, s)
 
-                j_11_r = l_diag_mul(j_11_r, hessian_r_product)
-                j_11_r += r
+                    tf.concat([j1, j2, j3], axis=0, name='Jacobian')
 
-                j_12_u = - lr_k * beta1 / v_tilde_k
-                j_12_u = l_diag_mul(j_12_u, u)
+                    return ZMergedMatrix([jz1, jz2, jz3])
 
-                j_13_s = - (lr_k * beta2) / (2. * v_epsilon_k * v_tilde_k)
-                j_13_s = l_diag_mul(j_13_s, s)
+                else:
+                    assert loss is not None, 'Should specify loss to use jac_z'
 
-                jac_z_1 = j_11_r + j_12_u + j_13_s
-                # end first bock
+                    r, u, s = z.var_list(Vl_Mode.TENSOR)
 
-                j_21_r = (1. - beta1) * hessian_r_product
-                j_22_u = beta1*u
-                # j_23_s = tf.zeros_like(s)  # would be...
+                    hessian_r_product = hvp(loss=loss, w=w_base, v=r)
 
-                jac_z_2 = j_21_r + j_22_u
-                # end second block
+                    v_k_eps_32 = tf.pow(v_epsilon_k, 1.5)
 
-                j_31_r = 2.*(1. - beta2) * grad
-                j_31_r = l_diag_mul(j_31_r, hessian_r_product)
-                # j_32_u = tf.zeros_like(u)  # would be
-                j_33_s = beta2*s
-                jac_z_3 = j_31_r + j_33_s
+                    j_11_r_hat = - lr_k * (
+                        (1. - beta1)/v_tilde_k - ((1. - beta2) * grad * m_k)/v_k_eps_32
+                    )
+                    j_11_r_tilde = l_diag_mul(j_11_r_hat, hessian_r_product)
+                    j_11_r = j_11_r_tilde + r
 
-                res = [jac_z_1, jac_z_2, jac_z_3]
-                print('res', res)
+                    j_12_u_hat = - lr_k * beta1 / v_tilde_k
+                    j_12_u = l_diag_mul(j_12_u_hat, u)
 
-                return ZMergedMatrix(res)
+                    j_13_s_hat = lr_k*beta2*m_k/(2*v_k_eps_32)
+                    j_13_s = l_diag_mul(j_13_s_hat, s)
+
+                    jac_z_1 = j_11_r + j_12_u + j_13_s
+                    # end first bock
+
+                    j_21_r = (1. - beta1) * hessian_r_product
+                    j_22_u = beta1*u
+                    # j_23_s = tf.zeros_like(s)  # would be...
+
+                    jac_z_2 = j_21_r + j_22_u
+                    # end second block
+
+                    j_31_r_hat = 2.*(1. - beta2) * grad
+                    j_31_r = l_diag_mul(j_31_r_hat, hessian_r_product)
+                    # j_32_u = tf.zeros_like(u)  # would be
+                    j_33_s = beta2*s
+                    jac_z_3 = j_31_r + j_33_s
+
+                    res = [jac_z_1, jac_z_2, jac_z_3]
+                    print('res', res)
+
+                    return ZMergedMatrix(res)
 
             # algorithmic partial derivatives (as functions so that we do not create unnecessary nodes
             def _d_dyn_d_lr():
@@ -377,8 +471,6 @@ class AdamOptimizer(MomentumOptimizer):
                     tf.zeros_like(m_k),
                     tf.zeros_like(v_k)  # just aesthetics
                 ]
-                print('_d_dyn_d_lr')
-                print(res)
                 return ZMergedMatrix(res)
 
             # noinspection PyUnresolvedReferences

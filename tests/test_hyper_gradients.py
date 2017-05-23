@@ -6,7 +6,34 @@ from rfho.models import *
 from rfho.hyper_gradients import ReverseHyperGradient, ForwardHyperGradient, HyperOptimizer
 from rfho.optimizers import *
 from rfho.utils import dot, SummaryUtil, SummaryUtils as SSU, PrintUtils, norm, stepwise_pu, MergedUtils, \
-    cross_entropy_loss, flatten_list
+    cross_entropy_loss
+
+
+def build_model(augment=0, variable_initializer=(tf.zeros, tf.zeros)):
+    """
+    Simple model for test purposes on minist
+    
+    :param augment: 
+    :param variable_initializer: 
+    :return: 
+    """
+    mnist = load_mnist()
+    x = tf.placeholder(tf.float32)
+    y = tf.placeholder(tf.float32)
+    lin_model = LinearModel(x, 28 * 28, 10,
+                            active_gen_kwars={'init_w': variable_initializer[0],
+                                              'init_b': variable_initializer[1]})
+
+    all_w, mod_y, mat_w = vectorize_model(lin_model.var_list, lin_model.inp[-1], lin_model.Ws[0], augment=augment)
+
+    error = tf.reduce_mean(
+        cross_entropy_loss(mod_y, y)
+    )
+
+    correct_prediction = tf.equal(tf.argmax(mod_y, 1), tf.argmax(y, 1))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+
+    return mnist, x, y, all_w, mod_y, mat_w, error, accuracy
 
 
 class TestD(unittest.TestCase):
@@ -401,20 +428,33 @@ class TestD(unittest.TestCase):
             ReverseHyperGradient(optimizer, {f: b})
         self.assertTrue(ReverseHyperGradient(optimizer, {f: a}))  # while this one should be fine
 
-    def test_adam_forward(self, method=None):
-        iris, x, y, model, model_w, model_y, error, accuracy = iris_logistic_regression(2)
+    def _bkfw_test(self, param_optimizer, method, debug_jac=False, iterations=100):
+        iris, x, y, model, model_w, model_y, error, accuracy = iris_logistic_regression(
+            param_optimizer.get_augmentation_multiplier())
 
         eta = tf.Variable(.001, name='eta')
-        dyn = AdamOptimizer.create(model_w, eta, loss=error)
-        tr_sup = lambda s: {x: iris.train.data, y: iris.train.target}
+        dyn = param_optimizer.create(model_w, eta, loss=error, _debug_jac_z=debug_jac)
+        tr_sup = lambda s=None: {x: iris.train.data, y: iris.train.target}
         val_sup = lambda s=None: {x: iris.validation.data, y: iris.validation.target}
 
-        hy_opt_fw = HyperOptimizer(dyn, {error: eta}, method=method)
+        hy_opt = HyperOptimizer(dyn, {error: eta}, method=method)
+        all_names = [n.name for n in tf.get_default_graph().as_graph_def().node]
         with tf.Session().as_default() as ss:
-            hy_opt_fw.initialize()
-            for k in range(10):
-                hy_opt_fw.run(10, tr_sup, {error: val_sup})
-                print(hy_opt_fw.hyper_gradients.hyper_gradient_vars[0].eval())
+            hy_opt.initialize()
+            for k in range(1):
+                hy_opt.run(iterations, tr_sup, {error: val_sup}, _debug_no_hyper_update=True)
+                # [print(n.name) for n in tf.get_default_graph().as_graph_def().node]
+                if 'direct_HO/Jacobian' in all_names:
+                    jac = ss.run('direct_HO/Jacobian:0', feed_dict=tr_sup())
+                    np.savetxt('temp.csv', jac, delimiter=',')
+                if 'direct_HO/Jacobian_cal' in all_names:
+                    jac = ss.run('direct_HO/Jacobian_cal:0', feed_dict=tr_sup())
+                    np.savetxt('temp_cal.csv', jac, delimiter=',')
+                print(hy_opt.hyper_gradients.hyper_gradient_vars[0].eval())
+
+                print()
+                print('norm of state vector', np.linalg.norm(model_w.eval()))  # this check is passed...
+                print()
 
     def setUp(self):
         tf.reset_default_graph()
@@ -422,28 +462,15 @@ class TestD(unittest.TestCase):
 
 if __name__ == '__main__':
     # unittest.main()
-    TestD().test_adam_forward(method=ForwardHyperGradient)
-    tf.reset_default_graph()
-    TestD().test_adam_forward(method=ReverseHyperGradient)
+    test = TestD()
+    test._bkfw_test(param_optimizer=AdamOptimizer,
+                       method=ForwardHyperGradient, debug_jac=False, iterations=10)
+    # TestD()._bkfw_test(method=ForwardHyperGradient, debug_jac=False)
 
+    test.setUp()
+    test._bkfw_test(param_optimizer=AdamOptimizer,
+                       method=ReverseHyperGradient, iterations=10)
 
-def build_model(augment=0, variable_initializer=(tf.zeros, tf.zeros)):
-    mnist = load_mnist()
-    x = tf.placeholder(tf.float32)
-    y = tf.placeholder(tf.float32)
-    lin_model = LinearModel(x, 28 * 28, 10,
-                            active_gen_kwars={'init_w': variable_initializer[0],
-                                              'init_b': variable_initializer[1]})
-
-    all_w, mod_y, mat_w = vectorize_model(lin_model.var_list, lin_model.inp[-1], lin_model.Ws[0], augment=augment)
-
-    error = tf.reduce_mean(
-        cross_entropy_loss(mod_y, y)
-    )
-
-    correct_prediction = tf.equal(tf.argmax(mod_y, 1), tf.argmax(y, 1))
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
-
-    return mnist, x, y, all_w, mod_y, mat_w, error, accuracy
-
-
+    # TestD().test_momentum(method=ForwardHyperGradient)
+    # tf.reset_default_graph()
+    # TestD().test_momentum(method=ReverseHyperGradient)

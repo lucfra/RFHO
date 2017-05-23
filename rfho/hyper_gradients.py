@@ -639,9 +639,11 @@ class HyperOptimizer:
         self.hyper_gradients.initialize()
         # tf.variables_initializer([self.hyper_batch_step.var]).run()
 
-    def run(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None, hyper_constraints_ops=None):
+    def run(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None, hyper_constraints_ops=None,
+            _debug_no_hyper_update=False):
         """
 
+        :param _debug_no_hyper_update: 
         :param T:
         :param train_feed_dict_supplier:
         :param val_feed_dict_suppliers:
@@ -655,9 +657,10 @@ class HyperOptimizer:
         # TODO Riccardo, is it compatible with TRHO???
         self.hyper_gradients.run_all(T, train_feed_dict_supplier=train_feed_dict_supplier,
                                      val_feed_dict_suppliers=val_feed_dict_suppliers)
-        [tf.get_default_session().run(hod.assign_ops) for hod in self.hyper_optimizers]
-        if hyper_constraints_ops: [op.eval() for op in as_list(hyper_constraints_ops)]
-        # self.hyper_batch_step.increase.eval()
+        if not _debug_no_hyper_update:
+            [tf.get_default_session().run(hod.assign_ops) for hod in self.hyper_optimizers]
+            if hyper_constraints_ops: [op.eval() for op in as_list(hyper_constraints_ops)]
+
         self.hyper_batch_step.increase.eval()
 
 
