@@ -1018,18 +1018,6 @@ if __name__ == '__main__':
     # mnist = load_mnist(partitions=[0.1, .2], filters=lambda x, y, d, k: True)
     # print(len(_datasets.train))\
 
-    # dataset = generate_multiclass_dataset(n_samples=100, n_features=100, n_informative=2, n_redundant=0, n_repeated=0,
-    #                                       n_classes=2, n_clusters_per_class=1, weights=None, flip_y=0.01, class_sep=1.0,
-    #                                       hypercube=True, shift=0.0, scale=1.0, shuffle=True, random_state=None,
-    #                                       hot_encoded=False, partitions_proportions=[0.3, 0.3], negative_labels=-1.)
-    # if dataset.train.dim_data == 2:
-    #     import matplotlib.pyplot as plt
-    #     plt.scatter(dataset.train.data[:, 0], dataset.train.data[:, 1], c=dataset.train.target)
-    #     plt.show()
-    #
-    # for d in dataset:
-    #     print(d)
-
     load_20newsgroup_vectorized(one_hot=False, shuffle=True, partitions_proportions=(1/3, 1/3))
 
     mnist = load_mnist(partitions=(.1, .1), shuffle=True)

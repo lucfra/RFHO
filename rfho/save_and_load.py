@@ -21,7 +21,7 @@ import numpy as np
 def join_paths(*paths):
     return reduce(lambda acc, new_path: os.path.join(acc, new_path), paths)
 
-settings = {
+SAVE_SETTINGS = {
     'NOTEBOOK_TITLE': ''
 }
 
@@ -45,15 +45,15 @@ def check_or_create_dir(directory, notebook_mode=True, create=True):
         os.mkdir(directory)
         print('folder', directory, 'has been created')
 
-    if notebook_mode and settings['NOTEBOOK_TITLE']:
-        directory = join_paths(directory, settings['NOTEBOOK_TITLE'])  # += '/' + settings['NOTEBOOK_TITLE']
+    if notebook_mode and SAVE_SETTINGS['NOTEBOOK_TITLE']:
+        directory = join_paths(directory, SAVE_SETTINGS['NOTEBOOK_TITLE'])  # += '/' + settings['NOTEBOOK_TITLE']
         if not os.path.exists(directory) and create:
             os.mkdir(directory)
             print('folder ', directory, 'has been created')
     return directory
 
 
-def save_fig(name, root_dir=None, notebook_mode=True, default_overwrite=False):
+def save_fig(name, root_dir=None, notebook_mode=True, default_overwrite=False, **savefig_kwargs):
     if root_dir is None: root_dir = os.getcwd()
     directory = check_or_create_dir(join_paths(root_dir, FOLDER_NAMINGS['PLOTS_DIR']),
                                     notebook_mode=notebook_mode)
@@ -66,7 +66,7 @@ def save_fig(name, root_dir=None, notebook_mode=True, default_overwrite=False):
         if not overwrite:
             print('No changes done.')
             return
-    plt.savefig(filename)
+    plt.savefig(filename, **savefig_kwargs)
     print('file saved')
 
 
@@ -270,11 +270,12 @@ class Saver:
             processed_args.append(part)
         self.processed_items += processed_args
 
-    def save(self, step, append_string="", do_print=None, collect_data=None):
+    def save(self, step, session=None, append_string="", do_print=None, collect_data=None):
         """
         Builds and save a dictionary with the keys and values specified at construction time or by method
         `add_items`
 
+        :param session: Optional tensorflow session, otherwise uses default session
         :param step: (int preferred, otherwise does not work well with `pack_save_dictionaries`).
         :param append_string: (optional str) string to append at the file name to `str(step)`
         :param do_print: (default as object field)
@@ -286,8 +287,10 @@ class Saver:
         if do_print is None: do_print = self.do_print
         if collect_data is None: collect_data = self.collect_data
 
-        ss = get_default_session()
-        if ss is None and do_print: print('WARNING, No default session')
+        if session: ss = session
+        else:
+            ss = get_default_session()
+        if ss is None and do_print: print('WARNING, No tensorflow session available')
 
         if self.timer: self.timer.stop()
         save_dict = OrderedDict([(pt[0], pt[1](step) if callable(pt[1])
@@ -339,7 +342,7 @@ class Saver:
 
         return packed_dict
 
-    def save_fig(self, name):
+    def save_fig(self, name, **savefig_kwargs):
         """
         Object-oriented version of `save_fig`
 
@@ -347,7 +350,8 @@ class Saver:
         :return:
         """
         return save_fig(name, root_dir=self.directory,
-                        default_overwrite=self.default_overwrite, notebook_mode=False)
+                        default_overwrite=self.default_overwrite, notebook_mode=False,
+                        **savefig_kwargs)
 
     def save_obj(self, obj, name):
         """
