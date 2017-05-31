@@ -7,7 +7,7 @@ from rfho.hyper_gradients import ReverseHyperGradient, ForwardHyperGradient, Hyp
 from rfho.optimizers import *
 from rfho.utils import dot, SummaryUtil, SummaryUtils as SSU, PrintUtils, norm, stepwise_pu, MergedUtils, \
     cross_entropy_loss
-
+import tabulate
 
 def build_model(augment=0, variable_initializer=(tf.zeros, tf.zeros)):
     """
@@ -469,38 +469,148 @@ class TestD(unittest.TestCase):
             print()
             return hyp_gs, norm_of_state
 
+
+    def trial_solve0(self):
+        # unittest.main()
+        test = TestD()
+        n_iters = 100
+        trials = 10
+        res_f = []
+        res_r = []
+        for j in range(trials):
+            test.setUp()
+            hgf, nof = test._bkfw_test(param_optimizer=AdamOptimizer,
+                                       method=ForwardHyperGradient, debug_jac=False, iterations=n_iters)
+            # TestD()._bkfw_test(method=ForwardHyperGradient, debug_jac=False)
+
+            test.setUp()
+            hgr, nor = test._bkfw_test(param_optimizer=AdamOptimizer,
+                                       method=ReverseHyperGradient, iterations=n_iters)
+
+            print(nof - nor)
+            res_f.append(hgf)
+            res_r.append(hgr)
+
+        for hgf, hgr in zip(res_f, res_r):
+            # TestD().test_momentum(method=ForwardHyperGradient)
+            print([(hf - hr) for hr, hf in zip(hgr, hgf)])
+            # tf.reset_default_graph()
+            # TestD().test_momentum(method=ReverseHyperGradient)
+
+        print()
+        print(res_f)
+        print()
+        print(res_r)
+
+
+    def _test_hv(self, param_optimizer, debug_jac=False, iterations=100):
+        tf.set_random_seed(0)
+        np.random.seed(0)
+        iris, x, y, model, model_w, model_y, error, accuracy = iris_logistic_regression(
+            param_optimizer.get_augmentation_multiplier())
+
+        eta = tf.Variable(.001, name='eta')
+        dyn = param_optimizer.create(model_w, eta, loss=error, _debug_jac_z=debug_jac)
+
+        # # rho = tf.Variable([.1, .01], name='rho')
+        # tr_error = error
+        #            # + rho[0]*tf.reduce_sum(model_w.tensor**2)\
+        #            # + rho[1]*tf.abs(tf.reduce_sum(model_w.tensor))
+
+        tr_sup = lambda s=None: {x: iris.train.data, y: iris.train.target}
+
+        from rfho.utils import hvp
+
+        z = tf.ones(model_w.get_shape())
+        hv = hvp(error, model_w.tensor, z)
+
+        with tf.Session().as_default() as ss:
+            tf.global_variables_initializer().run()
+            for t in range(iterations):
+                ss.run(dyn.assign_ops, feed_dict=tr_sup())
+            return hv.eval(feed_dict=tr_sup())
+
+        # with tf.Session().as_default() as ss:
+
+    def do_test_hv(self):
+        trials = 100
+        rs = []
+        for tr in range(trials):
+            self.setUp()
+            rs.append(self._test_hv(AdamOptimizer))
+        for r in rs:
+            print(r)
+
+        self.assertEqual(len(set(rs)), 1)
+
+
+
+    def _forward_fix_test(self, param_optimizer, method, debug_jac=False, iterations=100):
+        tf.set_random_seed(0)
+        np.random.seed(0)
+        iris, x, y, model, model_w, model_y, error, accuracy = iris_logistic_regression(
+            param_optimizer.get_augmentation_multiplier())
+
+        # rho = tf.Variable([.1, .01], name='rho')
+        tr_error = error \
+                   # + rho[0]*tf.reduce_sum(model_w.tensor**2)\
+                   # + rho[1]*tf.abs(tf.reduce_sum(model_w.tensor))
+
+        eta = tf.Variable(.001, name='eta')
+        dyn = param_optimizer.create(model_w, eta, loss=tr_error, _debug_jac_z=debug_jac)
+        tr_sup = lambda s=None: {x: iris.train.data, y: iris.train.target}
+        val_sup = lambda s=None: {x: iris.validation.data, y: iris.validation.target}
+
+        hy_opt = HyperOptimizer(dyn, {error: [eta
+                                              ]
+            # , rho]
+        }, method=method)
+        zs, gves = [], []
+        all_names = [n.name for n in tf.get_default_graph().as_graph_def().node]
+        with tf.Session().as_default() as ss:
+            hy_opt.initialize()
+            for k in range(1):
+                for it in range(iterations):
+                    zs.append(ss.run(hy_opt.hyper_gradients.zs[0].tensor))
+                    hy_opt.run(1, tr_sup, {error: val_sup}, _debug_no_hyper_update=True)
+                zs.append(ss.run(hy_opt.hyper_gradients.zs[0].tensor))
+                gves.append(ss.run(hy_opt.hyper_gradients.grad_val_err, feed_dict=val_sup()))
+                # [print(n.name) for n in tf.get_default_graph().as_graph_def().node]
+            hyp_gs = ss.run(hy_opt.hyper_gradients.hyper_gradient_vars)
+            print(hyp_gs)
+
+            print()
+            norm_of_state = np.linalg.norm(model_w.eval())
+            print('norm of state vector', norm_of_state)  # this check is passed...
+            print()
+            return hyp_gs, zs, gves
+
     def setUp(self):
         tf.reset_default_graph()
 
 
-if __name__ == '__main__':
-    # unittest.main()
+def trial_solve1():
     test = TestD()
     n_iters = 100
-    trials = 10
+    trials = 200
     res_f = []
-    res_r = []
+    res_z = []
+    res_gve = []
     for j in range(trials):
         test.setUp()
-        hgf, nof = test._bkfw_test(param_optimizer=AdamOptimizer,
+        hgf, zs, gve = test._forward_fix_test(param_optimizer=AdamOptimizer,
                                    method=ForwardHyperGradient, debug_jac=False, iterations=n_iters)
-        # TestD()._bkfw_test(method=ForwardHyperGradient, debug_jac=False)
-
-        test.setUp()
-        hgr, nor = test._bkfw_test(param_optimizer=AdamOptimizer,
-                                   method=ReverseHyperGradient, iterations=n_iters)
-
-        print(nof - nor)
+        res_gve.append(gve)
         res_f.append(hgf)
-        res_r.append(hgr)
+        res_z.append(zs)
 
-    for hgf, hgr in zip(res_f, res_r):
-        # TestD().test_momentum(method=ForwardHyperGradient)
-        print([(hf - hr) for hr, hf in zip(hgr, hgf)])
-        # tf.reset_default_graph()
-        # TestD().test_momentum(method=ReverseHyperGradient)
+    tbr = []
+    for rs, z, gve in zip(res_f, res_z, res_gve):
+        _ = np.linalg.norm(np.array(z))
+        norm2 = np.linalg.norm(gve)
+        tbr.append((rs[0], _, norm2))
+    print(tabulate.tabulate(tbr))
 
-    print()
-    print(res_f)
-    print()
-    print(res_r)
+if __name__ == '__main__':
+    # trial_solve1()
+    TestD().do_test_hv()
