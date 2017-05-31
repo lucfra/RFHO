@@ -17,6 +17,12 @@ import os
 import _pickle as pickle
 import numpy as np
 
+try:
+    from tabulate import tabulate
+except ImportError:
+    print('Might want to install library "tabulate" for a better dictionary printing')
+    tabulate = None
+
 
 def join_paths(*paths):
     return reduce(lambda acc, new_path: os.path.join(acc, new_path), paths)
@@ -301,10 +307,13 @@ class Saver:
         if self.timer: save_dict['Elapsed time (%s)' % self.timer.unit] = self.timer.elapsed_time()
 
         if do_print:
-            print('SAVE DICT:')
-            for key, v in save_dict.items():
-                print(key, v, sep=': ')
-            print()
+            if tabulate:
+                print(tabulate(save_dict.items(), headers=('SAVE_DICT', 'values')))
+            else:
+                print('SAVE DICT:')
+                for key, v in save_dict.items():
+                    print(key, v, sep=': ')
+                print()
         if collect_data:
             self.save_obj(save_dict, str(step) + append_string)
 
