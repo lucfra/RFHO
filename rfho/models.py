@@ -244,7 +244,9 @@ def vectorize_model(model_vars, *o_outs, augment=0):
         else:
             w = true_w
 
-        new_outs = ge.graph_replace(outs, w.generate_swap_dict())  # FIXME deprecation here on GraphKey usage...
+        with utils.suppress_stdout_stderr():  # FIXME deprecation here on GraphKey usage... now redirecting outs
+            new_outs = ge.graph_replace(outs, w.generate_swap_dict())
+
 
     return [w] + new_outs
 

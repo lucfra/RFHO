@@ -477,9 +477,10 @@ if __name__ == '__main__':
     # unittest.main()
     test = TestD()
     n_iters = 100
+    trials = 10
     res_f = []
     res_r = []
-    for j in range(100):
+    for j in range(trials):
         test.setUp()
         hgf, nof = test._bkfw_test(param_optimizer=AdamOptimizer,
                                    method=ForwardHyperGradient, debug_jac=False, iterations=n_iters)

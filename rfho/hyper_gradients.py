@@ -400,7 +400,7 @@ class ForwardHyperGradient:
             # global step
             self.global_step = global_step or GlobalStep()
 
-            self.fw_ops = self.w.assign(self.tr_dynamics)  # TODO add here when hypers are sequence
+            self.fw_ops = optimizer.assign_ops  # add here when hypers are sequence (...)
 
             with tf.name_scope('direct_HO'):
 
