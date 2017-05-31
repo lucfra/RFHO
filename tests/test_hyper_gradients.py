@@ -429,15 +429,25 @@ class TestD(unittest.TestCase):
         self.assertTrue(ReverseHyperGradient(optimizer, {f: a}))  # while this one should be fine
 
     def _bkfw_test(self, param_optimizer, method, debug_jac=False, iterations=100):
+        tf.set_random_seed(0)
+        np.random.seed(0)
         iris, x, y, model, model_w, model_y, error, accuracy = iris_logistic_regression(
             param_optimizer.get_augmentation_multiplier())
 
+        # rho = tf.Variable([.1, .01], name='rho')
+        tr_error = error \
+                   # + rho[0]*tf.reduce_sum(model_w.tensor**2)\
+                   # + rho[1]*tf.abs(tf.reduce_sum(model_w.tensor))
+
         eta = tf.Variable(.001, name='eta')
-        dyn = param_optimizer.create(model_w, eta, loss=error, _debug_jac_z=debug_jac)
+        dyn = param_optimizer.create(model_w, eta, loss=tr_error, _debug_jac_z=debug_jac)
         tr_sup = lambda s=None: {x: iris.train.data, y: iris.train.target}
         val_sup = lambda s=None: {x: iris.validation.data, y: iris.validation.target}
 
-        hy_opt = HyperOptimizer(dyn, {error: eta}, method=method)
+        hy_opt = HyperOptimizer(dyn, {error: [eta
+                                              ]
+            # , rho]
+        }, method=method)
         all_names = [n.name for n in tf.get_default_graph().as_graph_def().node]
         with tf.Session().as_default() as ss:
             hy_opt.initialize()
@@ -450,11 +460,14 @@ class TestD(unittest.TestCase):
                 if 'direct_HO/Jacobian_cal' in all_names:
                     jac = ss.run('direct_HO/Jacobian_cal:0', feed_dict=tr_sup())
                     np.savetxt('temp_cal.csv', jac, delimiter=',')
-                print(hy_opt.hyper_gradients.hyper_gradient_vars[0].eval())
+            hyp_gs = ss.run(hy_opt.hyper_gradients.hyper_gradient_vars)
+            print(hyp_gs)
 
-                print()
-                print('norm of state vector', np.linalg.norm(model_w.eval()))  # this check is passed...
-                print()
+            print()
+            norm_of_state = np.linalg.norm(model_w.eval())
+            print('norm of state vector', norm_of_state)  # this check is passed...
+            print()
+            return hyp_gs, norm_of_state
 
     def setUp(self):
         tf.reset_default_graph()
@@ -463,14 +476,30 @@ class TestD(unittest.TestCase):
 if __name__ == '__main__':
     # unittest.main()
     test = TestD()
-    test._bkfw_test(param_optimizer=AdamOptimizer,
-                       method=ForwardHyperGradient, debug_jac=False, iterations=10)
-    # TestD()._bkfw_test(method=ForwardHyperGradient, debug_jac=False)
+    n_iters = 100
+    res_f = []
+    res_r = []
+    for j in range(100):
+        test.setUp()
+        hgf, nof = test._bkfw_test(param_optimizer=AdamOptimizer,
+                                   method=ForwardHyperGradient, debug_jac=False, iterations=n_iters)
+        # TestD()._bkfw_test(method=ForwardHyperGradient, debug_jac=False)
 
-    test.setUp()
-    test._bkfw_test(param_optimizer=AdamOptimizer,
-                       method=ReverseHyperGradient, iterations=10)
+        test.setUp()
+        hgr, nor = test._bkfw_test(param_optimizer=AdamOptimizer,
+                                   method=ReverseHyperGradient, iterations=n_iters)
 
-    # TestD().test_momentum(method=ForwardHyperGradient)
-    # tf.reset_default_graph()
-    # TestD().test_momentum(method=ReverseHyperGradient)
+        print(nof - nor)
+        res_f.append(hgf)
+        res_r.append(hgr)
+
+    for hgf, hgr in zip(res_f, res_r):
+        # TestD().test_momentum(method=ForwardHyperGradient)
+        print([(hf - hr) for hr, hf in zip(hgr, hgf)])
+        # tf.reset_default_graph()
+        # TestD().test_momentum(method=ReverseHyperGradient)
+
+    print()
+    print(res_f)
+    print()
+    print(res_r)

@@ -286,7 +286,7 @@ class AdamOptimizer(MomentumOptimizer):
     Class for adam optimizer 
     """
     def __init__(self, raw_w, w, m, v, assign_ops, global_step, dynamics, jac_z, gradient, learning_rate,
-                 momentum_factor, second_momentum_factor, loss, d_dyn_d_lr):
+                 momentum_factor, second_momentum_factor, loss, d_dyn_d_lr, d_dyn_d_hyper):
         super().__init__(w=w, m=m, assign_ops=assign_ops, dynamics=dynamics, jac_z=jac_z, gradient=gradient,
                          learning_rate=learning_rate, momentum_factor=momentum_factor, raw_w=raw_w, loss=loss)
         self.v = v
@@ -294,6 +294,7 @@ class AdamOptimizer(MomentumOptimizer):
         self.second_momentum_factor = second_momentum_factor
 
         self._d_dyn_d_lr = d_dyn_d_lr
+        self._d_dyn_d_hyper = d_dyn_d_hyper
 
         self.algorithmic_hypers[self.second_momentum_factor] = self.d_dynamics_d_second_momentum_factor
 
@@ -316,7 +317,7 @@ class AdamOptimizer(MomentumOptimizer):
         raise NotImplementedError()  # TODO
 
     def d_dynamics_d_hyper_loss(self, grad_loss_term):
-        raise NotImplementedError()  # TODO
+        return self._d_dyn_d_hyper(grad_loss_term)
 
     # noinspection PyMissingOrEmptyDocstring
     @staticmethod
@@ -372,6 +373,15 @@ class AdamOptimizer(MomentumOptimizer):
 
             v_epsilon_k = beta2 * v + (1. - beta2) * grad ** 2 + eps
             v_tilde_k = tf.sqrt(v_epsilon_k)
+
+            # TODO THESE QUANTITIES ARE NEEDED FOR FORWARD-HG IN VARIOUS PLACES... FIND A BETTER WAY TO COMPUTE THEM
+            # ONLY IF NEEDED
+            v_k_eps_32 = tf.pow(v_epsilon_k, 1.5)
+            pre_j_11_out = - lr_k * (
+                (1. - beta1) / v_tilde_k - ((1. - beta2) * grad * m_k) / v_k_eps_32
+            )
+            pre_j_31_out = 2.*(1. - beta2) * grad
+
             w_base_k = w_base - lr_k * (beta1 * m + (1. - beta1) * grad) / v_tilde_k
 
             # noinspection PyUnresolvedReferences
@@ -429,12 +439,7 @@ class AdamOptimizer(MomentumOptimizer):
 
                     hessian_r_product = hvp(loss=loss, w=w_base, v=r)
 
-                    v_k_eps_32 = tf.pow(v_epsilon_k, 1.5)
-
-                    j_11_r_hat = - lr_k * (
-                        (1. - beta1)/v_tilde_k - ((1. - beta2) * grad * m_k)/v_k_eps_32
-                    )
-                    j_11_r_tilde = l_diag_mul(j_11_r_hat, hessian_r_product)
+                    j_11_r_tilde = l_diag_mul(pre_j_11_out, hessian_r_product)
                     j_11_r = j_11_r_tilde + r
 
                     j_12_u_hat = - lr_k * beta1 / v_tilde_k
@@ -453,8 +458,7 @@ class AdamOptimizer(MomentumOptimizer):
                     jac_z_2 = j_21_r + j_22_u
                     # end second block
 
-                    j_31_r_hat = 2.*(1. - beta2) * grad
-                    j_31_r = l_diag_mul(j_31_r_hat, hessian_r_product)
+                    j_31_r = l_diag_mul(pre_j_31_out, hessian_r_product)
                     # j_32_u = tf.zeros_like(u)  # would be
                     j_33_s = beta2*s
                     jac_z_3 = j_31_r + j_33_s
@@ -473,6 +477,15 @@ class AdamOptimizer(MomentumOptimizer):
                 ]
                 return ZMergedMatrix(res)
 
+            def _d_dyn_d_hyp_gl(cross_der_l):
+                dwt_dl_hat = pre_j_11_out
+                dwt_dl = l_diag_mul(dwt_dl_hat, cross_der_l)
+
+                dmt_dl = (1-beta1) * cross_der_l
+
+                dvt_dl = l_diag_mul(pre_j_31_out, cross_der_l)
+                return ZMergedMatrix([dwt_dl, dmt_dl, dvt_dl])
+
             # noinspection PyUnresolvedReferences
             dynamics = tf.concat([w_base_k, m_k, v_k], 0) if w_base_k.get_shape().ndims != 0 \
                 else tf.stack([w_base_k, m_k, v_k], 0)  # scalar case
@@ -488,5 +501,5 @@ class AdamOptimizer(MomentumOptimizer):
                 assign_ops=[w_base_mv.assign(w_base_k), m_mv.assign(m_k), v_mv.assign(v_k)],
                 dynamics=dynamics,
                 jac_z=_jac_z, gradient=grad, learning_rate=lr, momentum_factor=beta1, second_momentum_factor=beta2,
-                raw_w=w, loss=loss, d_dyn_d_lr=_d_dyn_d_lr
+                raw_w=w, loss=loss, d_dyn_d_lr=_d_dyn_d_lr, d_dyn_d_hyper = _d_dyn_d_hyp_gl
             )
