@@ -9,6 +9,7 @@ import numpy as np
 import tensorflow as tf
 # noinspection PyProtectedMember
 from tensorflow.python.ops.gradients_impl import _hessian_vector_product as _hvp
+from tensorflow.python.ops import control_flow_ops
 
 utils_settings = {
     'WSA': True,  # gives a warning when new nodes are being created during session runtime
@@ -306,10 +307,11 @@ def hv_1(_dyn, _lv, _v):  # NOTE this is not an efficient implementation
     return tf.stack(res)  # takes forever....
 
 
-def hvp(loss, w, v):
+def hvp(loss, w, v, name='hessian_vector_product'):
     """
     Convenience function for hessian vector product.
 
+    :param name:
     :param loss:
     :param w:
     :param v:
@@ -321,8 +323,8 @@ def hvp(loss, w, v):
             return tf.stack([
                                 hvp(loss, w, v[:, k]) for k in range(v.get_shape().as_list()[1])
                                 ], axis=1)
-        return wsr(_hvp(loss, [w], [v])[0])
-    return wsr(_hvp(loss, w, v))
+        return wsr(tf.identity(_hvp(loss, [w], [v]), name=name)[0])
+    return wsr(tf.identity(_hvp(loss, w, v), name=name))
 
 
 def canonical_base(n):
@@ -472,9 +474,10 @@ class MergedVariable:
         :param use_locking: (optional) see use_locking in `tf.Variables.assign`
         :return: A list of `tf.Variables.assign` ops.
         """
-        return [
+        assign_ops = [
             wsr(v.assign(reshape(value), use_locking=use_locking)) for v, reshape in self.chunks_info_dict.items()
             ]
+        return tf.group(*assign_ops)
 
     def eval(self, feed_dict=None):
         return self.tensor.eval(feed_dict=feed_dict)
@@ -557,22 +560,36 @@ class ZMergedMatrix:
             if c.get_shape().ndims == 1:
                 self.components[i] = tf.transpose(tf.stack([c]))
 
-        # print()
-        # print('components')
-        # print(self.components)
-        # print()
-
         self.tensor = tf.concat(self.components, 0)
+
+    def create_copy(self):
+        new_components = []
+        for c in self.components:
+            with tf.name_scope('copy_z'):
+                if isinstance(c, tf.Variable):
+                    print('copying variable')
+                    new_components.append(tf.Variable(c, name=simple_name(c)))
+                else:
+                    print('copying tensor')
+                    new_components.append(c)
+        return ZMergedMatrix(new_components)
+
+    def initializer(self):  #
+        assert all([isinstance(c, tf.Variable) for c in self.components]), 'this merged matrix is not composed by Vars'
+        return tf.variables_initializer(self.components)
 
     def assign(self, value_list):
         if isinstance(value_list, ZMergedMatrix):
             value_list = value_list.components
         assert len(value_list) == len(self.components), 'the length of value_list and of z, components must coincide'
-        return [c.assign(v) for c, v in zip(self.components, value_list)]
+        value_list = tf.tuple(value_list)  # THIS PROBABLY SOLVES THE PROBLEM!
+
+        ao1 = [tf.assign(c, v) for c, v in zip(self.components, value_list)]
+
+        return tf.group(*ao1)
 
     # noinspection PyUnusedLocal
     def var_list(self, mode=Vl_Mode.RAW):
-        # if mode == Vl_Mode.RAW or mode == Vl_Mode.TENSOR:
         return self.components
 
     def __add__(self, other):

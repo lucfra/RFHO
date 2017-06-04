@@ -3,6 +3,8 @@ This module contains the core classes of the package that implement the three hy
 presented in Forward and Reverse Gradient-Based Hyperparameter Optimization (https://arxiv.org/abs/1703.01785).
 """
 
+# TODO put tf.Session optional parameter in all the methods that require `run`
+
 # import numpy as np
 import tensorflow as tf
 
@@ -409,11 +411,16 @@ class ForwardHyperGradient:
                 '''
                 self.zs = [self._create_z(hyp) for hyp in self.hyper_list]
 
-                self.zs_dynamics = [optimizer.jac_z(z) + dd_dh
-                                    for z, dd_dh in zip(self.zs, self.d_dynamics_d_hypers)]
+                with tf.name_scope('Z_dynamics'):
+                    self.zs_dynamics = [optimizer.jac_z(z) + dd_dh
+                                        for z, dd_dh in zip(self.zs, self.d_dynamics_d_hypers)]
 
-                print('z dynamics', self.zs_dynamics[0])
-                print('z', self.zs[0])
+                # print('z dynamics', self.zs_dynamics[0])
+                # print('z', self.zs[0])
+
+                # print(len(self.hyper_list))
+                # print(len(self.zs))
+                # print(len(self.zs_dynamics))
 
                 self.zs_assigns = [z.assign(z_dyn) for z, z_dyn in zip(self.zs, self.zs_dynamics)]
 
@@ -451,14 +458,14 @@ class ForwardHyperGradient:
 
         components = self.w.var_list(Vl_Mode.TENSOR) if isinstance(self.w, MergedVariable) else [self.w_t]
 
-        print('components', components)
+        # print('components', components)
 
         with tf.name_scope('z'):
 
-            z_components = [tf.Variable(tf.zeros([c.get_shape().as_list()[0], dim_h]), name=hyper.name.split(':')[0])
+            z_components = [tf.Variable(tf.zeros([c.get_shape().as_list()[0], dim_h]), name=simple_name(hyper))
                             for c in components]
             mvz = ZMergedMatrix(z_components)
-            print(mvz.tensor)
+            # print(mvz.tensor)
             return mvz
 
     def initialize(self):
@@ -470,7 +477,7 @@ class ForwardHyperGradient:
         assert tf.get_default_session() is not None, 'No default tensorflow session!'
         var_init = self.w.var_list(Vl_Mode.BASE) if isinstance(self.w, MergedVariable) else [self.w]
         tf.variables_initializer(var_init + self.hyper_gradient_vars + [self.global_step.var]).run()
-        [tf.variables_initializer(z.components).run() for z in self.zs]
+        [z.initializer().run() for z in self.zs]
 
     def step_forward(self, train_feed_dict_supplier=None, summary_utils=None):
         """
@@ -579,7 +586,7 @@ class HyperOptimizer:
         :param optimizers_kwargs: keyword arguments for hyperparameter optimizers (like hyper-learning rate)
         """
         assert method in [ReverseHyperGradient, ForwardHyperGradient]
-        assert issubclass(hyper_optimizer_class, Optimizer)
+        assert hyper_optimizer_class is None or issubclass(hyper_optimizer_class, Optimizer)
         assert isinstance(hyper_dict, dict)
         assert isinstance(optimizer, Optimizer)
 
@@ -601,8 +608,12 @@ class HyperOptimizer:
         if hyper_optimizer_class is AdamOptimizer:
             optimizers_kwargs.setdefault('lr', .005)  # default value for Adam optimizer
 
-        self.hyper_optimizers = create_hyperparameter_optimizers(
-            self.hyper_gradients, optimizer_class=hyper_optimizer_class, **optimizers_kwargs)
+        if hyper_optimizer_class:
+            # noinspection PyTypeChecker
+            self.hyper_optimizers = create_hyperparameter_optimizers(
+                self.hyper_gradients, optimizer_class=hyper_optimizer_class, **optimizers_kwargs)
+        else:
+            self.hyper_optimizers = None
 
     @property
     def hyper_list(self):
@@ -631,7 +642,8 @@ class HyperOptimizer:
         if complete_reinitialize or self._report_hyper_it_init.eval():  # never initialized or subsequent run of
             # Session run block (for instance in a Ipython book)
             tf.variables_initializer(self.hyper_gradients.hyper_list).run()
-            [opt.support_variables_initializer().run() for opt in self.hyper_optimizers]
+            if self.hyper_optimizers:
+                [opt.support_variables_initializer().run() for opt in self.hyper_optimizers]
             tf.variables_initializer([self.hyper_iteration_step.var, self.hyper_batch_step.var]).run()
         else:
             self.hyper_iteration_step.increase.eval()

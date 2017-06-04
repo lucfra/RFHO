@@ -262,7 +262,8 @@ class MomentumOptimizer(Optimizer):
                         hessian_r_product + mu * u
                     ]
 
-                    print('res', res)
+                    # with tf.name_scope(TRACK):
+                    #     tf.identity()
 
                     return ZMergedMatrix(res)
 
@@ -437,36 +438,39 @@ class AdamOptimizer(MomentumOptimizer):
 
                     r, u, s = z.var_list(Vl_Mode.TENSOR)
 
-                    hessian_r_product = hvp(loss=loss, w=w_base, v=r)
+                    with tf.name_scope('Jac_Z'):
 
-                    j_11_r_tilde = l_diag_mul(pre_j_11_out, hessian_r_product)
-                    j_11_r = j_11_r_tilde + r
+                        hessian_r_product = hvp(loss=loss, w=w_base, v=r, name='hessian_r_product')
+                        # hessian_r_product = hvp(loss=loss, w=w.tensor, v=z.tensor, name='hessian_r_product')[:d, :d]
 
-                    j_12_u_hat = - lr_k * beta1 / v_tilde_k
-                    j_12_u = l_diag_mul(j_12_u_hat, u)
+                        j_11_r_tilde = l_diag_mul(pre_j_11_out, hessian_r_product, name='j_11_r_tilde')
+                        j_11_r = tf.identity(j_11_r_tilde + r, 'j_11_r')
 
-                    j_13_s_hat = lr_k*beta2*m_k/(2*v_k_eps_32)
-                    j_13_s = l_diag_mul(j_13_s_hat, s)
+                        j_12_u_hat = tf.identity(- lr_k * beta1 / v_tilde_k, name='j_12_u_hat')
+                        j_12_u = l_diag_mul(j_12_u_hat, u, name='j_12_u')
 
-                    jac_z_1 = j_11_r + j_12_u + j_13_s
-                    # end first bock
+                        j_13_s_hat = tf.identity(lr_k*beta2*m_k/(2*v_k_eps_32), name='j_13_s_hat')
+                        j_13_s = l_diag_mul(j_13_s_hat, s, name='j_13_s')
 
-                    j_21_r = (1. - beta1) * hessian_r_product
-                    j_22_u = beta1*u
-                    # j_23_s = tf.zeros_like(s)  # would be...
+                        jac_z_1 = tf.identity(j_11_r + j_12_u + j_13_s, name='jac_z_1')
+                        # end first bock
 
-                    jac_z_2 = j_21_r + j_22_u
-                    # end second block
+                        j_21_r = tf.identity((1. - beta1) * hessian_r_product, name='j_21_r')
+                        j_22_u = tf.identity(beta1*u, name='j_22_u')
+                        # j_23_s = tf.zeros_like(s)  # would be...
 
-                    j_31_r = l_diag_mul(pre_j_31_out, hessian_r_product)
-                    # j_32_u = tf.zeros_like(u)  # would be
-                    j_33_s = beta2*s
-                    jac_z_3 = j_31_r + j_33_s
+                        jac_z_2 = tf.identity(j_21_r + j_22_u, name='jac_z_2')
+                        # end second block
 
-                    res = [jac_z_1, jac_z_2, jac_z_3]
-                    print('res', res)
+                        j_31_r = l_diag_mul(pre_j_31_out, hessian_r_product, name='j_31_r')
+                        # j_32_u = tf.zeros_like(u)  # would be
+                        j_33_s = tf.identity(beta2*s, name='j_33_s')
+                        jac_z_3 = tf.identity(j_31_r + j_33_s, name='jac_z_3')
 
-                    return ZMergedMatrix(res)
+                        res = [jac_z_1, jac_z_2, jac_z_3]
+                        # print('res', res)
+
+                        return ZMergedMatrix(res)
 
             # algorithmic partial derivatives (as functions so that we do not create unnecessary nodes
             def _d_dyn_d_lr():
