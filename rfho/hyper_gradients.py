@@ -126,7 +126,7 @@ class ReverseHyperGradient:
                 self._hyper_assign_ops = {h: v.assign(self._grad_wrt_hypers_placeholder)
                                           for h, v in self.hyper_gradients_dict.items()}
 
-    def initialize(self):
+    def initialize(self, seed=None):
         """
         Helper for initializing all the variables. Builds and runs model variables and global step initializers.
         Note that dual variables are initialized only when calling `backward`.
@@ -134,6 +134,7 @@ class ReverseHyperGradient:
         :return: None
         """
         assert tf.get_default_session() is not None, 'No default tensorflow session!'
+        if seed: tf.set_random_seed(seed)
         var_init = self.w.var_list(Vl_Mode.BASE) if isinstance(self.w, MergedVariable) else [self.w]
         tf.variables_initializer(var_init + self.hyper_gradient_vars + [self.global_step.var]).run()
 
@@ -468,13 +469,14 @@ class ForwardHyperGradient:
             # print(mvz.tensor)
             return mvz
 
-    def initialize(self):
+    def initialize(self, seed=None):
         """
         Helper for initializing all the variables. Builds and runs model variables, Zs and global step initializers.
 
         :return: None
         """
         assert tf.get_default_session() is not None, 'No default tensorflow session!'
+        if seed: tf.set_random_seed(seed)
         var_init = self.w.var_list(Vl_Mode.BASE) if isinstance(self.w, MergedVariable) else [self.w]
         tf.variables_initializer(var_init + self.hyper_gradient_vars + [self.global_step.var]).run()
         [z.initializer().run() for z in self.zs]
@@ -623,7 +625,7 @@ class HyperOptimizer:
         """
         return self.hyper_gradients.hyper_list
 
-    def initialize(self, complete_reinitialize=False):
+    def initialize(self, seed=None, complete_reinitialize=False):
         """
         Initialize all tensorflow variables. This method has two behaviours:
 
@@ -648,7 +650,7 @@ class HyperOptimizer:
         else:
             self.hyper_iteration_step.increase.eval()
 
-        self.hyper_gradients.initialize()
+        self.hyper_gradients.initialize(seed=seed)
         # tf.variables_initializer([self.hyper_batch_step.var]).run()
 
     def run(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None, hyper_constraints_ops=None,
