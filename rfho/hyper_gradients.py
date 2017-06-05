@@ -620,7 +620,7 @@ class HyperOptimizer:
 
         if hyper_optimizer_class is AdamOptimizer:
             # optimizers_kwargs.setdefault('lr', .001)  # default value for Adam optimizer
-            optimizers_kwargs.setdefault('beta1', .5)
+            optimizers_kwargs.setdefault('eps', 1.e-14)
 
         if hyper_optimizer_class:
             # noinspection PyTypeChecker

@@ -326,7 +326,7 @@ class AdamOptimizer(MomentumOptimizer):
         return 2
 
     @staticmethod
-    def create(w, lr=1.e-3, beta1=.9, beta2=.999, eps=1.e-14, global_step=None,
+    def create(w, lr=1.e-3, beta1=.9, beta2=.999, eps=1.e-6, global_step=None,
                loss=None, grad=None, w_is_state=True, name='Adam',
                _debug_jac_z=False):  # FIXME rewrite this
         """
