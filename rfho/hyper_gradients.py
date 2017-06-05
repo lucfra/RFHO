@@ -619,7 +619,8 @@ class HyperOptimizer:
         self.hyper_gradients = method(optimizer, hyper_dict, **hyper_grad_kwargs)
 
         if hyper_optimizer_class is AdamOptimizer:
-            optimizers_kwargs.setdefault('lr', .005)  # default value for Adam optimizer
+            # optimizers_kwargs.setdefault('lr', .001)  # default value for Adam optimizer
+            optimizers_kwargs.setdefault('beta1', .5)
 
         if hyper_optimizer_class:
             # noinspection PyTypeChecker

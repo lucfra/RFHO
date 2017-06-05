@@ -2,7 +2,6 @@ import threading
 import time
 from functools import reduce
 
-from matplotlib import rc
 
 from rfho.examples.greek_alphabet import greek_alphabet
 from rfho.save_and_load import load_obj
@@ -10,6 +9,7 @@ from rfho.utils import as_list, flatten_list, merge_dicts
 
 from rfho.save_and_load import Saver
 
+from matplotlib import rc
 rc('text', usetex=True)
 
 GREEK_LETTERS = list(greek_alphabet.values())
