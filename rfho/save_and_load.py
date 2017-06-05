@@ -126,10 +126,13 @@ def save_setting(local_variables, root_dir=None, excluded=None, default_overwrit
                  notebook_mode=True, do_print=True, append_string=''):
     dictionary = generate_setting_dict(local_variables, excluded=excluded)
     if do_print:
-        print('SETTING:')
-        for k, v in dictionary.items():
-            print(k, v, sep=': ')
-        print()
+        if tabulate:
+            print(tabulate(dictionary.items(), headers=('settings var names', 'values')))
+        else:
+            print('SETTING:')
+            for k, v in dictionary.items():
+                print(k, v, sep=': ')
+            print()
     if collect_data: save_obj(dictionary, 'setting' + append_string,
                               root_dir=root_dir,
                               default_overwrite=default_overwrite,
@@ -321,7 +324,7 @@ class Saver:
 
         return save_dict
 
-    def pack_save_dictionaries(self, name='pack', append_string='', erase_others=True):
+    def pack_save_dictionaries(self, name='all', append_string='', erase_others=True):
         """
         Creates an unique file starting from file created by method `save`.
         The file contains a dictionary with keys equal to save_dict keys and values list of values form original files.

@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='RFHO',
-    version='0.1',
+    version='0.2',
     packages=['rfho', 'rfho.examples'],
     # TODO have to decide what to do with things in examples. examples.common is a useful
     # class but maybe its misplaced.
