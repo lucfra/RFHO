@@ -94,7 +94,7 @@ class TestModels(unittest.TestCase):
         w, out, out_y = vectorize_model(model.var_list, model.inp[-1], mod_y.inp[-1])
         self.assertIsNotNone(out)
 
-    def test_determinitstic_initalization(self):
+    def test_determinitstic_initialization(self):
         x = tf.constant([[1., 2.]])
         mod = FFNN(x, [2, 2, 1], deterministic_initialization=True)
 
@@ -117,4 +117,3 @@ class TestModels(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-    # TestModels().test_determinitstic_initalization()

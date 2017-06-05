@@ -207,7 +207,7 @@ def vectorize_model(model_vars, *o_outs, augment=0):
     and then also of the initial value of variable. Probably it is not necessary to keep track of  variable itself. }
 
 
-    :param model_vars: list of variables of the model or initializers
+    :param model_or_var_list: list of variables of the model or initializers
     :param o_outs: output_variables, list or tensor. (e.g. model output)
     :param augment: (int: default 0) augment the all weights vector by creating augumented variables (initialized at 0)
                     that mirror rank and dimensions of the variables in `model_vars`. The process is repeated
@@ -247,7 +247,6 @@ def vectorize_model(model_vars, *o_outs, augment=0):
         with utils.suppress_stdout_stderr():  # FIXME deprecation here on GraphKey usage... now redirecting outs
             new_outs = ge.graph_replace(outs, w.generate_swap_dict())
 
-
     return [w] + new_outs
 
 
@@ -277,7 +276,6 @@ class Network(object):
         self._assign_int = []
         self._var_initializer_op = None
 
-
         self.Ws = []
         self.bs = []
         self.inp = [_input]
@@ -286,7 +284,7 @@ class Network(object):
         self.active_gen = []
         self.active_gen_kwargs = []
 
-    def std_collections(self):
+    def _std_collections(self):
         self.var_list = self.Ws + self.bs
         [tf.add_to_collection(tf.GraphKeys.WEIGHTS, _v) for _v in self.Ws]
         [tf.add_to_collection(tf.GraphKeys.BIASES, _v) for _v in self.bs]
@@ -331,14 +329,27 @@ class Network(object):
             if self._var_init_placeholder is None:
                 self._var_init_placeholder = tf.placeholder(tf.float32)
                 self._assign_int = [v.assign(self._var_init_placeholder) for v in self.var_list]
+
             if not self._var_list_initial_values:
                 self._var_list_initial_values = ss.run(self.var_list)
 
             else:
-                print(self._var_list_initial_values)
                 [ss.run(v_op, feed_dict={self._var_init_placeholder: val})
                  for v_op, val in zip(self._assign_int, self._var_list_initial_values)]
 
+    def vectorize(self, *outs, augment=0):
+        """
+        Calls `vectorize_model` with the variables of this model and specified outputs.
+        Moreover it registers this model on the resulting `MergedVariable`.
+        (See `vectorize_model` and `mergedVariable`)
+
+        :param outs: tensors 
+        :param augment: 
+        :return: 
+        """
+        res = vectorize_model(self.var_list, *outs, augment=augment)
+        res[0].model = self
+        return res
 
 class LinearModel(Network):
 
@@ -375,7 +386,7 @@ class LinearModel(Network):
             else:
                 self.inp.append(_activ)
 
-        self.std_collections()
+        self._std_collections()
 
     def for_input(self, new_input, new_name=None):
         new_active_gen_kwargs = self._for_input_new_activ_kwargs()
@@ -425,7 +436,7 @@ class FFNN(Network):
                     self.bs.append(_b)  # put in the lists
                     self.inp.append(_activ)
 
-        self.std_collections()
+        self._std_collections()
 
     # noinspection PyTypeChecker
     def for_input(self, new_input, new_name=None):
@@ -472,7 +483,7 @@ class SimpleConvolutionalOnly(Network):
                     self.bs.append(_b)  # put in the lists
                     self.inp.append(_out)
 
-        self.std_collections()
+        self._std_collections()
 
     # noinspection PyTypeChecker
     def for_input(self, new_input, new_name=None):
@@ -534,7 +545,7 @@ class SimpleCNN(Network):
             self.active_gen_kwargs += self.ffnn_part.active_gen_kwargs
 
         self.dims = self.conv_part.dims + self.ffnn_part.dims
-        self.std_collections()
+        self._std_collections()
 
     def for_input(self, new_input, new_name=None):
         new_conv = self.conv_part.for_input(new_input)
@@ -571,24 +582,7 @@ class SimpleCNN(Network):
 #             self.bs += conv_part.bs
 #             self.inp += conv_part.inp
 #
-#         self.std_collections()
+#         self._std_collections()
 
 if __name__ == '__main__':
-    x = tf.constant([[1., 2.]])
-    mod = FFNN(x, [2, 2, 1], deterministic_initialization=True)
-
-    with tf.Session().as_default() as ss:
-        mod.initialize()
-
-        print(ss.run(mod.Ws))
-
-        mod.initialize()
-        print()
-        print(ss.run(mod.Ws))
-
-    print()
-
-    with tf.Session().as_default() as ss:
-        mod.initialize()
-
-        print(ss.run(mod.Ws))
+    pass

@@ -394,7 +394,7 @@ class MergedVariable:
     of a list of tf.Variables in an hopefully convenient way.
     """
 
-    def __init__(self, var_list, name='merged_variable_tensor'):
+    def __init__(self, var_list, model=None, name='merged_variable_tensor'):
         """
 
         :param var_list: List of variables to merge and vectorize
@@ -405,6 +405,7 @@ class MergedVariable:
         self.tensor = tf.identity(vectorize_all([MergedVariable.get_tensor(v) for v in var_list]), name=name)
 
         self.name = name
+        self.model = model
 
         self.chunks_info_dict = {}
 
@@ -437,6 +438,20 @@ class MergedVariable:
             return self._var_list_as_tensors()  # return w unic tensor + copies augmented
         else:
             raise NotImplementedError('mode %d does not exists' % mode)
+
+    def initialize(self, session=None):
+        """
+        Initialize this merged variable or call `model.initialize` if a model is associated to this 
+        variable (see `Network.initialize`)
+        
+        :param session: 
+        :return: 
+        """
+        ss = session or tf.get_default_session()
+        assert ss, 'No default session'
+        ss.run(tf.variables_initializer(self.var_list(Vl_Mode.BASE)))
+        if self.model:
+            self.model.initialize(session=session)
 
     def _get_base_variable_list(self):
         """
@@ -484,9 +499,20 @@ class MergedVariable:
         return tf.group(*assign_ops)
 
     def eval(self, feed_dict=None):
+        """
+        Calls `eval` on `self.tensor` 
+        
+        :param feed_dict: 
+        :return: 
+        """
         return self.tensor.eval(feed_dict=feed_dict)
 
     def get_shape(self):
+        """
+        Calls `get_shape` on `self.tensor`
+        
+        :return: 
+        """
         return self.tensor.get_shape()
 
     @property

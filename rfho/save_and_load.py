@@ -201,7 +201,8 @@ class Timer:
 
 class Saver:
 
-    def __init__(self, experiment_name, *items, append_date_to_name=True, root_directory=FOLDER_NAMINGS['EXP_ROOT'],
+    def __init__(self, experiment_name, *items, append_date_to_name=True,
+                 root_directory=FOLDER_NAMINGS['EXP_ROOT'],
                  timer=None, do_print=True, collect_data=True, default_overwrite=False):
         """
         Initialize a saver to collect data. (Intended to be used together with OnlinePlotStream.)

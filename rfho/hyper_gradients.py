@@ -56,7 +56,7 @@ class ReverseHyperGradient:
             # global step
             self.global_step = global_step or GlobalStep()
 
-            self._fw_ops = optimizer.assign_ops  # TODO add here when hyper-parameters are sequence
+            self._fw_ops = optimizer.assign_ops  # add here when hyper-parameters are sequence
 
             # backward assign ops
             with tf.name_scope('backward'):
@@ -96,7 +96,7 @@ class ReverseHyperGradient:
                                        for ve, lagrangian in self.lagrangians_dict.items()}  # equation (7)
 
                 self._bk_ops = [self.p_dict[ve].assign(self.p_dynamics[ve])
-                                for ve in self.val_error_dict]  # TODO add here when hp are sequ.
+                                for ve in self.val_error_dict]  #  add here when hp are sequ.
 
             with tf.name_scope('w_history_ops'):
                 self._w_placeholder = tf.placeholder(self.w_t.dtype)
@@ -126,17 +126,22 @@ class ReverseHyperGradient:
                 self._hyper_assign_ops = {h: v.assign(self._grad_wrt_hypers_placeholder)
                                           for h, v in self.hyper_gradients_dict.items()}
 
-    def initialize(self, seed=None):
+    def initialize(self, session=None):
         """
         Helper for initializing all the variables. Builds and runs model variables and global step initializers.
         Note that dual variables are initialized only when calling `backward`.
-
+        
+        :param session: optional tensorflow session (if None default session is used) 
+        
         :return: None
         """
-        assert tf.get_default_session() is not None, 'No default tensorflow session!'
-        if seed: tf.set_random_seed(seed)
-        var_init = self.w.var_list(Vl_Mode.BASE) if isinstance(self.w, MergedVariable) else [self.w]
-        tf.variables_initializer(var_init + self.hyper_gradient_vars + [self.global_step.var]).run()
+        ss = session or tf.get_default_session()
+        assert ss, 'No default tensorflow session!'
+        if isinstance(self.w, MergedVariable):
+            self.w.initialize(session=session)
+        else:
+            ss.run(tf.variables_initializer([self.w]))
+        ss.run(tf.variables_initializer(self.hyper_gradient_vars + [self.global_step.var]))
 
     def forward(self, T, train_feed_dict_supplier=None, summary_utils=None):
         """
@@ -469,16 +474,22 @@ class ForwardHyperGradient:
             # print(mvz.tensor)
             return mvz
 
-    def initialize(self, seed=None):
+    def initialize(self, session=None):
         """
-        Helper for initializing all the variables. Builds and runs model variables, Zs and global step initializers.
-
+        Helper for initializing all the variables. Builds and runs model variables, 
+        Zs and global step initializers.
+        
+        :param session: optional tensorflow session (if None default session is used) 
+        
         :return: None
         """
-        assert tf.get_default_session() is not None, 'No default tensorflow session!'
-        if seed: tf.set_random_seed(seed)
-        var_init = self.w.var_list(Vl_Mode.BASE) if isinstance(self.w, MergedVariable) else [self.w]
-        tf.variables_initializer(var_init + self.hyper_gradient_vars + [self.global_step.var]).run()
+        ss = session or tf.get_default_session()
+        assert ss, 'No default tensorflow session!'
+        if isinstance(self.w, MergedVariable):
+            self.w.initialize(session=session)
+        else:
+            ss.run(tf.variables_initializer([self.w]))
+        ss.run(tf.variables_initializer(self.hyper_gradient_vars + [self.global_step.var]))
         [z.initializer().run() for z in self.zs]
 
     def step_forward(self, train_feed_dict_supplier=None, summary_utils=None):
@@ -625,16 +636,17 @@ class HyperOptimizer:
         """
         return self.hyper_gradients.hyper_list
 
-    def initialize(self, seed=None, complete_reinitialize=False):
+    def initialize(self, session=None, complete_reinitialize=False):
         """
         Initialize all tensorflow variables. This method has two behaviours:
 
         - first time it is called (after entering a Session run block) or when flag `complete_reinitialize` is `True`
             initializes all the relevant variables
         - subsequent times, reinitialize only model variables (next hyper-iteration).
-
+        
         :param: complete_reinitialize: (default `False`) if True reinitialize hyper-step counts and hyperparameter
                                         optimizers regardless of
+        :param: session: optional tensorflow session (if None default session is used) 
 
         :return: `None`
         """
@@ -650,8 +662,7 @@ class HyperOptimizer:
         else:
             self.hyper_iteration_step.increase.eval()
 
-        self.hyper_gradients.initialize(seed=seed)
-        # tf.variables_initializer([self.hyper_batch_step.var]).run()
+        self.hyper_gradients.initialize(session=session)
 
     def run(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None, hyper_constraints_ops=None,
             _debug_no_hyper_update=False):
