@@ -326,7 +326,7 @@ class AdamOptimizer(MomentumOptimizer):
         return 2
 
     @staticmethod
-    def create(w, lr=1.e-3, beta1=.9, beta2=.999, eps=1.e-8, global_step=None,
+    def create(w, lr=1.e-3, beta1=.9, beta2=.999, eps=1.e-14, global_step=None,
                loss=None, grad=None, w_is_state=True, name='Adam',
                _debug_jac_z=False):  # FIXME rewrite this
         """
@@ -373,7 +373,12 @@ class AdamOptimizer(MomentumOptimizer):
             lr_k = lr * bias_correction
 
             v_epsilon_k = beta2 * v + (1. - beta2) * grad ** 2 + eps
-            v_tilde_k = tf.sqrt(v_epsilon_k)
+            v_tilde_k = tf.sqrt(v_epsilon_k)  # + eps
+            """
+            to make it the same as tensorflow adam optimizer the eps should go after the square root... this
+            brings however some problems in the computation of the hypergradient, therefore we put it inside!
+            SHOULD BETTER INVESTIGATE THE ISSUE. (maybe the jacobian computation should be done again)
+            """
 
             # TODO THESE QUANTITIES ARE NEEDED FOR FORWARD-HG IN VARIOUS PLACES... FIND A BETTER WAY TO COMPUTE THEM
             # ONLY IF NEEDED
