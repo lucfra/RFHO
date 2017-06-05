@@ -256,7 +256,7 @@ class Network(object):
     Base object for models
     """
 
-    def __init__(self, _input, name):
+    def __init__(self, _input, name, deterministic_initialization=False):
         """
         Creates an object that represent a network. Important attributes of a Network object are
 
@@ -270,6 +270,13 @@ class Network(object):
         super(Network, self).__init__()
 
         self.name = name
+
+        self.deterministic_initialization = deterministic_initialization
+        self._var_list_initial_values = []
+        self._var_init_placeholder = None
+        self._assign_int = []
+        self._var_initializer_op = None
+
 
         self.Ws = []
         self.bs = []
@@ -305,9 +312,37 @@ class Network(object):
             new_active_gen_kwargs.append(n_ag_kw)
         return new_active_gen_kwargs
 
+    def initialize(self, session=None):
+        """
+        Initialize the model. If `deterministic_initialization` is set to true, 
+        saves the initial weight in numpy which will be used for subsequent initialization.
+        This is because random seed management in tensorflow is rather obscure... and I could not
+        find a way to set the same seed across different initialization without exiting the session.
+        
+        :param session: 
+        :return: 
+        """
+        ss = session or tf.get_default_session()
+        assert ss, 'No default session'
+        if not self._var_initializer_op:
+            self._var_initializer_op = tf.variables_initializer(self.var_list)
+        ss.run(self._var_initializer_op)
+        if self.deterministic_initialization:
+            if self._var_init_placeholder is None:
+                self._var_init_placeholder = tf.placeholder(tf.float32)
+                self._assign_int = [v.assign(self._var_init_placeholder) for v in self.var_list]
+            if not self._var_list_initial_values:
+                self._var_list_initial_values = ss.run(self.var_list)
+
+            else:
+                print(self._var_list_initial_values)
+                [ss.run(v_op, feed_dict={self._var_init_placeholder: val})
+                 for v_op, val in zip(self._assign_int, self._var_list_initial_values)]
+
 
 class LinearModel(Network):
-    def __init__(self, _input, dim_input, dim_output, name='Linear_Model',
+
+    def __init__(self, _input, dim_input, dim_output, name='Linear_Model', deterministic_initialization=False,
                  active_gen=ffnn_layer, **activ_gen_kwargs):
         """
         Builds a single layer NN, by default with linear activation (this means it's just a linear model!)
@@ -318,7 +353,8 @@ class LinearModel(Network):
         :param active_gen: callable that genera
         """
         # TODO infer input dimensions form _input....
-        super(LinearModel, self).__init__(_input, name)
+        super(LinearModel, self).__init__(_input, name,
+                                          deterministic_initialization=deterministic_initialization)
 
         self.dims = (dim_input, dim_output)
 
@@ -349,7 +385,7 @@ class LinearModel(Network):
 
 
 class FFNN(Network):
-    def __init__(self, _input, dims, name='FFNN',
+    def __init__(self, _input, dims, name='FFNN', deterministic_initialization=False,
                  active_gen=ffnn_layer, active_gen_kwargs=None
                  ):
         """
@@ -360,7 +396,8 @@ class FFNN(Network):
         :param active_gen:
         :param name:
         """
-        super(FFNN, self).__init__(_input, name)
+        super(FFNN, self).__init__(_input, name,
+                                   deterministic_initialization=deterministic_initialization)
 
         pvars(vars())
         self.dims = dims
@@ -398,7 +435,7 @@ class FFNN(Network):
 
 
 class SimpleConvolutionalOnly(Network):
-    def __init__(self, _input, _dims, conv_gen=convolutional_layer2d_maxpool,
+    def __init__(self, _input, _dims, conv_gen=convolutional_layer2d_maxpool, deterministic_initialization=False,
                  conv_gen_kwargs=None, name='Simple_Convolutional'):
         """
         Creates a simple convolutional network, by default 2 dimensional. Only convolutional part! Use
@@ -410,7 +447,8 @@ class SimpleConvolutionalOnly(Network):
         :param conv_gen:
         :param name:
         """
-        super(SimpleConvolutionalOnly, self).__init__(_input, name)
+        super(SimpleConvolutionalOnly, self).__init__(_input, name,
+                                                      deterministic_initialization=deterministic_initialization)
         pvars(vars())
 
         self.dims = _dims
@@ -447,7 +485,7 @@ class SimpleCNN(Network):
 
     def __init__(self, _input, conv_part=None, ffnn_part=None, conv_dims=None, ffnn_dims=None,
                  conv_gen=convolutional_layer2d_maxpool, conv_gen_kwargs=None,
-                 activ_gen=ffnn_layer, active_gen_kwargs=None,
+                 activ_gen=ffnn_layer, active_gen_kwargs=None, deterministic_initialization=False,
                  name='SimpleCNN'):
         """
         Builds a simple convolutional network a la LeNet5.
@@ -466,7 +504,8 @@ class SimpleCNN(Network):
         assert conv_part or conv_dims
         assert ffnn_part or ffnn_dims
 
-        super(SimpleCNN, self).__init__(_input, name)
+        super(SimpleCNN, self).__init__(_input, name,
+                                        deterministic_initialization=deterministic_initialization)
         pvars(vars())
 
         with tf.name_scope(name):
@@ -533,3 +572,23 @@ class SimpleCNN(Network):
 #             self.inp += conv_part.inp
 #
 #         self.std_collections()
+
+if __name__ == '__main__':
+    x = tf.constant([[1., 2.]])
+    mod = FFNN(x, [2, 2, 1], deterministic_initialization=True)
+
+    with tf.Session().as_default() as ss:
+        mod.initialize()
+
+        print(ss.run(mod.Ws))
+
+        mod.initialize()
+        print()
+        print(ss.run(mod.Ws))
+
+    print()
+
+    with tf.Session().as_default() as ss:
+        mod.initialize()
+
+        print(ss.run(mod.Ws))

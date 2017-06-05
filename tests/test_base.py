@@ -45,10 +45,13 @@ def assert_array_list_all_same(lst, raise_error=True, msg=''):
                 return k
 
 
-def assert_array_lists_same(lst1, lst2, raise_error=True, msg='', print_differences=True):
+def assert_array_lists_same(lst1, lst2, raise_error=True, msg='', print_differences=True, test_case=None):
     for (k, (e1, e2)) in enumerate(zip(lst1, lst2)):
         if raise_error:
-            assert np.array_equal(e1, e2), msg + 'difference found at %d' % k
+            if test_case:
+                test_case.assertTrue(np.array_equal(e1, e2))
+            else:
+                assert np.array_equal(e1, e2), msg + 'difference found at %d' % k
         else:
             if not np.array_equal(e1, e2):
                 print(msg + 'difference found at %d' % k)

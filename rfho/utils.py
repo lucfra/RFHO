@@ -27,6 +27,10 @@ CONFIG_GPU_GROWTH = tf.ConfigProto()
 CONFIG_GPU_GROWTH.gpu_options.allow_growth = True
 
 
+def get_function_parameter_names(func):
+    return func.__code__.co_varnames[:func.__code__.co_argcount]
+
+
 def simple_name(tensor):
     return tensor.name.split(':')[0]
 
