@@ -219,13 +219,9 @@ class ReverseHyperGradient:
             fds = train_feed_dict_supplier(self.global_step.eval())
             # TODO read below
             """ Unfortunately it looks like that the following two lines cannot be run together (will this
-            degrade the performances???
+            degrade the performances???"""
 
-            Furthermore, when using ADAM as parameter optimizer it looks like p_0 = nan (note that p_0 usually is not
-            needed for the derivation of the hyper-gradients, unless w_0 itself
-            depends from some hyper-parameter in hyper_list). Anyway should look into it"""
-
-            if check_if_zero:
+            if check_if_zero:  # debug
                 if self._abs_sum_p.eval() < 1.e-20:
                     # ss.run([self.bk_ops, self.global_step.decrease], feed_dict=fds)
                     print('exiting backward pass at iteration %d.' % t)
