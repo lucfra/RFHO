@@ -312,7 +312,7 @@ class Saver:
 
         if do_print:
             if tabulate:
-                print(tabulate(save_dict.items(), headers=('SAVE_DICT', 'values'), floatfmt='%.5f'))
+                print(tabulate(save_dict.items(), headers=('SAVE_DICT', 'values'), floatfmt='.5f'))
             else:
                 print('SAVE DICT:')
                 for key, v in save_dict.items():
