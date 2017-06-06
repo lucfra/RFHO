@@ -279,6 +279,7 @@ class Saver:
             part += [None] * (5 - len(part))  # representing name, fetches, feeds, options, metadata
             processed_args.append(part)
         self.processed_items += processed_args
+        return [pt[0] for pt in processed_args]
 
     def save(self, step, session=None, append_string="", do_print=None, collect_data=None):
         """
