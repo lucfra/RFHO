@@ -101,7 +101,7 @@ hyperparameters should be scalars or vectors.
 
 It's a matter of time versus memory:
 
-![alt text](https://github.com/lucfra/RFHO/blob/master/rfho/examples/time_vs_memory.pdf "mah")
+![alt text](https://github.com/lucfra/RFHO/blob/master/rfho/examples/time_memory.png "mah")
 
 
 #### The Idea Behind
