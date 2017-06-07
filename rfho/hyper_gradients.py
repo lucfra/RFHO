@@ -586,7 +586,7 @@ class HyperOptimizer:
         """
         Interface instance of gradient-based hyperparameter optimization methods.
 
-        :param optimizer: parameter optimization dynamics
+        :param optimizer: parameter optimization dynamics (obtained from `Optimizer.create` methods)
         :param hyper_dict: dictionary of validation errors and list of hyperparameters to be optimized
         :param method: (default `ReverseHG`) method with which to compute hyper-gradients: Forward
                         or Reverse-Ho

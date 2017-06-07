@@ -1,6 +1,8 @@
 # import data
 # import numpy as np
 # working with placeholders
+import contextlib
+import os
 from functools import reduce
 
 import tensorflow as tf
@@ -244,8 +246,12 @@ def vectorize_model(model_vars, *o_outs, augment=0):
         else:
             w = true_w
 
-        with utils.suppress_stdout_stderr():  # FIXME deprecation here on GraphKey usage... now redirecting outs
-            new_outs = ge.graph_replace(outs, w.generate_swap_dict())
+        # with open(os.devnull, 'w') as dnf:
+        # with utils.suppress_stdout_stderr():  # may cause ERROR TOO MANY FILES OPENED!.:((
+        new_outs = ge.graph_replace(outs, w.generate_swap_dict())
+
+        # with utils.suppress_stdout_stderr():  # FIXME deprecation here on GraphKey usage... now redirecting outs
+        #     new_outs = ge.graph_replace(outs, w.generate_swap_dict())
 
     return [w] + new_outs
 
