@@ -249,6 +249,14 @@ class Saver:
 
         self.timer = timer
 
+    def clear_items(self):
+        """
+        Removes all previously inserted items
+        
+        :return: 
+        """
+        self.processed_items = []
+
     def add_items(self, *items):
         """
         Add items to the save dictionary
