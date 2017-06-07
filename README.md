@@ -11,7 +11,7 @@ The package implements the three algorithms presented in the paper
 
 The first two algorithms compute, with different procedures, the gradient
   of a validation error with respect to hyperparameters, while the last, based on Forward-HG, 
-  performs "real time" (i.e. at training time) hyperparameter updates:
+  performs "real time" (i.e. at training time) hyperparameter updates.
 
 ## Installation & Dependencies
 
@@ -50,7 +50,7 @@ showing all algorithms an various models (again on MNIST...)
 - Create a model as you prefer<sup>1</sup> with TensorFlow,
 - obtain a vector representation of your model with the function 
 `rfho.vectorize_model`,
-- define the hyperparameters<sup>2</sup> you wish to optimize as `tensorflow.Variable`,
+- define the hyperparameters you wish to optimize<sup>2</sup> as `tensorflow.Variable`,
 - define a training and a validation error as scalar `tensorflow.Tensor`,
 - create a training dynamics with a subclass of `rfho.Optimizer` (at the moment
 gradient descent,
@@ -88,9 +88,11 @@ with tf.Session().as_default():
         hyper_opt.run(hyper_batch_size, ....)  
 ```
 ____
-<sup>1</sup> Since this is gradient-based optimization, all the ops that you use 
-in the model should have a second order derivative registered in `tensorflow` core
-code.
+<sup>1</sup> This is gradient-based optimization and for the computation
+of the hyper-gradients second order derivatives of the training error show up
+(_even tough no Hessian is explicitly computed at any time_);
+therefore, all the ops used
+in the model should have a second order derivative registered in `tensorflow`.
 
 <sup>2</sup> For the hyper-gradients to make sense, hyperparameters should be 
 real-valued. Moreover, while `ReverseHG` should handle generic r-rank tensor 
@@ -99,7 +101,7 @@ hyperparameters should be scalars or vectors.
 
 #### Which Algorithm Do I Choose?
 
-It's a matter of time versus memory:
+It's a matter of time versus memory (RAM)!
 
 ![alt text](https://github.com/lucfra/RFHO/blob/master/rfho/examples/time_memory.png "mah")
 
@@ -141,3 +143,7 @@ for further details)
 - `utils` method contains some useful functions. Most notably `cross_entropy_loss`
  re-implements the cross entropy with softmax output. This was necessary since 
 `tensorflow.nn.softmax_cross_entropy_with_logits` function has no registered second derivative.
+
+### Citing 
+
+If you use this, please cite the paper.

@@ -610,13 +610,11 @@ class HyperOptimizer:
             'global_step', optimizer.global_step if hasattr(optimizer, 'global_step') else GlobalStep())
 
         # automatically links eventual hyper-optimizer global step (like in Adam) to batch_step
-        optimizers_kwargs['global_step'] = self.hyper_batch_step if hyper_optimizer_class == AdamOptimizer else None
+        if hyper_optimizer_class == AdamOptimizer:
+            optimizers_kwargs['global_step'] = self.hyper_batch_step
+            optimizers_kwargs.setdefault('eps', 1.e-14)
 
         self.hyper_gradients = method(optimizer, hyper_dict, **hyper_grad_kwargs)
-
-        if hyper_optimizer_class is AdamOptimizer:
-            # optimizers_kwargs.setdefault('lr', .001)  # default value for Adam optimizer
-            optimizers_kwargs.setdefault('eps', 1.e-14)
 
         if hyper_optimizer_class:
             # noinspection PyTypeChecker
