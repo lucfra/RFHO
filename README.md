@@ -4,12 +4,16 @@ Gradient-based hyperparameter optimization package with
 
 The package implements the three algorithms presented in the paper
  _Forward and Reverse Gradient-Based Hyperparameter Optimization_ [2017]
- (https://arxiv.org/abs/1703.01785):
-- Reverse-HO, generalization of algorithms presented in Domke [2012] and MacLaurin et Al. [2015] (without reversable dynamics and "reversable dtype")
-- Forward-HO
+ (https://arxiv.org/abs/1703.01785). 
+- Reverse-HG, generalization of algorithms presented in Domke [2012] and MacLaurin et Al. [2015] (without reversable dynamics and "reversable dtype")
+- Forward-HG
 - Real-Time Hyperparameter Optimization (RTHO)
 
-## Installation & dependencies
+The first two algorithms compute, with different procedures, the gradient
+  of a validation error with respect to hyperparameters, while the last, based on Forward-HG, 
+  performs "real time" (i.e. at training time) hyperparameter updates:
+
+## Installation & Dependencies
 
 Clone the repository and run setup script.
 
@@ -34,14 +38,55 @@ is not particularly optimized;
 please feel free to issues comments, suggestions and feedbacks! You can also email me at luca.franceschi@iit.it .
 
 
-#### Quick start 
+#### Quick Start 
 
 - [Self contained example](https://github.com/lucfra/RFHO/blob/master/rfho/examples/RFHO%20starting%20example.ipynb) on MNIST (!) with Reverse-HO 
 (Forward-HO and RTHO coming very soon..)
 - [A module with a more complete set of examples](https://github.com/lucfra/RFHO/blob/master/rfho/examples/all_methods_on_mnist.py) 
 showing all algorithms an various models (still on MNIST...)
 
-#### Core idea
+#### Core Steps
+
+- Create a model as you prefer<sup>1</sup> with TensorFlow,
+- obtain a vector representation of your model with the function 
+`rfho.vectorize_model`,
+- define the hyperparameters<sup>2</sup> you wish to optimize as `tensorflow.Variable`,
+- define a training and a validation error as scalar `tensorflow.Tensor`,
+- create a training dynamics with a subclass of `rfho.Optimizer` (at the moment
+gradient descent,
+gradient descent with momentum and Adam algorithms are available),
+- chose and hyper-gradient computation algorithm among
+`rfho.ForwardHyperGradient` and `rfho.ReverseHyperGradient` (see next section) and 
+instantiate `rfho.HyperOptimizer`,
+- execute `rfho.HyperOptimizer.run` function inside a `tensorflow.Session`
+and optimize both the parameter and 
+hyperparameter of your model (learning rate included)!
+____
+<sup>1</sup> Since this is gradient-based optimization, all the ops that you use 
+in the model should have a second order derivative registered in `tensorflow` core
+code.
+
+<sup>2</sup> For the hyper-gradients to make sense, hyperparameters should be 
+real-valued.
+
+```python
+import rfho as rf
+
+# create a model as you wish with TensorFlow
+model = create_model(...)  
+
+# obtain a vector representation of the parameters of the model
+w, out = rf.vectorize_model(model.var_list, model.out)
+
+# define the hyperparameters of your model 
+```
+
+#### Which Algorithm Do I Choose?
+
+
+
+
+#### The Idea Behind
 
 The objective is to minimize some validation function _E_ with respect to
  a vector of hyperparameters _lambda_. The validation error depends on the model output and thus
@@ -54,7 +99,7 @@ parameters (e.g. you can think about stochastic gradient descent with momentum),
 and we formulate
 HO as a __constrained optimization__ problem. See the [paper]((https://arxiv.org/abs/1703.01785)) for details.
 
-#### Code structure
+#### Code Structure
 
 - All the hyperparameter optimization algorithms are implemented in the module `hyper_gradients`.
 The classes `ReverseHyperGradient` and `ForwardHyperGradient` are responsible 
