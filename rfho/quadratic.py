@@ -7,7 +7,7 @@ try:
     import cvxopt
     from cvxopt import spmatrix, matrix, sparse
 except ImportError:
-    cvxopt, spmatrix, matrix, sparse = None
+    cvxopt, spmatrix, matrix, sparse = None, None, None, None
     print('Package cvxopt not found. This module will not work! Install it with pip!')
 
 options = {'show_progress': False}

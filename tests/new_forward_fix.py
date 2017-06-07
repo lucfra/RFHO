@@ -4,7 +4,7 @@ def hard_fixing_r(param_optimizer, saved_r=None,
                   debug_jac=False, iterations=100, track_jacz_parts=False):
     tf.set_random_seed(0)
     np.random.seed(0)
-    method = rf.ForwardHyperGradient
+    method = rf.ForwardHG
     iris, x, y, model, model_w, model_y, error, accuracy = iris_logistic_regression(
         param_optimizer.get_augmentation_multiplier())
 

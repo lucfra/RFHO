@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from rfho.utils import hvp, MergedVariable, Vl_Mode, GlobalStep, ZMergedMatrix, simple_name, l_diag_mul
+from rfho.utils import hvp, MergedVariable, VlMode, GlobalStep, ZMergedMatrix, simple_name, l_diag_mul
 
 
 class Optimizer:  # Gradient descent-like optimizer
@@ -196,11 +196,11 @@ class MomentumOptimizer(Optimizer):
             if w_is_state:
 
                 assert isinstance(w, MergedVariable), "%s is not instance of MergedVariable" % w
-                assert len(w.var_list(Vl_Mode.TENSOR)) == 2, "%s is not augmented correctly, len of w.var_list(" \
-                                                             "Vl_Mode.TENSOR should be 2, but is " \
-                                                             "%d" % (w, len(w.var_list(Vl_Mode.TENSOR)))
+                assert len(w.var_list(VlMode.TENSOR)) == 2, "%s is not augmented correctly, len of w.var_list(" \
+                                                             "VlMode.TENSOR should be 2, but is " \
+                                                             "%d" % (w, len(w.var_list(VlMode.TENSOR)))
 
-                w_base, m = w.var_list(Vl_Mode.TENSOR)
+                w_base, m = w.var_list(VlMode.TENSOR)
             else:
                 w_base = w
                 m = tf.Variable(tf.zeros(w.get_shape()))
@@ -243,32 +243,29 @@ class MomentumOptimizer(Optimizer):
                     #     mul[:d2, :],
                     #     mul[d2, :]
                     # ])
-                    r, u = z.var_list(Vl_Mode.TENSOR)
+                    r, u = z.var_list(VlMode.TENSOR)
                     return ZMergedMatrix([
                         tf.matmul(jac_1_1, r) + tf.matmul(jac_1_2, u),
                         tf.matmul(jac_2_1, r) + tf.matmul(jac_2_2, u)
                     ])
                 else:
-                    r, u = z.var_list(Vl_Mode.TENSOR)
+                    r, u = z.var_list(VlMode.TENSOR)
 
                     assert loss is not None, 'Should specify loss to use jac_z'
 
                     hessian_r_product = hvp(loss=loss, w=w_base, v=r)
 
-                    print('hessian_r_product', hessian_r_product)
+                    # print('hessian_r_product', hessian_r_product)
 
                     res = [
                         r - lr * mu * u - lr * hessian_r_product,
                         hessian_r_product + mu * u
                     ]
 
-                    # with tf.name_scope(TRACK):
-                    #     tf.identity()
-
                     return ZMergedMatrix(res)
 
             if w_is_state:
-                w_base_mv, m_mv = w.var_list(Vl_Mode.RAW)
+                w_base_mv, m_mv = w.var_list(VlMode.RAW)
             else:
                 w_base_mv, m_mv = w_base, m
 
@@ -351,11 +348,11 @@ class AdamOptimizer(MomentumOptimizer):
             if w_is_state:
 
                 assert isinstance(w, MergedVariable), "%s is not instance of MergedVariable" % w
-                assert len(w.var_list(Vl_Mode.TENSOR)) == 3, "%s is not augmented correctly, len of w.var_list(" \
-                                                             "Vl_Mode.TENSOR should be 3, but is " \
-                                                             "%d" % (w, len(w.var_list(Vl_Mode.TENSOR)))
+                assert len(w.var_list(VlMode.TENSOR)) == 3, "%s is not augmented correctly, len of w.var_list(" \
+                                                             "VlMode.TENSOR should be 3, but is " \
+                                                             "%d" % (w, len(w.var_list(VlMode.TENSOR)))
 
-                w_base, m, v = w.var_list(Vl_Mode.TENSOR)
+                w_base, m, v = w.var_list(VlMode.TENSOR)
             else:
                 w_base = w
                 m = tf.Variable(tf.zeros(w.get_shape()))
@@ -394,7 +391,7 @@ class AdamOptimizer(MomentumOptimizer):
             def _jac_z(z):
                 if _debug_jac_z:  # I guess this would take an incredible long time to compile for large systems
                     d = dynamics.get_shape().as_list()[0] // 3
-                    r, u, s = z.var_list(Vl_Mode.TENSOR)
+                    r, u, s = z.var_list(VlMode.TENSOR)
 
                     j11 = tf.stack([
                         tf.gradients(w_base_k[i], w_base)[0] for i in range(d)
@@ -441,7 +438,7 @@ class AdamOptimizer(MomentumOptimizer):
                 else:
                     assert loss is not None, 'Should specify loss to use jac_z'
 
-                    r, u, s = z.var_list(Vl_Mode.TENSOR)
+                    r, u, s = z.var_list(VlMode.TENSOR)
 
                     with tf.name_scope('Jac_Z'):
 
@@ -500,7 +497,7 @@ class AdamOptimizer(MomentumOptimizer):
                 else tf.stack([w_base_k, m_k, v_k], 0)  # scalar case
 
             if w_is_state:
-                w_base_mv, m_mv, v_mv = w.var_list(Vl_Mode.RAW)
+                w_base_mv, m_mv, v_mv = w.var_list(VlMode.RAW)
             else:
                 w_base_mv, m_mv, v_mv = w_base, m, v
 

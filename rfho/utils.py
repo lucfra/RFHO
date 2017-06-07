@@ -174,7 +174,7 @@ def l_diag_mul(d, m, name='diag_matrix_product'):
     :return: n x k matrix
     """
     with tf.name_scope(name):
-        return tf.transpose(d*tf.transpose(m))
+        return tf.transpose(d * tf.transpose(m))
 
 
 def matmul(a, b, benchmark=True, name='mul'):  # TODO maybe put inside dot
@@ -234,21 +234,22 @@ class suppress_stdout_stderr(object):
     exited (at least, I think that is why it lets exceptions through).
 
     """
+
     def __init__(self):
         # Open a pair of null files
-        self.null_fds = [os.open(os.devnull,os.O_RDWR) for x in range(2)]
+        self.null_fds = [os.open(os.devnull, os.O_RDWR) for x in range(2)]
         # Save the actual stdout (1) and stderr (2) file descriptors.
         self.save_fds = (os.dup(1), os.dup(2))
 
     def __enter__(self):
         # Assign the null pointers to stdout and stderr.
-        os.dup2(self.null_fds[0],1)
-        os.dup2(self.null_fds[1],2)
+        os.dup2(self.null_fds[0], 1)
+        os.dup2(self.null_fds[1], 2)
 
     def __exit__(self, *_):
         # Re-assign the real stdout/stderr back to (1) and (2)
-        os.dup2(self.save_fds[0],1)
-        os.dup2(self.save_fds[1],2)
+        os.dup2(self.save_fds[0], 1)
+        os.dup2(self.save_fds[1], 2)
         # Close the null files
         os.close(self.null_fds[0])
         os.close(self.null_fds[1])
@@ -325,8 +326,8 @@ def hvp(loss, w, v, name='hessian_vector_product'):
     if not isinstance(w, list) and not isinstance(v, list):  # single inputs
         if len(v.get_shape().as_list()) == 2 and len(w.get_shape().as_list()) == 1:
             return tf.stack([
-                                hvp(loss, w, v[:, k]) for k in range(v.get_shape().as_list()[1])
-                                ], axis=1)
+                hvp(loss, w, v[:, k]) for k in range(v.get_shape().as_list()[1])
+            ], axis=1)
         return wsr(tf.identity(_hvp(loss, [w], [v]), name=name)[0])
     return wsr(tf.identity(_hvp(loss, w, v), name=name))
 
@@ -385,7 +386,13 @@ def one_or_zero_similarity(x):
     return np.sum(one_or_zero_similarity_vector) / n_examples
 
 
-Vl_Mode = Enum('Vl_Mode', 'RAW BASE TENSOR')  # allowed modes for MergedVariable.var_list (maybe not that convenient..)
+class VlMode(Enum):
+    """
+    Possible arguments for `MergedVariable.var_list` getter function
+    """
+    RAW = 0
+    BASE = 1
+    TENSOR = 2
 
 
 class MergedVariable:
@@ -411,7 +418,7 @@ class MergedVariable:
 
         start = 0
 
-        for v in self.var_list(Vl_Mode.BASE):  # CHANGED (in var_list)
+        for v in self.var_list(VlMode.BASE):  # CHANGED (in var_list)
             dim_var = reduce(lambda v1, v2: v1 * v2, v.get_shape().as_list(), 1)
             end = start + dim_var
 
@@ -419,7 +426,7 @@ class MergedVariable:
 
             start += dim_var
 
-    def var_list(self, mode=Vl_Mode.RAW):
+    def var_list(self, mode=VlMode.RAW):
         """
         Get the chunks that define this variable.
 
@@ -430,11 +437,11 @@ class MergedVariable:
                      VL_MODE.TENSOR: returns a list of tf.Variables or tf.Tensor from the MergedVariables
         :return: A list that may contain tf.Tensors, tf.Variables and/or MergedVariables
         """
-        if mode == Vl_Mode.RAW:
+        if mode == VlMode.RAW:
             return self._var_list
-        elif mode == Vl_Mode.BASE:
+        elif mode == VlMode.BASE:
             return self._get_base_variable_list()
-        elif mode == Vl_Mode.TENSOR:
+        elif mode == VlMode.TENSOR:
             return self._var_list_as_tensors()  # return w unic tensor + copies augmented
         else:
             raise NotImplementedError('mode %d does not exists' % mode)
@@ -449,7 +456,7 @@ class MergedVariable:
         """
         ss = session or tf.get_default_session()
         assert ss, 'No default session'
-        ss.run(tf.variables_initializer(self.var_list(Vl_Mode.BASE)))
+        ss.run(tf.variables_initializer(self.var_list(VlMode.BASE)))
         if self.model:
             self.model.initialize(session=session)
 
@@ -495,7 +502,7 @@ class MergedVariable:
         """
         assign_ops = [
             wsr(v.assign(reshape(value), use_locking=use_locking)) for v, reshape in self.chunks_info_dict.items()
-            ]
+        ]
         return tf.group(*assign_ops)
 
     def eval(self, feed_dict=None):
@@ -619,7 +626,7 @@ class ZMergedMatrix:
         return tf.group(*ao1)
 
     # noinspection PyUnusedLocal
-    def var_list(self, mode=Vl_Mode.RAW):
+    def var_list(self, mode=VlMode.RAW):
         return self.components
 
     def __add__(self, other):

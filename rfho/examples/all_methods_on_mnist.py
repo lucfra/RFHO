@@ -16,7 +16,7 @@ def load_dataset(partition_proportions=(.5, .3)):
     return load_mnist(partitions=partition_proportions)
 
 
-IMPLEMENTED_MODEL_TYPES = ['log_reg', 'ffnn', 'cnn']
+IMPLEMENTED_MODEL_TYPES = ['log_reg', 'ffnn'] #, 'cnn']
 HO_MODES = ['forward', 'reverse', 'rtho']
 
 
@@ -59,9 +59,9 @@ def define_errors_default_models(model, l1=0., l2=0., synthetic_hypers=None, aug
 
     # error
     y = tf.placeholder(tf.float32)
-    error = tf.reduce_mean(rf.cross_entropy_loss(out, y))  # also validation error
+    error = tf.reduce_mean(rf.cross_entropy_loss(y, out))  # also validation error
 
-    base_training_error = rf.cross_entropy_loss(out, y)
+    base_training_error = rf.cross_entropy_loss(y, out)
 
     gamma = None
     if synthetic_hypers is not None:
@@ -91,7 +91,7 @@ def define_errors_default_models(model, l1=0., l2=0., synthetic_hypers=None, aug
            base_training_error, gamma
 
 
-def experiment(name_of_experiment, collect_data=True,
+def experiment(name_of_experiment, collect_data=False,
                datasets=None, model='log_reg', model_kwargs=None, l1=0., l2=0.,
                synthetic_hypers=None, set_T=None,
                optimizer=rf.MomentumOptimizer, optimizer_kwargs=None, batch_size=200,
@@ -103,7 +103,7 @@ def experiment(name_of_experiment, collect_data=True,
 
     :param name_of_experiment: a name for the experiment. Will be used as root folder for the saver (this is the only
                                 positional parameter..)
-    :param collect_data: (default True) wheter to save data
+    :param collect_data: (default False) wheter to save data
     :param datasets: (some dataset, usually MNIST....)
     :param model: (default logarithmic regression) model type
     :param model_kwargs:
@@ -154,7 +154,7 @@ def experiment(name_of_experiment, collect_data=True,
             algorithmic_hyperparameters.append(mu)
 
     regularization_hyperparameters = []
-    vec_w = s.var_list(rf.Vl_Mode.TENSOR)[0]  # vectorized representation of _model weights (always the first!)
+    vec_w = s.var_list(rf.VlMode.TENSOR)[0]  # vectorized representation of _model weights (always the first!)
     if rho_l1s is not None:
         regularization_hyperparameters += rho_l1s
     if rho_l2s is not None:
@@ -174,7 +174,7 @@ def experiment(name_of_experiment, collect_data=True,
     # print(hyper_dict)
 
     hyper_opt = rf.HyperOptimizer(tr_dynamics, hyper_dict,
-                                  method=rf.ReverseHyperGradient if mode == 'reverse' else rf.ForwardHyperGradient,
+                                  method=rf.ReverseHG if mode == 'reverse' else rf.ForwardHG,
                                   hyper_optimizer_class=hyper_optimizer, **hyper_optimizer_kwargs or {})
 
     positivity = rf.positivity(hyper_opt.hyper_list)
@@ -275,27 +275,27 @@ def _check_adam():
 
 def _check_forward():
     w_100 = []
-    for i in range(100):
+    for i in range(1):
         for _mode in HO_MODES[0:1]:
-            for _model in IMPLEMENTED_MODEL_TYPES[1:2]:
-                _model_kwargs = {'dims': [None, 300, 300, None]}
+            for _model in IMPLEMENTED_MODEL_TYPES[0:2]:
+                _model_kwargs = {}# {'dims': [None, 300, 300, None]}
                 tf.reset_default_graph()
                 # set random seeds!!!!
                 np.random.seed(1)
                 tf.set_random_seed(1)
 
-                results = experiment('test_with_model_' + _model, collect_data=False, hyper_iterations=3, mode=_mode,
-                                     epochs=3,
+                results = experiment('test_with_model_' + _model, collect_data=False, hyper_iterations=10, mode=_mode,
+                                     epochs=1,
                                      model=_model,
                                      model_kwargs=_model_kwargs,
-                                     set_T=100,
+                                     set_T=1000,
                                      synthetic_hypers=None,
                                      hyper_batch_size=100
                                      # optimizer=rf.GradientDescentOptimizer,
                                      # optimizer_kwargs={'lr': tf.Variable(.01, name='eta')}
                                      )
                 w_100.append(results[0]['weights'])
-    rf.save_obj(w_100, 'check_forward')
+    # rf.save_obj(w_100, 'check_forward')
     return w_100
 
 
@@ -321,4 +321,4 @@ def _check_all_methods():
 
 
 if __name__ == '__main__':
-    _check_all_methods()
+    _check_forward()

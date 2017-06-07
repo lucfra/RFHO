@@ -67,7 +67,7 @@ def save_fig(name, root_dir=None, notebook_mode=True, default_overwrite=False, *
     filename = join_paths(directory, '%s.pdf' % name)  # directory + '/%s.pdf' % name
     if not default_overwrite and os.path.isfile(filename):
         if IPython is not None:
-            IPython.display.display(IFrame(filename, width=800, height=600))
+            IPython.display.display(tuple(IFrame(filename, width=800, height=600)))  # FIXME works???
         overwrite = input('A file named %s already exists. Overwrite (Leave string empty for NO!)?' % filename)
         if not overwrite:
             print('No changes done.')

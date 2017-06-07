@@ -3,7 +3,7 @@ import numpy as np
 from tests.test_base import iris_logistic_regression
 from rfho.datasets import load_iris, load_mnist
 from rfho.models import *
-from rfho.hyper_gradients import ReverseHyperGradient, ForwardHyperGradient, HyperOptimizer
+from rfho.hyper_gradients import ReverseHG, ForwardHG, HyperOptimizer
 from rfho.optimizers import *
 from rfho.utils import dot, SummaryUtil, SummaryUtils as SSU, PrintUtils, norm, stepwise_pu, MergedUtils, \
     cross_entropy_loss
@@ -60,7 +60,7 @@ class TestD(unittest.TestCase):
                 tr_error = error + l2_factor * dot(net_w, net_w)
 
                 hyper_list = [l2_factor, eta]
-                doh = ReverseHyperGradient(GradientDescentOptimizer.create(
+                doh = ReverseHG(GradientDescentOptimizer.create(
                     net_w, eta, loss=tr_error), hyper_list, error, [])
 
                 T = 2000
@@ -140,7 +140,7 @@ class TestD(unittest.TestCase):
 
                 # hyper_list = [l2_factor, eta]
                 hyper_list = [eta]  # , gamma]
-                doh = ReverseHyperGradient(GradientDescentOptimizer.create(
+                doh = ReverseHG(GradientDescentOptimizer.create(
                     net_w, eta, loss=tr_error), hyper_list, error, [])
 
                 pn = norm(doh.p_dict)  # monitor for the norm of costate
@@ -217,7 +217,7 @@ class TestD(unittest.TestCase):
 
         def training_supplier(step): return {x: bxs[step], y: bys[step]}
 
-        doh = ReverseHyperGradient(GradientDescentOptimizer.create(
+        doh = ReverseHG(GradientDescentOptimizer.create(
             all_w, .1, loss=error), [], error, [])
 
         with tf.Session().as_default():
@@ -423,10 +423,10 @@ class TestD(unittest.TestCase):
         with self.assertRaises(AssertionError):
             # all this configurations should rise error!
             hyper_dict = {f: [a, b, c]}
-            ReverseHyperGradient(optimizer, hyper_dict)
-            ReverseHyperGradient(optimizer, {f: c})
-            ReverseHyperGradient(optimizer, {f: b})
-        self.assertTrue(ReverseHyperGradient(optimizer, {f: a}))  # while this one should be fine
+            ReverseHG(optimizer, hyper_dict)
+            ReverseHG(optimizer, {f: c})
+            ReverseHG(optimizer, {f: b})
+        self.assertTrue(ReverseHG(optimizer, {f: a}))  # while this one should be fine
 
     def _bkfw_test(self, param_optimizer, method, debug_jac=False, iterations=100):
         tf.set_random_seed(0)
@@ -480,22 +480,22 @@ class TestD(unittest.TestCase):
         for j in range(trials):
             test.setUp()
             hgf, nof = test._bkfw_test(param_optimizer=AdamOptimizer,
-                                       method=ForwardHyperGradient, debug_jac=False, iterations=n_iters)
-            # TestD()._bkfw_test(method=ForwardHyperGradient, debug_jac=False)
+                                       method=ForwardHG, debug_jac=False, iterations=n_iters)
+            # TestD()._bkfw_test(method=ForwardHG, debug_jac=False)
 
             test.setUp()
             hgr, nor = test._bkfw_test(param_optimizer=AdamOptimizer,
-                                       method=ReverseHyperGradient, iterations=n_iters)
+                                       method=ReverseHG, iterations=n_iters)
 
             print(nof - nor)
             res_f.append(hgf)
             res_r.append(hgr)
 
         for hgf, hgr in zip(res_f, res_r):
-            # TestD().test_momentum(method=ForwardHyperGradient)
+            # TestD().test_momentum(method=ForwardHG)
             print([(hf - hr) for hr, hf in zip(hgr, hgf)])
             # tf.reset_default_graph()
-            # TestD().test_momentum(method=ReverseHyperGradient)
+            # TestD().test_momentum(method=ReverseHG)
 
         print()
         print(res_f)
@@ -599,7 +599,7 @@ def trial_solve1():
     for j in range(trials):
         test.setUp()
         hgf, zs, gve = test._forward_fix_test(param_optimizer=AdamOptimizer,
-                                   method=ForwardHyperGradient, debug_jac=False, iterations=n_iters)
+                                              method=ForwardHG, debug_jac=False, iterations=n_iters)
         res_gve.append(gve)
         res_f.append(hgf)
         res_z.append(zs)

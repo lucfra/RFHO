@@ -9,10 +9,10 @@ presented in Forward and Reverse Gradient-Based Hyperparameter Optimization (htt
 import tensorflow as tf
 
 from rfho.optimizers import Optimizer, AdamOptimizer
-from rfho.utils import dot, MergedVariable, Vl_Mode, as_list, simple_name, GlobalStep, ZMergedMatrix, flatten_list
+from rfho.utils import dot, MergedVariable, VlMode, as_list, simple_name, GlobalStep, ZMergedMatrix, flatten_list
 
 
-class ReverseHyperGradient:
+class ReverseHG:
     """
     Class to compute hyper-gradients in reverse mode
     """
@@ -84,8 +84,8 @@ class ReverseHyperGradient:
                 '''
                 # detects if some auxiliary variables are used.
                 if isinstance(self.w, MergedVariable) and \
-                        any([isinstance(v, MergedVariable) for v in self.w.var_list(Vl_Mode.RAW)]):
-                    state_components = self.w.var_list(Vl_Mode.TENSOR)
+                        any([isinstance(v, MergedVariable) for v in self.w.var_list(VlMode.RAW)]):
+                    state_components = self.w.var_list(VlMode.TENSOR)
 
                     # equation (8)
                     self.p_dynamics = {ve: tf.concat(tf.gradients(lagrangian, state_components), 0)
@@ -96,7 +96,7 @@ class ReverseHyperGradient:
                                        for ve, lagrangian in self.lagrangians_dict.items()}  # equation (7)
 
                 self._bk_ops = [self.p_dict[ve].assign(self.p_dynamics[ve])
-                                for ve in self.val_error_dict]  #  add here when hp are sequ.
+                                for ve in self.val_error_dict]  # add here when hp are sequ.
 
             with tf.name_scope('w_history_ops'):
                 self._w_placeholder = tf.placeholder(self.w_t.dtype)
@@ -157,7 +157,7 @@ class ReverseHyperGradient:
         if not train_feed_dict_supplier:
             train_feed_dict_supplier = lambda step: None
 
-        # var_init = self.w.var_list(Vl_Mode.BASE) if isinstance(self.w, MergedVariable) else [self.w]
+        # var_init = self.w.var_list(VlMode.BASE) if isinstance(self.w, MergedVariable) else [self.w]
         # tf.variables_initializer(var_init + [self.global_step.var]).run()
 
         ss = tf.get_default_session()
@@ -245,7 +245,7 @@ class ReverseHyperGradient:
 
         # updates also variables that keep track of hyper-gradients
         [self._hyper_assign_ops[h].eval(feed_dict={self._grad_wrt_hypers_placeholder: ghv})
-         for h, ghv in ReverseHyperGradient.std_collect_hyper_gradients(hyper_derivatives).items()]
+         for h, ghv in ReverseHG.std_collect_hyper_gradients(hyper_derivatives).items()]
 
         return hyper_derivatives
 
@@ -324,7 +324,7 @@ class ReverseHyperGradient:
                                          after_forward_su, check_if_zero)
 
             if opt_hyper_dicts is not None:
-                hgs = ReverseHyperGradient.std_collect_hyper_gradients(raw_gradients)
+                hgs = ReverseHG.std_collect_hyper_gradients(raw_gradients)
                 ss = tf.get_default_session()
                 for hyp in self.hyper_list:
                     ss.run(opt_hyper_dicts[hyp].assign_ops, feed_dict={self._grad_wrt_hypers_placeholder: hgs[hyp]})
@@ -342,7 +342,7 @@ class ReverseHyperGradient:
         return {hyp: sum([r for r in res[1:]], res[0]) for hyp, res in row_gradients.items()}
 
 
-class ForwardHyperGradient:
+class ForwardHG:
     """
     Computes the hyper-gradient in forward mode
     """
@@ -443,7 +443,7 @@ class ForwardHyperGradient:
         """
 
         :return: A dictionary of (validation errors, (list of) hyper-parameters)
-                 suitable as input for `ReverseHyperGradient` initializer.
+                 suitable as input for `ReverseHG` initializer.
         """
         return {k: [e[0] for e in v] for k, v in self.hyper_dict.items()}
 
@@ -458,7 +458,7 @@ class ForwardHyperGradient:
         assert len(shape_h) < 2, 'only scalar or vector hyper-parameters are accepted: %s shape: %s' % (hyper, shape_h)
         dim_h = shape_h[0] if shape_h else 1
 
-        components = self.w.var_list(Vl_Mode.TENSOR) if isinstance(self.w, MergedVariable) else [self.w_t]
+        components = self.w.var_list(VlMode.TENSOR) if isinstance(self.w, MergedVariable) else [self.w_t]
 
         # print('components', components)
 
@@ -581,20 +581,20 @@ class HyperOptimizer:
     Interface class for gradient-based hyperparameter optimization methods.
     """
 
-    def __init__(self, optimizer, hyper_dict, method=ReverseHyperGradient, hyper_grad_kwargs=None,
+    def __init__(self, optimizer, hyper_dict, method=ReverseHG, hyper_grad_kwargs=None,
                  hyper_optimizer_class=AdamOptimizer, **optimizers_kwargs):
         """
         Interface instance of gradient-based hyperparameter optimization methods.
 
         :param optimizer: parameter optimization dynamics
         :param hyper_dict: dictionary of validation errors and list of hyperparameters to be optimized
-        :param method: (default `ReverseHyperGradient`) method with which to compute hyper-gradients: Forward
+        :param method: (default `ReverseHG`) method with which to compute hyper-gradients: Forward
                         or Reverse-Ho
         :param hyper_grad_kwargs: dictionary of keyword arguments for `HyperGradient` classes (usually None)
         :param hyper_optimizer_class: (default Adam) Optimizer class for optimization of the hyperparameters
         :param optimizers_kwargs: keyword arguments for hyperparameter optimizers (like hyper-learning rate)
         """
-        assert method in [ReverseHyperGradient, ForwardHyperGradient]
+        assert method in [ReverseHG, ForwardHG]
         assert hyper_optimizer_class is None or issubclass(hyper_optimizer_class, Optimizer)
         assert isinstance(hyper_dict, dict)
         assert isinstance(optimizer, Optimizer)
@@ -690,7 +690,7 @@ def create_hyperparameter_optimizers(rf_hyper_gradients, optimizer_class, **opti
     """
     Helper for creating descent procedure for hyperparameters
 
-    :param rf_hyper_gradients: instance of `ForwardHyperGradient` or `ReverseHyperGradient` class
+    :param rf_hyper_gradients: instance of `ForwardHG` or `ReverseHG` class
     :param optimizer_class:  callable for instantiating the single optimizers
     :param optimizers_kw_args: arguments to pass to `optimizer_creator`
     :return: List of `Optimizer` objects
