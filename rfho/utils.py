@@ -23,7 +23,7 @@ def wsr(node):  # warning on session running
     return node
 
 
-CONFIG_GPU_GROWTH = tf.ConfigProto()
+CONFIG_GPU_GROWTH = tf.ConfigProto(allow_soft_placement=True)
 CONFIG_GPU_GROWTH.gpu_options.allow_growth = True
 
 
