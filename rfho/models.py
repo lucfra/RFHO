@@ -285,6 +285,7 @@ class Network(object):
         self.Ws = []
         self.bs = []
         self.inp = [_input]
+        self.out = None  # for convenience
         self.var_list = []
 
         self.active_gen = []
@@ -294,6 +295,7 @@ class Network(object):
 
     def _std_collections(self):
         self.var_list = self.Ws + self.bs
+        self.out = self.inp[-1]
         [tf.add_to_collection(tf.GraphKeys.WEIGHTS, _v) for _v in self.Ws]
         [tf.add_to_collection(tf.GraphKeys.BIASES, _v) for _v in self.bs]
         [tf.add_to_collection(tf.GraphKeys.GLOBAL_VARIABLES, _v) for _v in self.var_list]
