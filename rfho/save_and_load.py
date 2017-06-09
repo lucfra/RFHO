@@ -59,12 +59,12 @@ def check_or_create_dir(directory, notebook_mode=True, create=True):
     return directory
 
 
-def save_fig(name, root_dir=None, notebook_mode=True, default_overwrite=False, **savefig_kwargs):
+def save_fig(name, root_dir=None, notebook_mode=True, default_overwrite=False, extension='pdf', **savefig_kwargs):
     if root_dir is None: root_dir = os.getcwd()
     directory = check_or_create_dir(join_paths(root_dir, FOLDER_NAMINGS['PLOTS_DIR']),
                                     notebook_mode=notebook_mode)
 
-    filename = join_paths(directory, '%s.pdf' % name)  # directory + '/%s.pdf' % name
+    filename = join_paths(directory, '%s.%s' % (name, extension))  # directory + '/%s.pdf' % name
     if not default_overwrite and os.path.isfile(filename):
         # if IPython is not None:
         #     IPython.display.display(tuple(IFrame(filename, width=800, height=600)))  # FIXME not working!
@@ -364,14 +364,15 @@ class Saver:
 
         return packed_dict
 
-    def save_fig(self, name, **savefig_kwargs):
+    def save_fig(self, name, extension='pdf', **savefig_kwargs):
         """
         Object-oriented version of `save_fig`
 
+        :param extension: 
         :param name: name of the figure (.pdf extension automatically added)
         :return:
         """
-        return save_fig(name, root_dir=self.directory,
+        return save_fig(name, root_dir=self.directory, extension=extension,
                         default_overwrite=self.default_overwrite, notebook_mode=False,
                         **savefig_kwargs)
 
