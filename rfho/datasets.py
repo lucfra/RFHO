@@ -99,6 +99,9 @@ SCIKIT_LEARN_DATA = os.path.join(DATA_FOLDER, 'scikit_learn_data')
 
 
 class Datasets:
+    """
+    Simple object for standard datasets. Has the field `train` `validation` and `test` and support indexing
+    """
 
     def __init__(self, train=None, validation=None, test=None):
         self.train = train
@@ -114,6 +117,12 @@ class Datasets:
 
     @staticmethod
     def from_list(list_of_datasets):
+        """
+        Generates a `Datasets` object from a list.
+
+        :param list_of_datasets: list containing from one to three dataset
+        :return:
+        """
         train, valid, test = None, None, None
         train = list_of_datasets[0]
         if len(list_of_datasets) > 3:
@@ -141,6 +150,11 @@ def convert_sparse_matrix_to_sparse_tensor(X):
 
 
 class Dataset:
+    """
+    Class for managing a single dataset, includes data and target fields and has some utility functions.
+     It allows also to convert the dataset into tensors and to store additional information both on a
+     per-example basis and general infos.
+    """
     def __init__(self, data, target, sample_info_dicts=None, general_info_dict=None):
         """
 
