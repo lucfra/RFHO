@@ -290,6 +290,8 @@ class Network(object):
         self.active_gen = []
         self.active_gen_kwargs = []
 
+        self.w = None
+
     def _std_collections(self):
         self.var_list = self.Ws + self.bs
         [tf.add_to_collection(tf.GraphKeys.WEIGHTS, _v) for _v in self.Ws]
@@ -346,7 +348,8 @@ class Network(object):
     def vectorize(self, *outs, augment=0):
         """
         Calls `vectorize_model` with the variables of this model and specified outputs.
-        Moreover it registers this model on the resulting `MergedVariable`.
+        Moreover it registers this model on the resulting `MergedVariable` and the resulting merged variable 
+        in the model as the attribute `self.w`.
         (See `vectorize_model` and `mergedVariable`)
 
         :param outs: tensors 
@@ -355,7 +358,9 @@ class Network(object):
         """
         res = vectorize_model(self.var_list, *outs, augment=augment)
         res[0].model = self
+        self.w = res[0]
         return res
+
 
 class LinearModel(Network):
 
