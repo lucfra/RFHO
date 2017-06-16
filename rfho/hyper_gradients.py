@@ -708,10 +708,11 @@ def positivity(hyper_list):
     """
     Simple positivity constraints for a list of hyperparameters
 
-    :param hyper_list:
-    :return: a list of assign ops, one for each variable in `hyper_list`
+    :param hyper_list: single variable or list of variable (hyperparameters)
+    :return: single or list of assign ops, one for each variable in `hyper_list`
     """
-    return [hyp.assign(tf.maximum(hyp, tf.zeros_like(hyp))) for hyp in hyper_list]
+    lst = [hyp.assign(tf.maximum(hyp, tf.zeros_like(hyp))) for hyp in as_list(hyper_list)]
+    return lst if len(lst) > 1 else lst[0]
 
 
 def print_hyper_gradients(hyper_gradient_dict):

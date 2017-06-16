@@ -848,8 +848,7 @@ class ExampleVisiting:
         self.T = int(epochs * dataset.num_examples / batch_size)
         self.training_schedule = []
 
-        self.N_train = len(get_data(self.dataset.train))
-        self.iter_per_epoch = int(self.N_train / batch_size)
+        self.iter_per_epoch = int(dataset.num_examples / batch_size)
 
     def setting(self):
         excluded = ['training_schedule', 'datasets']
@@ -866,7 +865,7 @@ class ExampleVisiting:
         """
 
         def all_indices_shuffled():
-            _res = list(range(self.N_train))
+            _res = list(range(self.dataset.num_examples))
             np.random.shuffle(_res)
             return _res
 
