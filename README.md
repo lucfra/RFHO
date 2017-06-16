@@ -117,7 +117,7 @@ The objective is to minimize some validation function _E_ with respect to
 explicitly take into account the learning dynamics used to obtain the model  
 parameters (e.g. you can think about stochastic gradient descent with momentum),
 and we formulate
-HO as a __constrained optimization__ problem. See the [paper]((https://arxiv.org/abs/1703.01785)) for details.
+HO as a __constrained optimization__ problem. See the [paper](https://arxiv.org/abs/1703.01785) for details.
 
 #### Code Structure
 
