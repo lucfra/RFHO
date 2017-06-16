@@ -1,3 +1,4 @@
+# TODO need to be checked after changing ExampleVisiting
 """
 This module contains a set of example of the execution of the three main algorithms contained in this package:
 - Reverse-HO
@@ -16,7 +17,7 @@ def load_dataset(partition_proportions=(.5, .3)):
     return load_mnist(partitions=partition_proportions)
 
 
-IMPLEMENTED_MODEL_TYPES = ['log_reg', 'ffnn'] #, 'cnn']
+IMPLEMENTED_MODEL_TYPES = ['log_reg', 'ffnn']  # , 'cnn']
 HO_MODES = ['forward', 'reverse', 'rtho']
 
 
@@ -88,7 +89,7 @@ def define_errors_default_models(model, l1=0., l2=0., synthetic_hypers=None, aug
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
     return s, out, ws, y, error, training_error, rho_l1s, reg_l1s, rho_l2s, reg_l2s, accuracy, \
-           base_training_error, gamma
+        base_training_error, gamma
 
 
 def experiment(name_of_experiment, collect_data=False,
@@ -180,13 +181,13 @@ def experiment(name_of_experiment, collect_data=False,
     positivity = rf.positivity(hyper_opt.hyper_list)
 
     # stochastic descent
-    ev_data = ExampleVisiting(datasets, batch_size=batch_size, epochs=epochs)
+    ev_data = ExampleVisiting(datasets.train, batch_size=batch_size, epochs=epochs)
     ev_data.generate_visiting_scheme()
-    tr_supplier = ev_data.create_train_feed_dict_supplier(x, y)
-    val_supplier = ev_data.create_all_valid_feed_dict_supplier(x, y)
-    test_supplier = ev_data.create_all_test_feed_dict_supplier(x, y)
+    tr_supplier = ev_data.create_feed_dict_supplier(x, y)
+    val_supplier = datasets.validation.create_all_feed_dict_supplier(x, y)
+    test_supplier = datasets.test.create_all_feed_dict_supplier(x, y)
 
-    def _all_training_supplier(step=None):
+    def _all_training_supplier():
         return {x: datasets.train.data, y: datasets.train.target}
 
     # feed_dict supplier for validation errors
@@ -230,7 +231,8 @@ def experiment(name_of_experiment, collect_data=False,
                                           for hyp in hyper_opt.hyper_list),
                          do_print=do_print, collect_data=collect_data
                          )
-    else: saver = None
+    else:
+        saver = None
 
     save_dict_history = []
 
@@ -278,7 +280,7 @@ def _check_forward():
     for i in range(1):
         for _mode in HO_MODES[0:1]:
             for _model in IMPLEMENTED_MODEL_TYPES[0:2]:
-                _model_kwargs = {}# {'dims': [None, 300, 300, None]}
+                _model_kwargs = {}  # {'dims': [None, 300, 300, None]}
                 tf.reset_default_graph()
                 # set random seeds!!!!
                 np.random.seed(1)

@@ -170,16 +170,18 @@ class ReverseHG:
             if summary_utils:
                 summary_utils.run(ss, t)
 
-    def backward(self, T, val_feed_dict_suppliers=None, train_feed_dict_supplier=None,
+    def backward(self, T, val_feed_dict_suppliers=None, train_feed_dict_supplier=None, hyper_batch_step=None,
                  summary_utils=None, check_if_zero=False):
         """
         Performs backward computation of hyper-gradients
 
+        :param hyper_batch_step: supports for stochastic sampling of validation set
         :param T: Total number of iterations
         :param val_feed_dict_suppliers: either a callable that returns a feed_dict
                                         or a dictionary {validation_error tensor: callable (step -> feed_dict) that
                                         is used to initialize the dual variables `p` (generally supplier of
                                         validation example set).
+
         :param train_feed_dict_supplier: (optional) A callable with signature `t -> feed_dict` to
                                             pass to `tf.Session.run`
                                     feed_dict argument
@@ -200,7 +202,7 @@ class ReverseHG:
                 val_feed_dict_suppliers = {list(self.val_error_dict.keys())[0]: val_feed_dict_suppliers}
 
         # compute alpha_T using the validation set
-        [tf.variables_initializer([self.p_dict[ve]]).run(feed_dict=data_supplier())
+        [tf.variables_initializer([self.p_dict[ve]]).run(feed_dict=data_supplier(hyper_batch_step))
          for ve, data_supplier in val_feed_dict_suppliers.items()]
 
         # set hyper-derivatives to 0
@@ -252,11 +254,12 @@ class ReverseHG:
     def _initialize_hyper_derivatives_res(self):
         return {hyper: [] for hyper in self.hyper_list}
 
-    def run_all(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None,
+    def run_all(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None, hyper_batch_step=None,
                 forward_su=None, backward_su=None, after_forward_su=None, check_if_zero=False):
         """
         Performs both forward and backward step. See functions `forward` and `backward` for details.
 
+        :param hyper_batch_step: support for stochastic sampling of validation set
         :param T:                   Total number of iterations
         :param train_feed_dict_supplier:   (feed_dict) supplier for training stage
         :param val_feed_dict_suppliers: (feed_dict) supplier for validation stage
@@ -279,7 +282,8 @@ class ReverseHG:
         raw_hyper_grads = self.backward(
             T, val_feed_dict_suppliers=val_feed_dict_suppliers,
             train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=backward_su,
-            check_if_zero=check_if_zero
+            check_if_zero=check_if_zero,
+            hyper_batch_step=None
         )
 
         tf.get_default_session().run(self._back_hist_op,
@@ -514,10 +518,11 @@ class ForwardHG:
             summary_utils.run(ss, self.global_step.eval())
         self.global_step.increase.eval()
 
-    def hyper_gradients(self, val_feed_dict_supplier=None):
+    def hyper_gradients(self, val_feed_dict_supplier=None, hyper_batch_step=None):
         """
         Method that computes the hyper-gradient.
 
+        :param hyper_batch_step: support for stochastic sampling of validation points
         :param val_feed_dict_supplier: single  supplier or list of suppliers for the examples in the validation set
 
         :return: Dictionary: {hyper-parameter: hyper-gradient} or None in new_mode
@@ -537,8 +542,7 @@ class ForwardHG:
                         break
 
         # NEW VARIABLE-BASED HYPER-GRADIENTS
-        [assign_op.eval(feed_dict=vsl(self.global_step.eval())) for  # TODO this doesn't make that much sense... maybe
-         # global step should be somehow replaced by some step in HyperOptimizer.... mah
+        [assign_op.eval(feed_dict=vsl(hyper_batch_step)) for
          assign_op, vsl in zip(self._hyper_assign_ops, val_sup_lst)]
 
         return {hyp: self.hyper_gradients_dict[hyp].eval() for hyp in self.hyper_list}
@@ -553,11 +557,12 @@ class ForwardHG:
 
         # return {hyp: cast_to_scalar_if_needed(gdd) for hyp, gdd in zip(self.hyper_list, computations)}
 
-    def run_all(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None,
+    def run_all(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None, hyper_batch_step=None,
                 forward_su=None, after_forward_su=None):
         """
         Helper method for running
 
+        :param hyper_batch_step: support for stochastic sampling of validation  set
         :param T:
         :param train_feed_dict_supplier:
         :param val_feed_dict_suppliers:
@@ -573,7 +578,7 @@ class ForwardHG:
         if after_forward_su:
             after_forward_su.run(tf.get_default_session(), T)
 
-        return self.hyper_gradients(val_feed_dict_supplier=val_feed_dict_suppliers)
+        return self.hyper_gradients(val_feed_dict_suppliers, hyper_batch_step)
 
 
 class HyperOptimizer:
@@ -660,7 +665,7 @@ class HyperOptimizer:
         self.hyper_gradients.initialize(session=session)
 
     def run(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None, hyper_constraints_ops=None,
-            _debug_no_hyper_update=False):
+            _debug_no_hyper_update=False):  # TODO add session parameter
         """
 
         :param _debug_no_hyper_update: 
@@ -676,7 +681,8 @@ class HyperOptimizer:
 
         # TODO Riccardo, is it compatible with TRHO???
         self.hyper_gradients.run_all(T, train_feed_dict_supplier=train_feed_dict_supplier,
-                                     val_feed_dict_suppliers=val_feed_dict_suppliers)
+                                     val_feed_dict_suppliers=val_feed_dict_suppliers,
+                                     hyper_batch_step=self.hyper_batch_step.eval())
         if not _debug_no_hyper_update:
             [tf.get_default_session().run(hod.assign_ops) for hod in self.hyper_optimizers]
             if hyper_constraints_ops: [op.eval() for op in as_list(hyper_constraints_ops)]

@@ -231,6 +231,20 @@ class Dataset:
                 self.__setattr__(att, tf.convert_to_tensor(self.__getattribute__(att), dtype=tf.float32))
         self._tensor_mode = True
 
+    def create_all_feed_dict_supplier(self, x, y, other_feeds=None):
+
+        if not other_feeds:
+            other_feeds = {}
+
+        # noinspection PyUnusedLocal
+        def _supplier(step=None):
+            if isinstance(self.data, WindowedData):
+                data = self.data.generate_all()
+
+            return {**{x: self.data, y: self.target}, **other_feeds}
+
+        return _supplier
+
 
 def to_one_hot_enc(seq, dimension=None):
     da_max = dimension or np.max(seq) + 1
@@ -827,46 +841,22 @@ def get_targets(d_set):
 
 #
 class ExampleVisiting:
-    def __init__(self, datasets, batch_size, epochs):
-        self.datasets = datasets
+    def __init__(self, dataset, batch_size, epochs):
+        self.dataset = dataset
         self.batch_size = batch_size
         self.epochs = epochs
-        self.T = int(epochs * datasets.train.num_examples / batch_size)
+        self.T = int(epochs * dataset.num_examples / batch_size)
         self.training_schedule = []
 
-        self.N_train = len(get_data(self.datasets.train))
+        self.N_train = len(get_data(self.dataset.train))
         self.iter_per_epoch = int(self.N_train / batch_size)
 
     def setting(self):
         excluded = ['training_schedule', 'datasets']
         dictionary = {k: v for k, v in vars(self).items() if k not in excluded}
-        if hasattr(self.datasets, 'setting'):
-            dictionary['datasets'] = self.datasets.setting()
+        if hasattr(self.dataset, 'setting'):
+            dictionary['dataset'] = self.dataset.setting()
         return dictionary
-
-    @property
-    def train_data(self):
-        return get_data(self.datasets.train)
-
-    @property
-    def train_targets(self):
-        return get_targets(self.datasets.train)
-
-    @property
-    def valid_data(self):
-        return get_data(self.datasets.validation)
-
-    @property
-    def valid_targets(self):
-        return get_targets(self.datasets.validation)
-
-    @property
-    def test_data(self):
-        return get_data(self.datasets.test)
-
-    @property
-    def test_targets(self):
-        return get_targets(self.datasets.test)
 
     def generate_visiting_scheme(self):
         """
@@ -884,7 +874,7 @@ class ExampleVisiting:
         self.training_schedule = np.concatenate([all_indices_shuffled() for _ in range(self.epochs)])
         return self
 
-    def create_train_feed_dict_supplier(self, x, y, other_feeds=None, lambda_feeds=None):
+    def create_feed_dict_supplier(self, x, y, other_feeds=None, lambda_feeds=None):
         """
 
         :param x: placeholder for independent variable
@@ -915,8 +905,8 @@ class ExampleVisiting:
 
             nb = self.training_schedule[step * self.batch_size: (step + 1) * self.batch_size]
 
-            bx = self.train_data[nb, :]
-            by = self.train_targets[nb, :]
+            bx = self.dataset.data[nb, :]
+            by = self.dataset.target[nb, :]
             if lambda_feeds:
                 lambda_processed_feeds = {k: v(nb) for k, v in lambda_feeds.items()}
             else:
@@ -924,36 +914,6 @@ class ExampleVisiting:
             return {**{x: bx, y: by}, **other_feeds, **lambda_processed_feeds}
 
         return _training_supplier
-
-    def create_all_valid_feed_dict_supplier(self, x, y, other_feeds=None):
-
-        if not other_feeds:
-            other_feeds = {}
-
-        # noinspection PyUnusedLocal
-        def _validation_supplier(step=None):
-            data = self.valid_data
-            if isinstance(data, WindowedData):
-                data = data.generate_all()
-
-            return {**{x: data, y: self.valid_targets}, **other_feeds}
-
-        return _validation_supplier
-
-    def create_all_test_feed_dict_supplier(self, x, y, other_feeds=None):
-
-        if not other_feeds:
-            other_feeds = {}
-
-        # noinspection PyUnusedLocal
-        def _test_supplier(step=None):
-            data = self.test_data
-            if isinstance(data, WindowedData):
-                data = data.generate_all()
-
-            return {**{x: data, y: self.test_targets}, **other_feeds}
-
-        return _test_supplier
 
 
 def pad(_example, _size): return np.concatenate([_example] * _size)
