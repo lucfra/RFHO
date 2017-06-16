@@ -232,8 +232,8 @@ class Dataset:
         self._tensor_mode = True
 
 
-def to_one_hot_enc(seq):
-    da_max = np.max(seq) + 1
+def to_one_hot_enc(seq, dimension=None):
+    da_max = dimension or np.max(seq) + 1
 
     def create_and_set(_p):
         _tmp = np.zeros(da_max)
