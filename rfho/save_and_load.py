@@ -201,13 +201,14 @@ class Timer:
 
 class Saver:
 
-    def __init__(self, experiment_name, *items, append_date_to_name=True,
+    def __init__(self, experiment_names, *items, append_date_to_name=True,
                  root_directory=FOLDER_NAMINGS['EXP_ROOT'],
                  timer=None, do_print=True, collect_data=True, default_overwrite=False):
         """
         Initialize a saver to collect data. (Intended to be used together with OnlinePlotStream.)
 
-        :param experiment_name: string, name of experiment
+        :param experiment_names: string or list of strings which represent the name of the folder (and sub-folders)
+                                    experiment oand
         :param items: a list of (from pairs to at most) 5-tuples that represent the things you want to save.
                       The first arg of each tuple should be a string that will be the key of the save_dict.
                       Then there can be either a callable with signature (step) -> None
@@ -226,13 +227,17 @@ class Saver:
         :param collect_data: (optional, default True) will save by default `save_dict` each time
                             method `save` is executed
         """
-        self.experiment_name = experiment_name
+        experiment_names = as_list(experiment_names)
         if append_date_to_name:
-            import datetime
-            experiment_name += datetime.date.today().strftime('@%d-%m-%y')
-        self.directory = join_paths(root_directory, experiment_name)
+            from datetime import datetime
+            experiment_names += [datetime.today().strftime('%H:%M_%d-%m-%y')]
+        self.experiment_names = list(experiment_names)
+
+        self.directory = join_paths(root_directory)
         if collect_data:
             check_or_create_dir(root_directory, notebook_mode=False)
+        for name in self.experiment_names:
+            self.directory = join_paths(self.directory, name)
             check_or_create_dir(self.directory, notebook_mode=False)
 
         self.do_print = do_print
