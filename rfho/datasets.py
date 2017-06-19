@@ -99,6 +99,9 @@ SCIKIT_LEARN_DATA = os.path.join(DATA_FOLDER, 'scikit_learn_data')
 
 
 class Datasets:
+    """
+    Simple object for standard datasets. Has the field `train` `validation` and `test` and support indexing
+    """
 
     def __init__(self, train=None, validation=None, test=None):
         self.train = train
@@ -114,6 +117,12 @@ class Datasets:
 
     @staticmethod
     def from_list(list_of_datasets):
+        """
+        Generates a `Datasets` object from a list.
+
+        :param list_of_datasets: list containing from one to three dataset
+        :return:
+        """
         train, valid, test = None, None, None
         train = list_of_datasets[0]
         if len(list_of_datasets) > 3:
@@ -141,6 +150,11 @@ def convert_sparse_matrix_to_sparse_tensor(X):
 
 
 class Dataset:
+    """
+    Class for managing a single dataset, includes data and target fields and has some utility functions.
+     It allows also to convert the dataset into tensors and to store additional information both on a
+     per-example basis and general infos.
+    """
     def __init__(self, data, target, sample_info_dicts=None, general_info_dict=None):
         """
 
@@ -217,9 +231,23 @@ class Dataset:
                 self.__setattr__(att, tf.convert_to_tensor(self.__getattribute__(att), dtype=tf.float32))
         self._tensor_mode = True
 
+    def create_all_feed_dict_supplier(self, x, y, other_feeds=None):
 
-def to_one_hot_enc(seq):
-    da_max = np.max(seq) + 1
+        if not other_feeds:
+            other_feeds = {}
+
+        # noinspection PyUnusedLocal
+        def _supplier(step=None):
+            if isinstance(self.data, WindowedData):
+                data = self.data.generate_all()
+
+            return {**{x: self.data, y: self.target}, **other_feeds}
+
+        return _supplier
+
+
+def to_one_hot_enc(seq, dimension=None):
+    da_max = dimension or np.max(seq) + 1
 
     def create_and_set(_p):
         _tmp = np.zeros(da_max)
@@ -610,7 +638,8 @@ def load_timit(folder=TIMIT_DIR, only_primary=False, filters=None, maps=None, sm
     return res
 
 
-def load_mnist(folder=MNIST_DIR, one_hot=True, partitions=None, filters=None, maps=None, shuffle=False):
+def load_mnist(folder=None, one_hot=True, partitions=None, filters=None, maps=None, shuffle=False):
+    if not folder: folder = MNIST_DIR
     datasets = read_data_sets(folder, one_hot=one_hot)
     train = Dataset(datasets.train.images, datasets.train.labels)
     validation = Dataset(datasets.validation.images, datasets.validation.labels)
@@ -813,46 +842,21 @@ def get_targets(d_set):
 
 #
 class ExampleVisiting:
-    def __init__(self, datasets, batch_size, epochs):
-        self.datasets = datasets
+    def __init__(self, dataset, batch_size, epochs):
+        self.dataset = dataset
         self.batch_size = batch_size
         self.epochs = epochs
-        self.T = int(epochs * datasets.train.num_examples / batch_size)
+        self.T = int(epochs * dataset.num_examples / batch_size)
         self.training_schedule = []
 
-        self.N_train = len(get_data(self.datasets.train))
-        self.iter_per_epoch = int(self.N_train / batch_size)
+        self.iter_per_epoch = int(dataset.num_examples / batch_size)
 
     def setting(self):
         excluded = ['training_schedule', 'datasets']
         dictionary = {k: v for k, v in vars(self).items() if k not in excluded}
-        if hasattr(self.datasets, 'setting'):
-            dictionary['datasets'] = self.datasets.setting()
+        if hasattr(self.dataset, 'setting'):
+            dictionary['dataset'] = self.dataset.setting()
         return dictionary
-
-    @property
-    def train_data(self):
-        return get_data(self.datasets.train)
-
-    @property
-    def train_targets(self):
-        return get_targets(self.datasets.train)
-
-    @property
-    def valid_data(self):
-        return get_data(self.datasets.validation)
-
-    @property
-    def valid_targets(self):
-        return get_targets(self.datasets.validation)
-
-    @property
-    def test_data(self):
-        return get_data(self.datasets.test)
-
-    @property
-    def test_targets(self):
-        return get_targets(self.datasets.test)
 
     def generate_visiting_scheme(self):
         """
@@ -862,7 +866,7 @@ class ExampleVisiting:
         """
 
         def all_indices_shuffled():
-            _res = list(range(self.N_train))
+            _res = list(range(self.dataset.num_examples))
             np.random.shuffle(_res)
             return _res
 
@@ -870,7 +874,7 @@ class ExampleVisiting:
         self.training_schedule = np.concatenate([all_indices_shuffled() for _ in range(self.epochs)])
         return self
 
-    def create_train_feed_dict_supplier(self, x, y, other_feeds=None, lambda_feeds=None):
+    def create_feed_dict_supplier(self, x, y, other_feeds=None, lambda_feeds=None):
         """
 
         :param x: placeholder for independent variable
@@ -901,8 +905,8 @@ class ExampleVisiting:
 
             nb = self.training_schedule[step * self.batch_size: (step + 1) * self.batch_size]
 
-            bx = self.train_data[nb, :]
-            by = self.train_targets[nb, :]
+            bx = self.dataset.data[nb, :]
+            by = self.dataset.target[nb, :]
             if lambda_feeds:
                 lambda_processed_feeds = {k: v(nb) for k, v in lambda_feeds.items()}
             else:
@@ -910,36 +914,6 @@ class ExampleVisiting:
             return {**{x: bx, y: by}, **other_feeds, **lambda_processed_feeds}
 
         return _training_supplier
-
-    def create_all_valid_feed_dict_supplier(self, x, y, other_feeds=None):
-
-        if not other_feeds:
-            other_feeds = {}
-
-        # noinspection PyUnusedLocal
-        def _validation_supplier(step=None):
-            data = self.valid_data
-            if isinstance(data, WindowedData):
-                data = data.generate_all()
-
-            return {**{x: data, y: self.valid_targets}, **other_feeds}
-
-        return _validation_supplier
-
-    def create_all_test_feed_dict_supplier(self, x, y, other_feeds=None):
-
-        if not other_feeds:
-            other_feeds = {}
-
-        # noinspection PyUnusedLocal
-        def _test_supplier(step=None):
-            data = self.test_data
-            if isinstance(data, WindowedData):
-                data = data.generate_all()
-
-            return {**{x: data, y: self.test_targets}, **other_feeds}
-
-        return _test_supplier
 
 
 def pad(_example, _size): return np.concatenate([_example] * _size)

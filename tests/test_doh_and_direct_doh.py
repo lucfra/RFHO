@@ -108,7 +108,7 @@ class TestDohDirectDoh(unittest.TestCase):
         ev_data = ExampleVisiting(iris, 10, 10)
         T = ev_data.T
 
-        training_supplier = ev_data.create_train_feed_dict_supplier(x, y)
+        training_supplier = ev_data.create_feed_dict_supplier(x, y)
 
         with tf.Session(config=TestDohDirectDoh.config).as_default() as ss:
             tf.variables_initializer([eta]).run()
