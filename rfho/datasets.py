@@ -638,7 +638,8 @@ def load_timit(folder=TIMIT_DIR, only_primary=False, filters=None, maps=None, sm
     return res
 
 
-def load_mnist(folder=MNIST_DIR, one_hot=True, partitions=None, filters=None, maps=None, shuffle=False):
+def load_mnist(folder=None, one_hot=True, partitions=None, filters=None, maps=None, shuffle=False):
+    if not folder: folder = MNIST_DIR
     datasets = read_data_sets(folder, one_hot=one_hot)
     train = Dataset(datasets.train.images, datasets.train.labels)
     validation = Dataset(datasets.validation.images, datasets.validation.labels)
