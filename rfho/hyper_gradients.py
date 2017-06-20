@@ -416,13 +416,9 @@ class ForwardHG:
                 '''
                 Creates one z per hyper-parameter and assumes that each hyper-parameter is a vector
                 '''
-                self.zs = []
-                self.zs_dynamics = []
-                self.grad_val_err = []
-                self.grad_wrt_hypers = []
-                self.hyper_gradient_vars = []
-                self._hyper_assign_ops = []
-                self._zs_assigns = []
+                self.zs, self.zs_dynamics, self._zs_assigns  = [], [], []
+                self.grad_val_err, self.grad_wrt_hypers = [], []
+                self.hyper_gradient_vars, self._hyper_assign_ops  = [], []
 
                 for k, hyp in enumerate(self.hyper_list):
                     with tf.device(devices[k % len(devices)]):
@@ -589,14 +585,14 @@ class HyperOptimizer:
     Interface class for gradient-based hyperparameter optimization methods.
     """
 
-    def __init__(self, optimizer, hyper_dict, method=ReverseHG, hyper_grad_kwargs=None,
+    def __init__(self, optimizer, hyper_dict, method, hyper_grad_kwargs=None,
                  hyper_optimizer_class=AdamOptimizer, **optimizers_kwargs):
         """
         Interface instance of gradient-based hyperparameter optimization methods.
 
         :param optimizer: parameter optimization dynamics (obtained from `Optimizer.create` methods)
         :param hyper_dict: dictionary of validation errors and list of hyperparameters to be optimized
-        :param method: (default `ReverseHG`) method with which to compute hyper-gradients: Forward
+        :param method:  method with which to compute hyper-gradients: Forward
                         or Reverse-Ho
         :param hyper_grad_kwargs: dictionary of keyword arguments for `HyperGradient` classes (usually None)
         :param hyper_optimizer_class: (default Adam) Optimizer class for optimization of the hyperparameters

@@ -896,7 +896,7 @@ class ExampleVisiting:
 
             if step >= self.T:
                 if step % self.T == 0:
-                    print('End of the training scheme reached. Generating another scheme.')
+                    # print('End of the training scheme reached. Generating another scheme.')
                     self.generate_visiting_scheme()
                 step %= self.T
 
