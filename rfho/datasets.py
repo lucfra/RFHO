@@ -859,6 +859,7 @@ class ExampleVisiting:
             dictionary['dataset'] = self.dataset.setting()
         return dictionary
 
+
     def generate_visiting_scheme(self):
         """
         Generates and stores example visiting scheme, as a numpy array of integers.
