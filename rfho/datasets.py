@@ -155,6 +155,7 @@ class Dataset:
      It allows also to convert the dataset into tensors and to store additional information both on a
      per-example basis and general infos.
     """
+
     def __init__(self, data, target, sample_info_dicts=None, general_info_dict=None):
         """
 
@@ -903,7 +904,8 @@ class ExampleVisiting:
             if self.training_schedule is None:
                 raise ValueError('visiting scheme not yet generated!')
 
-            nb = self.training_schedule[step * self.batch_size: (step + 1) * self.batch_size]
+            nb = self.training_schedule[step * self.batch_size: max(
+                (step + 1) * self.batch_size, len(self.training_schedule))]
 
             bx = self.dataset.data[nb, :]
             by = self.dataset.target[nb, :]
@@ -992,7 +994,7 @@ if __name__ == '__main__':
     # mnist = load_mnist(partitions=[0.1, .2], filters=lambda x, y, d, k: True)
     # print(len(_datasets.train))\
 
-    load_20newsgroup_vectorized(one_hot=False, shuffle=True, partitions_proportions=(1/3, 1/3))
+    load_20newsgroup_vectorized(one_hot=False, shuffle=True, partitions_proportions=(1 / 3, 1 / 3))
 
     mnist = load_mnist(partitions=(.1, .1), shuffle=True)
 
