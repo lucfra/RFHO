@@ -67,7 +67,7 @@ class ReverseHG:
 
                 # for nullity check
                 self._abs_sum_p = tf.reduce_sum(tf.stack([tf.reduce_sum(tf.abs(p), name='l1_p')
-                                                         for p in self.p_dict.values()]))
+                                                          for p in self.p_dict.values()]))
 
                 # build Lagrangian function
                 with tf.name_scope('lagrangian'):
@@ -111,7 +111,7 @@ class ReverseHG:
                     ]  # list of couples (hyper_list, list of tensors hyper_gradients)  (lists are unhashable!)
                 # check that all hyper-gradients are defined
                 assert all(e is not None for e in flatten_list(
-                    [e[1] for e in self.hyper_derivatives])),  'Some gradient of the validation error is None!'
+                    [e[1] for e in self.hyper_derivatives])), 'Some gradient of the validation error is None!'
 
             with tf.name_scope('hyper_gradients'):  # ADDED 28/3/17 keeps track of hyper-gradients as tf.Variable
                 self._grad_wrt_hypers_placeholder = tf.placeholder(tf.float32, name='placeholder')
@@ -283,7 +283,7 @@ class ReverseHG:
             T, val_feed_dict_suppliers=val_feed_dict_suppliers,
             train_feed_dict_supplier=train_feed_dict_supplier, summary_utils=backward_su,
             check_if_zero=check_if_zero,
-            hyper_batch_step=None
+            hyper_batch_step=hyper_batch_step
         )
 
         tf.get_default_session().run(self._back_hist_op,
@@ -351,7 +351,7 @@ class ForwardHG:
     Computes the hyper-gradient in forward mode
     """
 
-    def __init__(self, optimizer, hyper_dict, global_step=None):
+    def __init__(self, optimizer, hyper_dict, global_step=None, devices=None):
         """
         Creates a new object that computes the hyper-gradient of validation errors in forward mode.
         See section 3.2 of Forward and Reverse Gradient-Based Hyperparameter Optimization
@@ -387,7 +387,7 @@ class ForwardHG:
             self.hyper_dict[k] = list_v  # be sure values are lists!
             self.hyper_list += [pair[0] if isinstance(pair, (tuple, list)) else pair for pair in list_v]
             self.d_dynamics_d_hypers += [pair[1] if isinstance(pair, (tuple, list)) else
-                                         optimizer.auto_d_dynamics_d_hyper(pair)   # try to compute it automatically
+                                         optimizer.auto_d_dynamics_d_hyper(pair)  # try to compute it automatically
                                          for pair in list_v]
 
         self.val_errors = []  # will follow the same order as hyper_list
@@ -404,6 +404,8 @@ class ForwardHG:
                 self.d_dynamics_d_hypers[i] = ZMergedMatrix(der)
                 print('Successful')
 
+        devices = as_list(devices)  # at most will be [None]
+
         with self.w_t.graph.as_default():
             # global step
             self.global_step = global_step or GlobalStep()
@@ -411,37 +413,39 @@ class ForwardHG:
             self.fw_ops = optimizer.assign_ops  # add here when hypers are sequence (...)
 
             with tf.name_scope('direct_HO'):
-
                 '''
                 Creates one z per hyper-parameter and assumes that each hyper-parameter is a vector
                 '''
-                self.zs = [self._create_z(hyp) for hyp in self.hyper_list]
+                self.zs = []
+                self.zs_dynamics = []
+                self.grad_val_err = []
+                self.grad_wrt_hypers = []
+                self.hyper_gradient_vars = []
+                self._hyper_assign_ops = []
+                self._zs_assigns = []
 
-                with tf.name_scope('Z_dynamics'):
-                    self.zs_dynamics = [optimizer.jac_z(z) + dd_dh
-                                        for z, dd_dh in zip(self.zs, self.d_dynamics_d_hypers)]
+                for k, hyp in enumerate(self.hyper_list):
+                    with tf.device(devices[k % len(devices)]):
+                        self.zs.append(self._create_z(hyp))
 
-                # print('z dynamics', self.zs_dynamics[0])
-                # print('z', self.zs[0])
+                        with tf.name_scope('Z_dynamics'):
+                            self.zs_dynamics.append(optimizer.jac_z(self.zs[k]) + self.d_dynamics_d_hypers[k])
+                            self._zs_assigns.append(self.zs[k].assign(self.zs_dynamics[k]))
 
-                # print(len(self.hyper_list))
-                # print(len(self.zs))
-                # print(len(self.zs_dynamics))
+                        with tf.name_scope('grad_val_err'):
+                            self.grad_val_err.append(tf.gradients(self.val_errors[k], self.w_t)[0])
+                            self.grad_wrt_hypers.append(dot(self.grad_val_err[k], self.zs[k].tensor))
 
-                self.zs_assigns = [z.assign(z_dyn) for z, z_dyn in zip(self.zs, self.zs_dynamics)]
+                        with tf.name_scope('hyper_gradients'):
+                            self.hyper_gradient_vars.append(tf.Variable(tf.zeros_like(hyp), name=simple_name(hyp)))
+                            self._hyper_assign_ops.append(self.hyper_gradient_vars[k].assign(self.grad_wrt_hypers[k]))
 
-                self.grad_val_err = [tf.gradients(v_e, self.w_t)[0] for v_e in self.val_errors]
-                assert all([g is not None for g in self.grad_val_err]), 'Some gradient of the validation error is None!'
-
-                self.grad_wrt_hypers = [dot(gve, z.tensor) for z, gve in zip(self.zs, self.grad_val_err)]
-
-                with tf.name_scope('hyper_gradients'):  # ADDED 28/3/17 keeps track of hyper-gradients as tf.Variable
-                    self.hyper_gradient_vars = [tf.Variable(tf.zeros_like(hyp), name=simple_name(hyp))
-                                                for hyp in self.hyper_list]
-                    self.hyper_gradients_dict = {hyp: hgv for hyp, hgv  # redundant.. just for comfort ..
-                                                 in zip(self.hyper_list, self.hyper_gradient_vars)}
-                    self._hyper_assign_ops = [v.assign(ght)
-                                              for v, ght in zip(self.hyper_gradient_vars, self.grad_wrt_hypers)]
+                # final operations
+                self.hyper_gradients_dict = {hyp: hgv for hyp, hgv  # redundant.. just for comfort ..
+                                             in zip(self.hyper_list, self.hyper_gradient_vars)}
+                # hyper-gradient check
+                assert all([g is not None for g in self.grad_val_err]), 'Some gradient ' \
+                                                                        'of the validation error is None!'
 
     def get_reverse_hyper_dict(self):
         """
@@ -467,7 +471,6 @@ class ForwardHG:
         # print('components', components)
 
         with tf.name_scope('z'):
-
             z_components = [tf.Variable(tf.zeros([c.get_shape().as_list()[0], dim_h]), name=simple_name(hyper))
                             for c in components]
             mvz = ZMergedMatrix(z_components)
@@ -512,7 +515,7 @@ class ForwardHG:
         # noinspection PyNoneFunctionAssignment
         fd = train_feed_dict_supplier(self.global_step.eval())
 
-        ss.run(self.zs_assigns, feed_dict=fd)
+        ss.run(self._zs_assigns, feed_dict=fd)
         ss.run(self.fw_ops, feed_dict=fd)
         if summary_utils:
             summary_utils.run(ss, self.global_step.eval())
@@ -532,7 +535,7 @@ class ForwardHG:
 
         val_sup_lst = []
         if val_feed_dict_supplier is None:
-            val_sup_lst = [lambda _st: None]*len(self.hyper_list)
+            val_sup_lst = [lambda _st: None] * len(self.hyper_list)
         else:
             for hyp in self.hyper_list:  # find the right validation error for hyp!
                 for k, v in self.hyper_dict.items():

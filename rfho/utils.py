@@ -16,6 +16,13 @@ utils_settings = {
 }
 
 
+def get_available_devices(gpu_only=False):
+    from tensorflow.python.client import device_lib
+    local_device_protos = device_lib.list_local_devices()
+    if gpu_only: return [x.name for x in local_device_protos if x.device_type == 'GPU']
+    else: return [x.name for x in local_device_protos]
+
+
 def wsr(node):  # warning on session running
     if utils_settings['WSA'] and tf.get_default_session():
         print('Warning: creating nodes at tf.Session runtime: node %s' % node,

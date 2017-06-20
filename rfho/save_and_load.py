@@ -230,7 +230,7 @@ class Saver:
         experiment_names = as_list(experiment_names)
         if append_date_to_name:
             from datetime import datetime
-            experiment_names += [datetime.today().strftime('%H:%M_%d-%m-%y')]
+            experiment_names += [datetime.today().strftime('%H-%M_%d-%m-%y')]
         self.experiment_names = list(experiment_names)
 
         self.directory = join_paths(root_directory)
