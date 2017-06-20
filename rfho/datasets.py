@@ -905,7 +905,7 @@ class ExampleVisiting:
             if self.training_schedule is None:
                 raise ValueError('visiting scheme not yet generated!')
 
-            nb = self.training_schedule[step * self.batch_size: max(
+            nb = self.training_schedule[step * self.batch_size: min(
                 (step + 1) * self.batch_size, len(self.training_schedule))]
 
             bx = self.dataset.data[nb, :]
