@@ -843,13 +843,25 @@ def get_targets(d_set):
 
 #
 class ExampleVisiting:
-    def __init__(self, dataset, batch_size, epochs):
+    def __init__(self, dataset, batch_size, epochs=None):
+        """
+        Class for stochastic sampling of data points. It is most useful for feeding examples for the the
+        training ops of `ReverseHG` or `ForwardHG`. Most notably, if the number of epochs is specified,
+        the class takes track of the examples per mini-batches which is important for the backward pass
+        of `ReverseHG` method.
+
+        :param dataset: instance of `Dataset` class
+        :param batch_size:
+        :param epochs: number of epochs (can be None, in which case examples are
+                        fed continuously)
+        """
         self.dataset = dataset
         self.batch_size = batch_size
         self.epochs = epochs
-        self.T = int(epochs * dataset.num_examples / batch_size)
-        self.training_schedule = []
+        self.T = int(np.ceil(dataset.num_examples / batch_size))
+        if self.epochs: self.T *= self.epochs
 
+        self.training_schedule = []
         self.iter_per_epoch = int(dataset.num_examples / batch_size)
 
     def setting(self):
@@ -858,7 +870,6 @@ class ExampleVisiting:
         if hasattr(self.dataset, 'setting'):
             dictionary['dataset'] = self.dataset.setting()
         return dictionary
-
 
     def generate_visiting_scheme(self):
         """
@@ -873,7 +884,8 @@ class ExampleVisiting:
             return _res
 
         # noinspection PyUnusedLocal
-        self.training_schedule = np.concatenate([all_indices_shuffled() for _ in range(self.epochs)])
+        self.training_schedule = np.concatenate([all_indices_shuffled()
+                                                 for _ in range(self.epochs or 1)])
         return self
 
     def create_feed_dict_supplier(self, x, y, other_feeds=None, lambda_feeds=None):
@@ -898,12 +910,15 @@ class ExampleVisiting:
 
             if step >= self.T:
                 if step % self.T == 0:
-                    # print('End of the training scheme reached. Generating another scheme.')
+                    if self.epochs:
+                        print('WARNING: End of the training scheme reached.'
+                              'Generating another scheme.')
                     self.generate_visiting_scheme()
                 step %= self.T
 
-            if self.training_schedule is None:
-                raise ValueError('visiting scheme not yet generated!')
+            if not self.training_schedule:
+                # print('visiting scheme not yet generated!')
+                self.generate_visiting_scheme()
 
             nb = self.training_schedule[step * self.batch_size: min(
                 (step + 1) * self.batch_size, len(self.training_schedule))]
