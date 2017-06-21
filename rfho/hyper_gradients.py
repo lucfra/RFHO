@@ -663,7 +663,8 @@ class HyperOptimizer:
 
         self.hyper_gradients.initialize(session=session)
 
-    def run(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None, hyper_constraints_ops=None,
+    def run(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None,
+            hyper_constraints_ops=None,
             _debug_no_hyper_update=False):  # TODO add session parameter
         """
 
@@ -671,7 +672,7 @@ class HyperOptimizer:
         :param T:
         :param train_feed_dict_supplier:
         :param val_feed_dict_suppliers:
-        :param hyper_constraints_ops:
+        :param hyper_constraints_ops: (list of) either callable (no parameters) or tensorflow ops
         :return:
         """
         # idea: if steps == T then do full reverse, or forward, otherwise do trho and rtho
@@ -684,7 +685,8 @@ class HyperOptimizer:
                                      hyper_batch_step=self.hyper_batch_step.eval())
         if not _debug_no_hyper_update:
             [tf.get_default_session().run(hod.assign_ops) for hod in self.hyper_optimizers]
-            if hyper_constraints_ops: [op.eval() for op in as_list(hyper_constraints_ops)]
+            if hyper_constraints_ops: [op() if callable(op) else op.eval()
+                                       for op in as_list(hyper_constraints_ops)]
 
         self.hyper_batch_step.increase.eval()
 

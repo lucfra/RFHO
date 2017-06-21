@@ -232,13 +232,24 @@ class Dataset:
                 self.__setattr__(att, tf.convert_to_tensor(self.__getattribute__(att), dtype=tf.float32))
         self._tensor_mode = True
 
-    def create_all_feed_dict_supplier(self, x, y, other_feeds=None):
+    def create_supplier(self, x, y, other_feeds=None):
+        """
+        Return a standard feed dictionary for this dataset.
 
-        if not other_feeds:
-            other_feeds = {}
+        :param x: placeholder for data
+        :param y: placeholder for target
+        :param other_feeds: optional other feeds
+        :return: a callable.
+        """
+        if not other_feeds: other_feeds = {}
 
         # noinspection PyUnusedLocal
         def _supplier(step=None):
+            """
+
+            :param step: unused, just for making it compatible with `HG` and `Saver`
+            :return: the feed dictionary
+            """
             if isinstance(self.data, WindowedData):
                 data = self.data.generate_all()
 

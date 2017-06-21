@@ -98,7 +98,7 @@ def experiment(name_of_experiment, collect_data=False,
                optimizer=rf.MomentumOptimizer, optimizer_kwargs=None, batch_size=200,
                algo_hyper_wrt_tr_error=False,
                mode='reverse', hyper_optimizer=rf.AdamOptimizer, hyper_optimizer_kwargs=None,
-               hyper_iterations=100, hyper_batch_size=100, epochs=20, do_print=True):
+               hyper_iterations=100, hyper_batch_size=100, epochs=None, do_print=True):
     """
     General method for conducting various simple experiments (on MNIST dataset) with RFHO package.
 
@@ -182,10 +182,10 @@ def experiment(name_of_experiment, collect_data=False,
 
     # stochastic descent
     ev_data = ExampleVisiting(datasets.train, batch_size=batch_size, epochs=epochs)
-    ev_data.generate_visiting_scheme()
+    if epochs: ev_data.generate_visiting_scheme()
     tr_supplier = ev_data.create_feed_dict_supplier(x, y)
-    val_supplier = datasets.validation.create_all_feed_dict_supplier(x, y)
-    test_supplier = datasets.test.create_all_feed_dict_supplier(x, y)
+    val_supplier = datasets.validation.create_supplier(x, y)
+    test_supplier = datasets.test.create_supplier(x, y)
 
     def _all_training_supplier():
         return {x: datasets.train.data, y: datasets.train.target}
@@ -252,8 +252,7 @@ def experiment(name_of_experiment, collect_data=False,
 
 
 def _check_adam():
-    synt_hyp = None
-    for _mode in HO_MODES[1:2]:
+    for _mode in HO_MODES[:2]:
         for _model in IMPLEMENTED_MODEL_TYPES[1:2]:
             _model_kwargs = {'dims': [None, 300, 300, None]}
             tf.reset_default_graph()
@@ -264,14 +263,11 @@ def _check_adam():
 
             experiment('test_with_model_' + _model,
                        collect_data=False, hyper_iterations=3, mode=_mode, epochs=3,
-                       optimizer=rf.AdamOptimizer, optimizer_kwargs={'lr': tf.Variable(.001, name='eta_adam')},
+                       optimizer=rf.AdamOptimizer,
+                       optimizer_kwargs={'lr': tf.Variable(.001, name='eta_adam')},
                        model=_model,
                        model_kwargs=_model_kwargs,
                        set_T=100,
-                       synthetic_hypers=synt_hyp,
-                       hyper_batch_size=100
-                       # optimizer=rf.GradientDescentOptimizer,
-                       # optimizer_kwargs={'lr': tf.Variable(.01, name='eta')}
                        )
 
 
@@ -287,7 +283,7 @@ def _check_forward():
                 tf.set_random_seed(1)
 
                 results = experiment('test_with_model_' + _model, collect_data=False, hyper_iterations=10, mode=_mode,
-                                     epochs=1,
+                                     epochs=None,
                                      model=_model,
                                      model_kwargs=_model_kwargs,
                                      set_T=1000,
@@ -323,4 +319,5 @@ def _check_all_methods():
 
 
 if __name__ == '__main__':
-    _check_forward()
+    # _check_forward()
+    _check_adam()
