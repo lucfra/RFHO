@@ -861,7 +861,7 @@ class ExampleVisiting:
         self.T = int(np.ceil(dataset.num_examples / batch_size))
         if self.epochs: self.T *= self.epochs
 
-        self.training_schedule = []
+        self.training_schedule = None
         self.iter_per_epoch = int(dataset.num_examples / batch_size)
 
     def setting(self):
@@ -916,10 +916,11 @@ class ExampleVisiting:
                     self.generate_visiting_scheme()
                 step %= self.T
 
-            if not self.training_schedule:
+            if self.training_schedule is None:
                 # print('visiting scheme not yet generated!')
                 self.generate_visiting_scheme()
 
+            # noinspection PyTypeChecker
             nb = self.training_schedule[step * self.batch_size: min(
                 (step + 1) * self.batch_size, len(self.training_schedule))]
 
