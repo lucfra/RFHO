@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# FIXME  new version: not yet tested
 """
 Script for reproducing the data hyper-cleaning experiment with MNIST data
 """
