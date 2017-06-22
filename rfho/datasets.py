@@ -21,7 +21,7 @@ try:
 except ImportError:
     pd = None
     print(sys.exc_info())
-    print('pands not found. Some load function might not work')
+    print('pandas not found. Some load function might not work')
 try:
     import scipy.io as scio
     from scipy import linalg
@@ -156,28 +156,28 @@ class Dataset:
      per-example basis and general infos.
     """
 
-    def __init__(self, data, target, sample_info_dicts=None, general_info_dict=None):
+    def __init__(self, data, target, sample_info=None, info=None):
         """
 
         :param data: Numpy array containing data
         :param target: Numpy array containing targets
-        :param sample_info_dicts: either an array of dicts or a single dict, in which case it is cast to array of
+        :param sample_info: either an array of dicts or a single dict, in which case it is cast to array of
                                   dicts.
-        :param general_info_dict: (optional) dictionary with further info about the dataset
+        :param info: (optional) dictionary with further info about the dataset
         """
         self._tensor_mode = False
 
         self._data = data
         self._target = target
-        if sample_info_dicts is None:
-            sample_info_dicts = {}
-        self.sample_info_dicts = np.array([sample_info_dicts] * self.num_examples) \
-            if isinstance(sample_info_dicts, dict) else sample_info_dicts
+        if sample_info is None:
+            sample_info = {}
+        self.sample_info = np.array([sample_info] * self.num_examples) \
+            if isinstance(sample_info, dict) else sample_info
 
-        assert self.num_examples == len(self.sample_info_dicts)
+        assert self.num_examples == len(self.sample_info)
         assert self.num_examples == self._shape(self._target)[0]
 
-        self.general_info_dict = general_info_dict or {}
+        self.info = info or {}
 
     def _shape(self, what):
         return what.get_shape().as_list() if self._tensor_mode else what.shape
@@ -187,7 +187,7 @@ class Dataset:
             'num_examples': self.num_examples,
             'dim_data': self.dim_data,
             'dim_target': self.dim_target,
-            'info': self.general_info_dict
+            'info': self.info
         }
 
     @property
@@ -353,7 +353,7 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
     all_data = vstack([get_data(d) for d in datasets])
     all_labels = stack_or_concat([get_targets(d) for d in datasets])
 
-    all_infos = np.concatenate([d.sample_info_dicts for d in datasets])
+    all_infos = np.concatenate([d.sample_info for d in datasets])
 
     N = all_data.shape[0]
 
@@ -414,7 +414,7 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
 
     new_general_info_dict = {}
     for data in datasets:
-        new_general_info_dict = {**new_general_info_dict, **data.general_info_dict}
+        new_general_info_dict = {**new_general_info_dict, **data.info}
 
         if balance_classes:
             new_datasets = []
@@ -422,19 +422,19 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
             for d1, d2 in zip(calculated_partitions[:-1], calculated_partitions[1:-1]):
                 indices = np.array(get_indices_balanced_classes(d2 - d1, all_labels, forbidden_indices))
                 dataset = Dataset(data=all_data[indices], target=all_labels[indices],
-                                  sample_info_dicts=all_infos[indices],
-                                  general_info_dict=new_general_info_dict)
+                                  sample_info=all_infos[indices],
+                                  info=new_general_info_dict)
                 new_datasets.append(dataset)
                 forbidden_indices = np.append(forbidden_indices, indices)
                 test_if_balanced(dataset)
             remaining_indices = np.array(list(set(list(range(N))) - set(forbidden_indices)))
             new_datasets.append(Dataset(data=all_data[remaining_indices], target=all_labels[remaining_indices],
-                                        sample_info_dicts=all_infos[remaining_indices],
-                                        general_info_dict=new_general_info_dict))
+                                        sample_info=all_infos[remaining_indices],
+                                        info=new_general_info_dict))
         else:
             new_datasets = [
-                Dataset(data=all_data[d1:d2], target=all_labels[d1:d2], sample_info_dicts=all_infos[d1:d2],
-                        general_info_dict=new_general_info_dict)
+                Dataset(data=all_data[d1:d2], target=all_labels[d1:d2], sample_info=all_infos[d1:d2],
+                        info=new_general_info_dict)
                 for d1, d2 in zip(calculated_partitions, calculated_partitions[1:])
                 ]
 
@@ -491,9 +491,9 @@ def load_20newsgroup_vectorized(folder=SCIKIT_LEARN_DATA, one_hot=True, partitio
     #     xts = X_test.tocoo()
 
     d_train = Dataset(data=X_train,
-                      target=y_train, general_info_dict={'target names': data_train.target_names})
+                      target=y_train, info={'target names': data_train.target_names})
     d_test = Dataset(data=X_test,
-                     target=y_test, general_info_dict={'target names': data_train.target_names})
+                     target=y_test, info={'target names': data_train.target_names})
     res = [d_train, d_test]
     if partitions_proportions:
         res = redivide_data([d_train, d_test], partition_proportions=partitions_proportions, shuffle=False)
@@ -562,8 +562,8 @@ def load_XRMB(folder=XRMB_DIR, half_window=2, max_speakers=100, only_independent
 
                     data = WindowedData(data, sentence_bounds, window=half_window, process_all=True)
                     datasets[set_type].append(Dataset(data, targets,
-                                                      sample_info_dicts={'speaker': k} if k != 0 else None,
-                                                      general_info_dict=general_info_dict))
+                                                      sample_info={'speaker': k} if k != 0 else None,
+                                                      info=general_info_dict))
 
                 except OSError or FileNotFoundError:
                     k -= 1
@@ -643,7 +643,7 @@ def load_timit(folder=TIMIT_DIR, only_primary=False, filters=None, maps=None, sm
 
     test_dataset = Dataset(data=test_data, target=test_target)
     validation_dataset = Dataset(data=validation_data, target=validation_target)
-    training_dataset = Dataset(data=training_data, target=training_target, general_info_dict=training_info_dict)
+    training_dataset = Dataset(data=training_data, target=training_target, info=training_info_dict)
 
     res = Datasets(train=training_dataset, validation=validation_dataset, test=test_dataset)
 
@@ -685,9 +685,9 @@ def load_caltech101_30(folder=CALTECH101_30_DIR, tiny_problem=False):
     train_y, val_y, test_y = label_tr_enc[0:len(X):3, :], label_tr_enc[1:len(X):3, :], label_tr_enc[2:len(X):3, :]
     train_file, val_file, test_file = file_tr[0:len(X):3], file_tr[1:len(X):3], file_tr[2:len(X):3]
 
-    test_dataset = Dataset(data=test_x, target=test_y, general_info_dict={'files': test_file})
-    validation_dataset = Dataset(data=val_x, target=val_y, general_info_dict={'files': val_file})
-    training_dataset = Dataset(data=train_x, target=train_y, general_info_dict={'files': train_file})
+    test_dataset = Dataset(data=test_x, target=test_y, info={'files': test_file})
+    validation_dataset = Dataset(data=val_x, target=val_y, info={'files': val_file})
+    training_dataset = Dataset(data=train_x, target=train_y, info={'files': train_file})
 
     return Datasets(train=training_dataset, validation=validation_dataset, test=test_dataset)
 
@@ -708,7 +708,7 @@ def load_iros15(folder=IROS15_BASE_FOLDER, resolution=15, legs='all', part_propo
         data, target = dat['X'], to_one_hot_enc(dat['Y']) if one_hot else dat['Y']
         # maybe pre-processing??? or it is already done? ask...
         datasets[_leg] = Datasets.from_list(
-            redivide_data([Dataset(data, target, general_info_dict={'leg': _leg})],
+            redivide_data([Dataset(data, target, info={'leg': _leg})],
                           partition_proportions=part_proportions, shuffle=shuffle))
     return datasets
 
@@ -729,8 +729,8 @@ def load_caltech101(folder=CALTECH101_DIR, one_hot=True, partitions=None, filter
         Y.append(dict_name_ID[name_y])
     if one_hot:
         Y = to_one_hot_enc(Y)
-    dataset = Dataset(data=X, target=Y, general_info_dict={'dict_name_ID': dict_name_ID, 'dict_ID_name': dict_ID_name},
-                      sample_info_dicts=[{'target_name': t, 'files': f} for t, f in zip(target_name, files)])
+    dataset = Dataset(data=X, target=Y, info={'dict_name_ID': dict_name_ID, 'dict_ID_name': dict_ID_name},
+                      sample_info=[{'target_name': t, 'files': f} for t, f in zip(target_name, files)])
     if partitions:
         res = redivide_data([dataset], partitions, filters=filters, maps=maps, shuffle=True)
         res += [None] * (3 - len(res))
@@ -754,8 +754,8 @@ def load_cifar10(folder=CIFAR10_DIR, one_hot=True, partitions=None, filters=None
         Y.append(dict_name_ID[name_y])
     if one_hot:
         Y = to_one_hot_enc(Y)
-    dataset = Dataset(data=X, target=Y, general_info_dict={'dict_name_ID': dict_name_ID, 'dict_ID_name': dict_ID_name},
-                      sample_info_dicts=[{'target_name': t, 'files': f} for t, f in zip(target_name, files)])
+    dataset = Dataset(data=X, target=Y, info={'dict_name_ID': dict_name_ID, 'dict_ID_name': dict_ID_name},
+                      sample_info=[{'target_name': t, 'files': f} for t, f in zip(target_name, files)])
     if partitions:
         res = redivide_data([dataset], partitions, filters=filters, maps=maps, shuffle=True, balance_classes=True)
         res += [None] * (3 - len(res))
@@ -792,9 +792,9 @@ def load_cifar100(folder=CIFAR100_DIR, one_hot=True, partitions=None, filters=No
     print(len(X))
     print(len(Y))
     dataset = Dataset(data=X, target=Y,
-                      general_info_dict={'dict_name_ID_fine': fine_label_corr, 'dict_name_ID_coarse': coarse_label_corr,
+                      info={'dict_name_ID_fine': fine_label_corr, 'dict_name_ID_coarse': coarse_label_corr,
                                          'dict_ID_name_fine': fine_ID_corr, 'dict_ID_name_coarse': coarse_ID_corr},
-                      sample_info_dicts=[{'Y_coarse': yc, 'files': f} for yc, f in zip(superY, files)])
+                      sample_info=[{'Y_coarse': yc, 'files': f} for yc, f in zip(superY, files)])
     if partitions:
         res = redivide_data([dataset], partitions, filters=filters, maps=maps, shuffle=True)
         res += [None] * (3 - len(res))
@@ -820,7 +820,7 @@ def generate_multiclass_dataset(n_samples=100, n_features=10,
     else:
         y[y == 0] = negative_labels
     res = Dataset(data=np.array(X, dtype=np.float32), target=np.array(y, dtype=np.float32),
-                  general_info_dict={'n_informative': n_informative, 'n_redundant': n_redundant,
+                  info={'n_informative': n_informative, 'n_redundant': n_redundant,
                                      'n_repeated': n_repeated,
                                      'n_classes': n_classes, 'n_clusters_per_class': n_clusters_per_class,
                                      'weights': weights, 'flip_y': flip_y, 'class_sep': class_sep,
@@ -1013,22 +1013,22 @@ class WindowedData(object):
         if right_pad:
             base = np.concatenate([base, pad(self.data[item], right_pad)])
         return base
-
-
-if __name__ == '__main__':
-    # _datasets = load_20newsgroup_feed_vectorized(one_hot=False, binary_problem=True)
-    # print(_datasets.train.dim_data)
-    # print(_datasets.train.dim_target)
-    # mnist = load_mnist(partitions=[0.1, .2], filters=lambda x, y, d, k: True)
-    # print(len(_datasets.train))\
-
-    load_20newsgroup_vectorized(one_hot=False, shuffle=True, partitions_proportions=(1 / 3, 1 / 3))
-
-    mnist = load_mnist(partitions=(.1, .1), shuffle=True)
-
-    print(mnist.train.data)
-    print(type(mnist.train.data))
-
-    # dt = load_20newsgroup_vectorized()
-    # print(dt.train.num_examples)
-    # print(dt.train.num_examples)
+#
+#
+# if __name__ == '__main__':
+#     # _datasets = load_20newsgroup_feed_vectorized(one_hot=False, binary_problem=True)
+#     # print(_datasets.train.dim_data)
+#     # print(_datasets.train.dim_target)
+#     # mnist = load_mnist(partitions=[0.1, .2], filters=lambda x, y, d, k: True)
+#     # print(len(_datasets.train))\
+#
+#     load_20newsgroup_vectorized(one_hot=False, shuffle=True, partitions_proportions=(1 / 3, 1 / 3))
+#
+#     mnist = load_mnist(partitions=(.1, .1), shuffle=True)
+#
+#     print(mnist.train.data)
+#     print(type(mnist.train.data))
+#
+#     # dt = load_20newsgroup_vectorized()
+#     # print(dt.train.num_examples)
+#     # print(dt.train.num_examples)
