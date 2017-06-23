@@ -1,3 +1,7 @@
+"""
+This module contains optimizers.
+"""
+
 import tensorflow as tf
 
 from rfho.utils import hvp, MergedVariable, VlMode, GlobalStep, ZMergedMatrix, simple_name, l_diag_mul
@@ -31,12 +35,33 @@ class Optimizer:  # Gradient descent-like optimizer
         return tf.variables_initializer(self.get_support_variables())
 
     def get_support_variables(self):
+        """
+
+        :return: support variables for this optimizers (like velocity for momentum)
+        """
         return []
 
-    def get_optimization_hyperparameters(self):
-        return [self.learning_rate]
+    def get_optimization_hyperparameters(self, only_variables=False):
+        """
+        Returns the optimizer hyperparameters.
+
+        :param only_variables: if true returns only the hyperparameters that are also `tf.Variable` (which can
+                                be optimized)
+
+        :return:
+        """
+        return Optimizer._filter_variables([self.learning_rate], only_variables)
+
+    @staticmethod
+    def _filter_variables(vr_list, only_variables):
+        return [v for v in vr_list if isinstance(v, tf.Variable)] if only_variables else vr_list
 
     def increase_global_step(self):
+        """
+        If there is a global step, increases it
+
+        :return:
+        """
         pass
 
     def d_dynamics_d_learning_rate(self):
@@ -154,8 +179,9 @@ class MomentumOptimizer(Optimizer):
     def get_support_variables(self):
         return [self.m]
 
-    def get_optimization_hyperparameters(self):
-        return super().get_optimization_hyperparameters() + [self.momentum_factor]
+    def get_optimization_hyperparameters(self, only_variables=False):
+        return Optimizer._filter_variables(
+            super().get_optimization_hyperparameters() + [self.momentum_factor], only_variables)
 
     def d_dynamics_d_learning_rate(self):
         return ZMergedMatrix([- self.momentum_factor * self.m - self.gradient,
@@ -197,8 +223,8 @@ class MomentumOptimizer(Optimizer):
 
                 assert isinstance(w, MergedVariable), "%s is not instance of MergedVariable" % w
                 assert len(w.var_list(VlMode.TENSOR)) == 2, "%s is not augmented correctly, len of w.var_list(" \
-                                                             "VlMode.TENSOR should be 2, but is " \
-                                                             "%d" % (w, len(w.var_list(VlMode.TENSOR)))
+                                                            "VlMode.TENSOR should be 2, but is " \
+                                                            "%d" % (w, len(w.var_list(VlMode.TENSOR)))
 
                 w_base, m = w.var_list(VlMode.TENSOR)
             else:
@@ -225,7 +251,7 @@ class MomentumOptimizer(Optimizer):
                     jac_2_1 = tf.stack([
                         tf.gradients(m_k[i], w_base)[0] for i in range(d2)
                     ])
-                    jac_1 = tf.concat([jac_1_1, jac_2_1], axis=0)
+                    # jac_1 = tf.concat([jac_1_1, jac_2_1], axis=0)
 
                     jac_1_2 = tf.stack([
                         tf.gradients(w_base_k[i], m)[0] for i in range(d2)
@@ -233,9 +259,9 @@ class MomentumOptimizer(Optimizer):
                     jac_2_2 = tf.stack([
                         tf.gradients(m_k[i], m)[0] for i in range(d2)
                     ])
-                    jac_2 = tf.concat([jac_1_2, jac_2_2], axis=0)
+                    # jac_2 = tf.concat([jac_1_2, jac_2_2], axis=0)
 
-                    jac = tf.concat([jac_1, jac_2], axis=1, name='Jacobian')
+                    # jac = tf.concat([jac_1, jac_2], axis=1, name='Jacobian')
 
                     # mul = tf.matmul(jac, z.tensor)
                     #
@@ -279,10 +305,12 @@ class MomentumOptimizer(Optimizer):
             )
 
 
+# noinspection PyMissingOrEmptyDocstring
 class AdamOptimizer(MomentumOptimizer):
     """
     Class for adam optimizer 
     """
+
     def __init__(self, raw_w, w, m, v, assign_ops, global_step, dynamics, jac_z, gradient, learning_rate,
                  momentum_factor, second_momentum_factor, loss, d_dyn_d_lr, d_dyn_d_hyper):
         super().__init__(w=w, m=m, assign_ops=assign_ops, dynamics=dynamics, jac_z=jac_z, gradient=gradient,
@@ -302,8 +330,11 @@ class AdamOptimizer(MomentumOptimizer):
     def increase_global_step(self):
         self.global_step.increase.eval()
 
-    def get_optimization_hyperparameters(self):
-        return super().get_optimization_hyperparameters() + [self.second_momentum_factor]  # could be also epsilon?
+    def get_optimization_hyperparameters(self, only_variables=False):
+        return Optimizer._filter_variables(
+            super().get_optimization_hyperparameters() + [self.second_momentum_factor],  # could be also epsilon?
+            only_variables
+        )
 
     def d_dynamics_d_momentum_factor(self):
         raise NotImplementedError()  # TODO
@@ -349,8 +380,8 @@ class AdamOptimizer(MomentumOptimizer):
 
                 assert isinstance(w, MergedVariable), "%s is not instance of MergedVariable" % w
                 assert len(w.var_list(VlMode.TENSOR)) == 3, "%s is not augmented correctly, len of w.var_list(" \
-                                                             "VlMode.TENSOR should be 3, but is " \
-                                                             "%d" % (w, len(w.var_list(VlMode.TENSOR)))
+                                                            "VlMode.TENSOR should be 3, but is " \
+                                                            "%d" % (w, len(w.var_list(VlMode.TENSOR)))
 
                 w_base, m, v = w.var_list(VlMode.TENSOR)
             else:
@@ -383,7 +414,7 @@ class AdamOptimizer(MomentumOptimizer):
             pre_j_11_out = - lr_k * (
                 (1. - beta1) / v_tilde_k - ((1. - beta2) * grad * m_k) / v_k_eps_32
             )
-            pre_j_31_out = 2.*(1. - beta2) * grad
+            pre_j_31_out = 2. * (1. - beta2) * grad
 
             w_base_k = w_base - lr_k * (beta1 * m + (1. - beta1) * grad) / v_tilde_k
 
@@ -451,14 +482,14 @@ class AdamOptimizer(MomentumOptimizer):
                         j_12_u_hat = tf.identity(- lr_k * beta1 / v_tilde_k, name='j_12_u_hat')
                         j_12_u = l_diag_mul(j_12_u_hat, u, name='j_12_u')
 
-                        j_13_s_hat = tf.identity(lr_k*beta2*m_k/(2*v_k_eps_32), name='j_13_s_hat')
+                        j_13_s_hat = tf.identity(lr_k * beta2 * m_k / (2 * v_k_eps_32), name='j_13_s_hat')
                         j_13_s = l_diag_mul(j_13_s_hat, s, name='j_13_s')
 
                         jac_z_1 = tf.identity(j_11_r + j_12_u + j_13_s, name='jac_z_1')
                         # end first bock
 
                         j_21_r = tf.identity((1. - beta1) * hessian_r_product, name='j_21_r')
-                        j_22_u = tf.identity(beta1*u, name='j_22_u')
+                        j_22_u = tf.identity(beta1 * u, name='j_22_u')
                         # j_23_s = tf.zeros_like(s)  # would be...
 
                         jac_z_2 = tf.identity(j_21_r + j_22_u, name='jac_z_2')
@@ -466,7 +497,7 @@ class AdamOptimizer(MomentumOptimizer):
 
                         j_31_r = l_diag_mul(pre_j_31_out, hessian_r_product, name='j_31_r')
                         # j_32_u = tf.zeros_like(u)  # would be
-                        j_33_s = tf.identity(beta2*s, name='j_33_s')
+                        j_33_s = tf.identity(beta2 * s, name='j_33_s')
                         jac_z_3 = tf.identity(j_31_r + j_33_s, name='jac_z_3')
 
                         res = [jac_z_1, jac_z_2, jac_z_3]
@@ -477,7 +508,7 @@ class AdamOptimizer(MomentumOptimizer):
             # algorithmic partial derivatives (as functions so that we do not create unnecessary nodes
             def _d_dyn_d_lr():
                 res = [
-                    - bias_correction* m_k / v_tilde_k,
+                    - bias_correction * m_k / v_tilde_k,
                     tf.zeros_like(m_k),
                     tf.zeros_like(v_k)  # just aesthetics
                 ]
@@ -487,7 +518,7 @@ class AdamOptimizer(MomentumOptimizer):
                 dwt_dl_hat = pre_j_11_out
                 dwt_dl = l_diag_mul(dwt_dl_hat, cross_der_l)
 
-                dmt_dl = (1-beta1) * cross_der_l
+                dmt_dl = (1 - beta1) * cross_der_l
 
                 dvt_dl = l_diag_mul(pre_j_31_out, cross_der_l)
                 return ZMergedMatrix([dwt_dl, dmt_dl, dvt_dl])
@@ -507,5 +538,5 @@ class AdamOptimizer(MomentumOptimizer):
                 assign_ops=[w_base_mv.assign(w_base_k), m_mv.assign(m_k), v_mv.assign(v_k)],
                 dynamics=dynamics,
                 jac_z=_jac_z, gradient=grad, learning_rate=lr, momentum_factor=beta1, second_momentum_factor=beta2,
-                raw_w=w, loss=loss, d_dyn_d_lr=_d_dyn_d_lr, d_dyn_d_hyper = _d_dyn_d_hyp_gl
+                raw_w=w, loss=loss, d_dyn_d_lr=_d_dyn_d_lr, d_dyn_d_hyper=_d_dyn_d_hyp_gl
             )
