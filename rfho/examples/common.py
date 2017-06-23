@@ -1,3 +1,4 @@
+# FIXME this module is outdated....
 import threading
 import time
 from functools import reduce

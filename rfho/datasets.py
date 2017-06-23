@@ -6,13 +6,14 @@ There are also some classes to represent datasets. `ExampleVisiting` is an helpe
 the stochastic sampling of data and is optimized to work with `Reverse/ForwardHyperGradient` (has helper funcitons
 to create training and validation `feed_dict` suppliers).
 """
+from collections import OrderedDict
 
 import numpy as np
 from functools import reduce
 import tensorflow as tf
 from tensorflow.examples.tutorials.mnist.input_data import read_data_sets
 import os
-from rfho.utils import as_list, np_normalize_data
+from rfho.utils import as_list, np_normalize_data, merge_dicts
 
 import sys
 
@@ -115,6 +116,9 @@ class Datasets:
     def __getitem__(self, item):
         return self._lst[item]
 
+    def __len__(self):
+        return len([_ for _ in self._lst if _ is not None])
+
     @staticmethod
     def from_list(list_of_datasets):
         """
@@ -133,6 +137,17 @@ class Datasets:
             if len(list_of_datasets) == 3:
                 valid = list_of_datasets[1]
         return Datasets(train, valid, test)
+
+    @staticmethod
+    def stack(*datasets_s):
+        """
+        Stack some datasets calling stack for each dataset.
+        
+        :param datasets_s: 
+        :return: a new dataset
+        """
+        return Datasets.from_list([Dataset.stack(*[d[k] for d in datasets_s if d[k] is not None])
+                                   for k in range(3)])
 
 
 def _maybe_cast_to_scalar(what):
@@ -183,6 +198,11 @@ class Dataset:
         return what.get_shape().as_list() if self._tensor_mode else what.shape
 
     def setting(self):
+        """
+        for save setting purposes, does not save the actual data
+        
+        :return: 
+        """
         return {
             'num_examples': self.num_examples,
             'dim_data': self.dim_data,
@@ -257,6 +277,20 @@ class Dataset:
 
         return _supplier
 
+    @staticmethod
+    def stack(*datasets):
+        """
+        Assuming that the datasets have same structure, stucks data and targets
+        
+        :param datasets: 
+        :return: stacked dataset
+        """
+        return Dataset(data=vstack([d.data for d in datasets]),
+                       target=stack_or_concat([d.target for d in datasets]),
+                       sample_info=stack_or_concat([d.sample_info for d in datasets]),
+                       info={k: [d.info.get(k, None) for d in datasets]
+                             for k in merge_dicts(*[d.info for d in datasets])})
+
 
 def to_one_hot_enc(seq, dimension=None):
     da_max = dimension or np.max(seq) + 1
@@ -324,6 +358,21 @@ def load_iris(partitions_proportions=None, classes=3):
     return Datasets(train=tr_dst, test=tst_dst, validation=None)
 
 
+def stack_or_concat(list_of_arays):
+    func = np.concatenate if list_of_arays[0].ndim == 1 else np.vstack
+    return func(list_of_arays)
+
+
+def vstack(lst):
+    """
+    Vstack that considers sparse matrices
+    
+    :param lst: 
+    :return: 
+    """
+    return sp.vstack(lst) if sp and isinstance(lst[0], sp.sparse.csr.csr_matrix) else np.vstack(lst)
+
+
 def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=None, maps=None, balance_classes=False):
     """
     Function that redivides datasets. Can be use also to shuffle or filter or map examples.
@@ -341,14 +390,6 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
     than one sample, for data augmentation)
     :return: a list of datasets of length equal to the (possibly augmented) partition_proportion
     """
-    import scipy.sparse as sp
-
-    def stack_or_concat(list_of_arays):
-        func = np.concatenate if list_of_arays[0].ndim == 1 else np.vstack
-        return func(list_of_arays)
-
-    def vstack(lst):
-        return sp.vstack(lst) if isinstance(lst[0], sp.csr.csr_matrix) else np.vstack(lst)
 
     all_data = vstack([get_data(d) for d in datasets])
     all_labels = stack_or_concat([get_targets(d) for d in datasets])
@@ -367,7 +408,7 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
         partition_proportions = [1. * get_data(d).shape[0] / N for d in datasets]
 
     if shuffle:
-        if isinstance(all_data, sp.csr.csr_matrix): raise NotImplementedError()
+        if sp and isinstance(all_data, sp.sparse.csr.csr_matrix): raise NotImplementedError()
         # if sk_shuffle:  # TODO this does not work!!! find a way to shuffle these matrices while
         # keeping compatibility with tensorflow!
         #     all_data, all_labels, all_infos = sk_shuffle(all_data, all_labels, all_infos)
@@ -380,7 +421,7 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
         all_infos = np.array(all_infos[permutation])
 
     if filters:
-        if isinstance(all_data, sp.csr.csr_matrix): raise NotImplementedError()
+        if sp and isinstance(all_data, sp.sparse.csr.csr_matrix): raise NotImplementedError()
         filters = as_list(filters)
         data_triple = [(x, y, d) for x, y, d in zip(all_data, all_labels, all_infos)]
         for fiat in filters:
@@ -390,7 +431,7 @@ def redivide_data(datasets, partition_proportions=None, shuffle=False, filters=N
         all_infos = np.vstack([e[2] for e in data_triple])
 
     if maps:
-        if isinstance(all_data, sp.csr.csr_matrix): raise NotImplementedError()
+        if sp and isinstance(all_data, sp.sparse.csr.csr_matrix): raise NotImplementedError()
         maps = as_list(maps)
         data_triple = [(x, y, d) for x, y, d in zip(all_data, all_labels, all_infos)]
         for _map in maps:

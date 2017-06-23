@@ -73,13 +73,15 @@ def baseline(saver, model, y, data, T, lr, lmd=None, name='baseline'):
     # if saver: saver.save_setting(vars(), append_string=name)
     x = model.inp[0]
 
-    def _train_and_valid_s():
-        return {x: np.vstack((data.train.data, data.validation.data)),
-                y: np.vstack((data.train.target, data.validation.target))}
+    # def _train_and_valid_s():
+    #     return {x: np.vstack((data.train.data, data.validation.data)),
+    #             y: np.vstack((data.train.target, data.validation.target))}
+    train_and_valid = rf.datasets.Dataset.stack(data.train, data.validation)
+    train_and_valid_s = train_and_valid.create_supplier(x, y)
 
     tst_s = data.test.create_supplier(x, y)
 
-    if lmd is None: lmd = np.ones(_train_and_valid_s()[x].shape[0])
+    if lmd is None: lmd = np.ones(train_and_valid.num_examples)
 
     error2 = tf.reduce_mean(lmd * rf.cross_entropy_loss(y, model.out))
     correct_prediction2 = tf.equal(tf.argmax(model.out, 1), tf.argmax(y, 1))
@@ -98,7 +100,7 @@ def baseline(saver, model, y, data, T, lr, lmd=None, name='baseline'):
     with tf.Session(config=rf.CONFIG_GPU_GROWTH).as_default():
         tf.variables_initializer(model.var_list).run()
         for _ in range(T):
-            ts1.run(feed_dict=_train_and_valid_s())
+            ts1.run(feed_dict=train_and_valid_s())
         if saver: saver.save(name)
         baseline_test_accuracy = accuracy2.eval(feed_dict=tst_s())
         return baseline_test_accuracy
@@ -305,31 +307,30 @@ def main(saver=None, run_baseline=True, run_oracle=True, run_optimization=True,
                      name='_R%d_Final Round' % R)  # could run for more iterations...
 
 
-# sure we want to use this parser? it's kind of uncomfortable..
-# def get_parser():
-#     parser = argparse.ArgumentParser(description=__doc__,
-#                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-#     parser.add_argument('-n', '--name_of_experiment', type=str, default='hypercleaner',
-#                         help='Name of the experiment')
-#     parser.add_argument('-H', '--hyper_iterations', type=int, default=500,
-#                         help='Number of hyper-iterations')
-#     parser.add_argument('--T', type=int, default=1000,
-#                         help='Number of parameter optimization iterations')
-#     parser.add_argument('--N_all_', type=int, default=20000,
-#                         help='Total number of data points to use')
-#     parser.add_argument('--num_flip', type=int, default=2500,
-#                         help='Number of examples with wrong labels')
-#     parser.add_argument('--p_train', type=float, default=0.25,
-#                         help='Fraction of training data points')
-#     parser.add_argument('--p_valid', type=float, default=0.25,
-#                         help='Fraction of validation data points')
-#     parser.add_argument('--lr', type=float, default=0.1,
-#                         help='Learning rate')
-#     parser.add_argument('--hyper_learning_rate', type=float, default=.005,
-#                         help='Hyper learning rate')
-#     parser.add_argument('--verbose', dest='verbose', action='store_true', help='Verbose output.')
-#     parser.set_defaults(verbose=False)
-#     return parser
+def get_parser():  # sure we want to use this parser? it's kind of uncomfortable..
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('-n', '--name_of_experiment', type=str, default='hypercleaner',
+                        help='Name of the experiment')
+    parser.add_argument('-H', '--hyper_iterations', type=int, default=500,
+                        help='Number of hyper-iterations')
+    parser.add_argument('--T', type=int, default=1000,
+                        help='Number of parameter optimization iterations')
+    parser.add_argument('--N_all_', type=int, default=20000,
+                        help='Total number of data points to use')
+    parser.add_argument('--num_flip', type=int, default=2500,
+                        help='Number of examples with wrong labels')
+    parser.add_argument('--p_train', type=float, default=0.25,
+                        help='Fraction of training data points')
+    parser.add_argument('--p_valid', type=float, default=0.25,
+                        help='Fraction of validation data points')
+    parser.add_argument('--lr', type=float, default=0.1,
+                        help='Learning rate')
+    parser.add_argument('--hyper_learning_rate', type=float, default=.005,
+                        help='Hyper learning rate')
+    parser.add_argument('--verbose', dest='verbose', action='store_true', help='Verbose output.')
+    parser.set_defaults(verbose=False)
+    return parser
 
 
 def quick_demo(lmd=None):
