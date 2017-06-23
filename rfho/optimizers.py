@@ -4,7 +4,6 @@ This module contains optimizers.
 
 import tensorflow as tf
 
-from rfho import positivity
 from rfho.utils import hvp, MergedVariable, VlMode, GlobalStep, ZMergedMatrix, simple_name, l_diag_mul
 
 
@@ -62,7 +61,7 @@ class Optimizer:  # Gradient descent-like optimizer
         hypers = self.get_optimization_hyperparameters(only_variables=True)
         constraints = []
         if self.learning_rate in hypers:
-            constraints.append(positivity(self.learning_rate))
+            constraints.append(self.learning_rate.assign(tf.maximum(self.learning_rate, 0.)))
         return constraints
 
     @staticmethod
