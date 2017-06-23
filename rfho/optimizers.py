@@ -4,6 +4,7 @@ This module contains optimizers.
 
 import tensorflow as tf
 
+from rfho import positivity
 from rfho.utils import hvp, MergedVariable, VlMode, GlobalStep, ZMergedMatrix, simple_name, l_diag_mul
 
 
@@ -51,6 +52,18 @@ class Optimizer:  # Gradient descent-like optimizer
         :return:
         """
         return Optimizer._filter_variables([self.learning_rate], only_variables)
+
+    def get_natural_hyperparameter_constraints(self):
+        """
+
+        :return: a list of ops which represent the projections of algorithmic hyperparameter onto their
+                 natural domain (e.g. learning rate >= 0, momentum factor in [0, 1)...)
+        """
+        hypers = self.get_optimization_hyperparameters(only_variables=True)
+        constraints = []
+        if self.learning_rate in hypers:
+            constraints.append(positivity(self.learning_rate))
+        return constraints
 
     @staticmethod
     def _filter_variables(vr_list, only_variables):
@@ -201,6 +214,14 @@ class MomentumOptimizer(Optimizer):
     def get_augmentation_multiplier():
         return 1
 
+    def get_natural_hyperparameter_constraints(self):
+        hypers = self.get_optimization_hyperparameters(only_variables=True)
+        constraints = super().get_natural_hyperparameter_constraints()
+        if self.momentum_factor in hypers:
+            constraints.append(self.momentum_factor.assign(
+                tf.minimum(tf.maximum(self.momentum_factor, 0.), 0.9999)))
+        return constraints
+
     @staticmethod
     def create(w, lr, mu=.9, loss=None, grad=None, w_is_state=True, name='Momentum', _debug_jac_z=False):
         """
@@ -336,6 +357,14 @@ class AdamOptimizer(MomentumOptimizer):
             only_variables
         )
 
+    def get_natural_hyperparameter_constraints(self):
+        hypers = self.get_optimization_hyperparameters(only_variables=True)
+        constraints = super().get_natural_hyperparameter_constraints()
+        if self.second_momentum_factor in hypers:
+            constraints.append(self.second_momentum_factor.assign(
+                tf.minimum(tf.maximum(self.second_momentum_factor, 0.), 0.9999)))
+        return constraints
+
     def d_dynamics_d_momentum_factor(self):
         raise NotImplementedError()  # TODO
 
@@ -348,7 +377,6 @@ class AdamOptimizer(MomentumOptimizer):
     def d_dynamics_d_hyper_loss(self, grad_loss_term):
         return self._d_dyn_d_hyper(grad_loss_term)
 
-    # noinspection PyMissingOrEmptyDocstring
     @staticmethod
     def get_augmentation_multiplier():
         return 2
