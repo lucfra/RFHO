@@ -783,6 +783,7 @@ def load_cifar10(folder=CIFAR10_DIR, one_hot=True, partitions=None, filters=None
     path = folder + "/cifar-10.pickle"
     with open(path, "rb") as input_file:
         X, target_name, files = cpickle.load(input_file)
+    X = np.array(X)
     dict_name_ID = {}
     i = 0
     list_of_targets = sorted(list(set(target_name)))
