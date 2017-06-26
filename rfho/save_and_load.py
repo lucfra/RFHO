@@ -1,6 +1,7 @@
 import time
 from collections import OrderedDict
 from functools import reduce
+from inspect import signature
 
 import matplotlib.pyplot as plt
 
@@ -268,11 +269,12 @@ class Saver:
 
         :param items: a list of (from pairs to at most) 5-tuples that represent the things you want to save.
                       The first arg of each tuple should be a string that will be the key of the save_dict.
-                      Then there can be either a callable with signature (step) -> None
-                      Should pass the various args in ths order:
+                      Then there can be either a callable with signature (step) -> result or () -> result
+                      or tensorflow things... In this second case you  should pass the following args in ths order:
                           fetches: tensor or list of tensors to compute;
                           feeds (optional): to be passed to tf.Session.run. Can be a
-                          callable with signature (step) -> feed_dict
+                                            callable with signature (step) -> feed_dict
+                                            or () -> feed_dict
                           options (optional): to be passed to tf.Session.run
                           run_metadata (optional): to be passed to tf.Session.run
         :return: None
@@ -317,8 +319,12 @@ class Saver:
         if ss is None and do_print: print('WARNING, No tensorflow session available')
 
         if self.timer: self.timer.stop()
-        save_dict = OrderedDict([(pt[0], pt[1](step) if callable(pt[1])
-                                 else ss.run(pt[1], feed_dict=pt[2](step) if callable(pt[2]) else pt[2],
+
+        def _call(_method):
+            return _method(step) if len(signature(_method).parameters) > 0 else _method()
+
+        save_dict = OrderedDict([(pt[0], _call(pt[1]) if callable(pt[1])
+                                 else ss.run(pt[1], feed_dict=_call(pt[2]) if callable(pt[2]) else pt[2],
                                              options=pt[3], run_metadata=pt[4]))
                                  for pt in self.processed_items])
 
