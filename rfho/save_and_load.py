@@ -176,6 +176,11 @@ class Timer:
         assert unit in Timer._div_unit
         self.unit = unit
 
+    def reset(self):
+        self._starting_times = []
+        self._stopping_times = []
+        self._running = False
+
     def start(self):
         if not self._running:
             self._starting_times.append(time.time())
@@ -419,6 +424,8 @@ class Saver:
         :param append_string:
         :return:
         """
+        excluded = as_list(excluded or [])
+        excluded.append(self)  # no reason to save itself...
         return save_setting(local_variables, root_dir=self.directory, excluded=excluded,
                             default_overwrite=self.default_overwrite, collect_data=self.collect_data,
                             notebook_mode=False, do_print=self.do_print, append_string=append_string)
