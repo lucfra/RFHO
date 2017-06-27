@@ -294,6 +294,7 @@ class ReverseHG:
 
         return raw_hyper_grads
 
+    # TODO To Riccardo: if useless please delete
     def run_all_truncated(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None,
                           forward_su=None, backward_su=None, after_forward_su=None, check_if_zero=False,
                           n_steps_truncated=None, opt_hyper_dicts=None):
@@ -669,7 +670,7 @@ class HyperOptimizer:
         """
 
         :param _debug_no_hyper_update: 
-        :param T:
+        :param T: number of steps
         :param train_feed_dict_supplier:
         :param val_feed_dict_suppliers:
         :param hyper_constraints_ops: (list of) either callable (no parameters) or tensorflow ops
@@ -679,7 +680,6 @@ class HyperOptimizer:
         # after all the main difference is that if we go with the full version, after the gradient has been
         # computed, the method `initialize()` is called.
 
-        # TODO Riccardo, is it compatible with TRHO???
         self.hyper_gradients.run_all(T, train_feed_dict_supplier=train_feed_dict_supplier,
                                      val_feed_dict_suppliers=val_feed_dict_suppliers,
                                      hyper_batch_step=self.hyper_batch_step.eval())
