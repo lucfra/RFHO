@@ -518,7 +518,7 @@ class SimpleCNN(Network):
         :param conv_part:
         :param ffnn_part:
         :param conv_dims:
-        :param ffnn_dims: dimensions for the feed-forward part. Note, the input dimension is inferred
+        :param ffnn_dims: dimensions for the feed-forward part.
         :param conv_gen:
         :param conv_gen_kwargs:
         :param activ_gen:
@@ -544,7 +544,7 @@ class SimpleCNN(Network):
 
             if ffnn_dims:
                 ffnn_input = tf.reshape(self.inp[-1], [-1, ffnn_dims[0]])
-                ffnn_dims = [ffnn_input.get_shape().as_list()[1]] + ffnn_dims
+                # ffnn_dims = [ffnn_input.get_shape().as_list()[1]] + ffnn_dims
                 self.ffnn_part = FFNN(ffnn_input,
                                       ffnn_dims, active_gen=activ_gen,
                                       active_gen_kwargs=active_gen_kwargs, name='ffnn_part')

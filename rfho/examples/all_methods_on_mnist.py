@@ -17,7 +17,7 @@ def load_dataset(partition_proportions=(.5, .3)):
     return load_mnist(partitions=partition_proportions)
 
 
-IMPLEMENTED_MODEL_TYPES = ['log_reg', 'ffnn']  # , 'cnn']
+IMPLEMENTED_MODEL_TYPES = ['log_reg', 'ffnn', 'cnn']
 HO_MODES = ['forward', 'reverse', 'rtho']
 
 
@@ -33,6 +33,8 @@ def create_model(datasets, model_creator='log_reg', **model_kwargs):
         model = create_logistic_regressor(x, (dataset.dim_data, dataset.dim_target), **model_kwargs)
     elif model_creator == IMPLEMENTED_MODEL_TYPES[1]:  # ffnn deep
         model = create_ffnn(x, dataset.dim_data, dataset.dim_target, **model_kwargs)
+    elif model_creator == IMPLEMENTED_MODEL_TYPES[2]:
+        model = create_cnn(x, int(np.sqrt(dataset.dim_data)), dataset.dim_target, **model_kwargs)
     else:  # custom _model creator
         model = model_creator(x, **model_kwargs)
 
@@ -49,6 +51,13 @@ def create_ffnn(x, d0, d1, **model_kwargs):
     dimensions[0], dimensions[-1] = d0, d1
     model_kwargs['dims'] = dimensions
     return rf.FFNN(x, **model_kwargs)
+
+
+def create_cnn(x, d0, d1, **model_kwargs):
+    model_kwargs.setdefault('conv_dims', [[5, 5, 1, 8], [5, 5, 8, 16]])
+    model_kwargs.setdefault('ffnn_dims', [784, 392, d1])
+
+    return rf.SimpleCNN(tf.reshape(x, [-1, d0, d0, 1]), **model_kwargs)
 
 
 def define_errors_default_models(model, l1=0., l2=0., synthetic_hypers=None, augment=0):
@@ -89,7 +98,7 @@ def define_errors_default_models(model, l1=0., l2=0., synthetic_hypers=None, aug
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
 
     return s, out, ws, y, error, training_error, rho_l1s, reg_l1s, rho_l2s, reg_l2s, accuracy, \
-        base_training_error, gamma
+           base_training_error, gamma
 
 
 def experiment(name_of_experiment, collect_data=False,
@@ -318,6 +327,30 @@ def _check_all_methods():
                        )
 
 
+def _check_cnn():
+    print('END')
+    for _mode in HO_MODES:
+        for _model in IMPLEMENTED_MODEL_TYPES[2:3]:
+            tf.reset_default_graph()
+            np.random.seed(1)
+            tf.set_random_seed(1)
+
+            _model_kwargs = {'conv_dims': [[5, 5, 1, 4], [5, 5, 4, 8]],
+                             'ffnn_dims': [392, 10]}
+
+            experiment('test_with_model_' + _model, collect_data=False, hyper_iterations=3, mode=_mode,
+                       epochs=3,
+                       model=_model,
+                       model_kwargs=_model_kwargs,
+                       set_T=100,
+                       synthetic_hypers=None,
+                       hyper_batch_size=100
+                       # optimizer=rf.GradientDescentOptimizer,
+                       # optimizer_kwargs={'lr': tf.Variable(.01, name='eta')}
+                       )
+
+
 if __name__ == '__main__':
     # _check_forward()
-    _check_adam()
+    # _check_adam()
+    _check_cnn()
