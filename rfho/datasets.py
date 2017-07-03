@@ -809,6 +809,7 @@ def load_cifar100(folder=CIFAR100_DIR, one_hot=True, partitions=None, filters=No
     path = folder + "/cifar-100.pickle"
     with open(path, "rb") as input_file:
         X, target_ID_fine, target_ID_coarse, fine_ID_corr, coarse_ID_corr, files = cpickle.load(input_file)
+    X = np.array(X);
 
     target_ID_fine = target_ID_fine[:len(X)]
     target_ID_coarse = target_ID_coarse[:len(X)]
