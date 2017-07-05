@@ -10,6 +10,7 @@ import tensorflow as tf
 
 from rfho.optimizers import Optimizer, AdamOptimizer
 from rfho.utils import dot, MergedVariable, VlMode, as_list, simple_name, GlobalStep, ZMergedMatrix, flatten_list
+from rfho.utils import call_method_optional_param as cmo
 
 
 class ReverseHG:
@@ -108,7 +109,7 @@ class ReverseHG:
                 self.hyper_derivatives = [
                     (self.val_error_dict[ve], tf.gradients(lagrangian, self.val_error_dict[ve]))
                     for ve, lagrangian in self.lagrangians_dict.items()
-                    ]  # list of couples (hyper_list, list of tensors hyper_gradients)  (lists are unhashable!)
+                ]  # list of couples (hyper_list, list of tensors hyper_gradients)  (lists are unhashable!)
                 # check that all hyper-gradients are defined
                 assert all(e is not None for e in flatten_list(
                     [e[1] for e in self.hyper_derivatives])), 'Some gradient of the validation error is None!'
@@ -148,14 +149,15 @@ class ReverseHG:
         Performs (forward) optimization of the parameters.
 
         :param T: Total number of iterations
-        :param train_feed_dict_supplier: (optional) A callable with signature `t -> feed_dict` to pass to
+        :param train_feed_dict_supplier: (optional) A callable with signature `t -> feed_dict`
+                                            or `() -> feed_dict` to pass to
                                             `tf.Session.run` feed_dict argument
         :param summary_utils: (optional) object that implements a method method `run(tf.Session, step)`
                                 that is executed at every iteration (see for instance utils.PrintUtils
         :return: None
         """
         if not train_feed_dict_supplier:
-            train_feed_dict_supplier = lambda step: None
+            train_feed_dict_supplier = lambda: None
 
         # var_init = self.w.var_list(VlMode.BASE) if isinstance(self.w, MergedVariable) else [self.w]
         # tf.variables_initializer(var_init + [self.global_step.var]).run()
@@ -165,7 +167,7 @@ class ReverseHG:
 
         for t in range(T):
             self.w_hist.append(self.w_t.eval())
-            ss.run([self._fw_ops], feed_dict=train_feed_dict_supplier(t))
+            ss.run([self._fw_ops], feed_dict=cmo(train_feed_dict_supplier, t))
             self.global_step.increase.eval()
             if summary_utils:
                 summary_utils.run(ss, t)
@@ -178,11 +180,12 @@ class ReverseHG:
         :param hyper_batch_step: supports for stochastic sampling of validation set
         :param T: Total number of iterations
         :param val_feed_dict_suppliers: either a callable that returns a feed_dict
-                                        or a dictionary {validation_error tensor: callable (step -> feed_dict) that
+                                        or a dictionary {validation_error tensor: callable
+                                            (signature `t -> feed_dict` or `() -> feed_dict`) that
                                         is used to initialize the dual variables `p` (generally supplier of
                                         validation example set).
 
-        :param train_feed_dict_supplier: (optional) A callable with signature `t -> feed_dict` to
+        :param train_feed_dict_supplier: (optional) A callable with signature `t -> feed_dict` or `() -> feed_dict` to
                                             pass to `tf.Session.run`
                                     feed_dict argument
         :param summary_utils: (optional) object that implements a method method `run(tf.Session, step)`
@@ -193,16 +196,16 @@ class ReverseHG:
         """
         if not train_feed_dict_supplier:
             # noinspection PyUnusedLocal
-            train_feed_dict_supplier = lambda step: None
+            train_feed_dict_supplier = lambda: None
         if not val_feed_dict_suppliers:  # FIXME probably won't work with the current settings.
-            val_feed_dict_suppliers = lambda step: None
+            val_feed_dict_suppliers = lambda: None
         else:
             if not isinstance(val_feed_dict_suppliers, dict) and len(self.val_error_dict.keys()) == 1:
                 # cast validation supplier into a dict
                 val_feed_dict_suppliers = {list(self.val_error_dict.keys())[0]: val_feed_dict_suppliers}
 
         # compute alpha_T using the validation set
-        [tf.variables_initializer([self.p_dict[ve]]).run(feed_dict=data_supplier(hyper_batch_step))
+        [tf.variables_initializer([self.p_dict[ve]]).run(feed_dict=cmo(data_supplier, hyper_batch_step))
          for ve, data_supplier in val_feed_dict_suppliers.items()]
 
         # set hyper-derivatives to 0
@@ -218,8 +221,8 @@ class ReverseHG:
             ss.run(self._back_hist_op, feed_dict={self._w_placeholder: self.w_hist[t]})
 
             # noinspection PyNoneFunctionAssignment
-            fds = train_feed_dict_supplier(self.global_step.eval())
-            # TODO read below
+            fds = cmo(train_feed_dict_supplier, self.global_step.eval())
+            # TODO read below  (maybe use tf.control_dependencies ... would it speed this up?)
             """ Unfortunately it looks like that the following two lines cannot be run together (will this
             degrade the performances???"""
 
@@ -417,9 +420,9 @@ class ForwardHG:
                 '''
                 Creates one z per hyper-parameter and assumes that each hyper-parameter is a vector
                 '''
-                self.zs, self.zs_dynamics, self._zs_assigns  = [], [], []
+                self.zs, self.zs_dynamics, self._zs_assigns = [], [], []
                 self.grad_val_err, self.grad_wrt_hypers = [], []
-                self.hyper_gradient_vars, self._hyper_assign_ops  = [], []
+                self.hyper_gradient_vars, self._hyper_assign_ops = [], []
 
                 for k, hyp in enumerate(self.hyper_list):
                     with tf.device(devices[k % len(devices)]):
@@ -505,12 +508,12 @@ class ForwardHG:
         """
 
         if not train_feed_dict_supplier:
-            train_feed_dict_supplier = lambda step: None
+            train_feed_dict_supplier = lambda: None
 
         ss = tf.get_default_session()
 
         # noinspection PyNoneFunctionAssignment
-        fd = train_feed_dict_supplier(self.global_step.eval())
+        fd = cmo(train_feed_dict_supplier, self.global_step.eval())
 
         ss.run(self._zs_assigns, feed_dict=fd)
         ss.run(self.fw_ops, feed_dict=fd)
@@ -532,7 +535,7 @@ class ForwardHG:
 
         val_sup_lst = []
         if val_feed_dict_supplier is None:
-            val_sup_lst = [lambda _st: None] * len(self.hyper_list)
+            val_sup_lst = [lambda: None] * len(self.hyper_list)
         else:
             for hyp in self.hyper_list:  # find the right validation error for hyp!
                 for k, v in self.hyper_dict.items():
@@ -542,20 +545,10 @@ class ForwardHG:
                         break
 
         # NEW VARIABLE-BASED HYPER-GRADIENTS
-        [assign_op.eval(feed_dict=vsl(hyper_batch_step)) for
+        [assign_op.eval(feed_dict=cmo(vsl, hyper_batch_step)) for
          assign_op, vsl in zip(self._hyper_assign_ops, val_sup_lst)]
 
         return {hyp: self.hyper_gradients_dict[hyp].eval() for hyp in self.hyper_list}
-
-        # OLD RETURN MODE
-        # computations = [gve.eval(feed_dict=vsl(self.global_step.eval())) for
-        #                 gve, vsl in zip(self.grad_wrt_hypers, val_sup_lst)]  # computes the actual gradients
-        #
-        # def cast_to_scalar_if_needed(grad):
-        #     sh_grad = list(np.shape(grad))
-        #     return grad[0] if len(sh_grad) == 1 and sh_grad[0] == 1 else grad
-
-        # return {hyp: cast_to_scalar_if_needed(gdd) for hyp, gdd in zip(self.hyper_list, computations)}
 
     def run_all(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None, hyper_batch_step=None,
                 forward_su=None, after_forward_su=None):
@@ -716,7 +709,7 @@ def positivity(hyper_list):
     return lst if len(lst) > 1 else lst[0]
 
 
-def print_hyper_gradients(hyper_gradient_dict):
+def print_hyper_gradients(hyper_gradient_dict):  # TODO to be removed
     """
     Old helper function to nicely print hyper-gradients
 

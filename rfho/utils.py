@@ -3,6 +3,7 @@ import sys
 import os
 from enum import Enum
 from functools import reduce
+from inspect import signature
 from time import gmtime, strftime
 
 import numpy as np
@@ -30,12 +31,20 @@ def wsr(node):  # warning on session running
     return node
 
 
+def call_method_optional_param(method, optional_param):
+    """
+    Convenience method for function that may or not have one parameter (like feed dictionary suppliers)
+
+    :param method:
+    :param optional_param:
+    :return: the result of calling the method.
+    """
+    return method(optional_param) if len(signature(method).parameters) > 0 else method()
+
+
+
 CONFIG_GPU_GROWTH = tf.ConfigProto(allow_soft_placement=True)
 CONFIG_GPU_GROWTH.gpu_options.allow_growth = True
-
-
-def get_function_parameter_names(func):
-    return func.__code__.co_varnames[:func.__code__.co_argcount]
 
 
 def simple_name(tensor):
