@@ -335,16 +335,18 @@ def _check_cnn():
             np.random.seed(1)
             tf.set_random_seed(1)
 
-            _model_kwargs = {'conv_dims': [[5, 5, 1, 4], [5, 5, 4, 8]],
-                             'ffnn_dims': [392, 10]}
+            _model_kwargs = {'conv_dims': [[5, 5, 1, 2], [5, 5, 2, 4], [5, 5, 4, 8]],
+                             'ffnn_dims': [128, 10]}
 
             experiment('test_with_model_' + _model, collect_data=False, hyper_iterations=3, mode=_mode,
-                       epochs=3,
+                       epochs=2,
                        model=_model,
                        model_kwargs=_model_kwargs,
                        set_T=100,
                        synthetic_hypers=None,
-                       hyper_batch_size=100
+                       hyper_batch_size=100,
+                       l1=None,
+                       l2=None
                        # optimizer=rf.GradientDescentOptimizer,
                        # optimizer_kwargs={'lr': tf.Variable(.01, name='eta')}
                        )
@@ -352,5 +354,5 @@ def _check_cnn():
 
 if __name__ == '__main__':
     # _check_forward()
-    # _check_adam()
+    #  _check_adam()
     _check_cnn()
