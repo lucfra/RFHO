@@ -27,14 +27,15 @@ def test_hv_with_builtin():
     )
 
     hvp_builtin = hvp(ce_builtin, net_w.tensor, v)  # WITH PREVIOUS VERSIONS (r.0.11) WAS 0. NOW RAISES ERROR
-    hessian_builtin = tf.hessians(ce_builtin, net_w)[0]
+    # UPDATE r1.2 now it's working! yeah!
+    hessian_builtin = tf.hessians(ce_builtin, net_w.tensor)[0]
 
-    hvp_standard = hvp(ce_standard, net_w, v)
-    hessian_standard = tf.hessians(ce_standard, net_w)[0]
+    hvp_standard = hvp(ce_standard, net_w.tensor, v)
+    hessian_standard = tf.hessians(ce_standard, net_w.tensor)[0]
 
     def training_supplier(): return {x: iris.train.data, y: iris.train.target}
 
-    ts = tf.train.GradientDescentOptimizer(.1).minimize(ce_standard, var_list=[net_w])
+    ts = tf.train.GradientDescentOptimizer(.1).minimize(ce_standard, var_list=model.var_list)
 
     with tf.Session().as_default() as ss:
         tf.global_variables_initializer().run()
