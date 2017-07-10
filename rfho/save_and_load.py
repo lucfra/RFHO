@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 from rfho import as_list
 
 import rfho as rf
+from rfho.datasets import Dataset
 
 try:
     from IPython.display import IFrame
@@ -30,6 +31,7 @@ except ImportError:
 
 def join_paths(*paths):
     return reduce(lambda acc, new_path: os.path.join(acc, new_path), paths)
+
 
 SAVE_SETTINGS = {
     'NOTEBOOK_TITLE': ''
@@ -102,7 +104,7 @@ def load_obj(name, root_dir=None, notebook_mode=True):
     directory = check_or_create_dir(join_paths(root_dir, FOLDER_NAMINGS['OBJ_DIR']),
                                     notebook_mode=notebook_mode, create=False)
 
-    filename = join_paths(directory,  name if name.endswith('.pkgz') else name+'.pkgz')
+    filename = join_paths(directory, name if name.endswith('.pkgz') else name + '.pkgz')
     with gzip.open(filename, 'rb') as f:
         return pickle.load(f)
 
@@ -201,15 +203,15 @@ class Timer:
             t2 = self._stopping_times if len(self._starting_times) == len(self._stopping_times) else \
                 self._stopping_times + [time.time()]
             return zip(self._starting_times, t2)
+
         return [t2 - t1 for t1, t2 in _maybe_add_last()]
 
     def elapsed_time(self):
-        res = sum(self.raw_elapsed_time_list())/Timer._div_unit[self.unit]
+        res = sum(self.raw_elapsed_time_list()) / Timer._div_unit[self.unit]
         return res if not self.round_off else int(res)
 
 
 class Saver:
-
     def __init__(self, experiment_names, *items, append_date_to_name=True,
                  root_directory=FOLDER_NAMINGS['EXP_ROOT'],
                  timer=None, do_print=True, collect_data=True, default_overwrite=False):
@@ -320,13 +322,14 @@ class Saver:
         """
         from tensorflow import get_default_session
         if not step:
-            step = self._step
             self._step += 1
+            step = self._step
 
         if do_print is None: do_print = self.do_print
         if collect_data is None: collect_data = self.collect_data
 
-        if session: ss = session
+        if session:
+            ss = session
         else:
             ss = get_default_session()
         if ss is None and do_print: print('WARNING, No tensorflow session available')
@@ -337,8 +340,8 @@ class Saver:
             return _method(step) if len(signature(_method).parameters) > 0 else _method()
 
         save_dict = OrderedDict([(pt[0], _call(pt[1]) if callable(pt[1])
-                                 else ss.run(pt[1], feed_dict=_call(pt[2]) if callable(pt[2]) else pt[2],
-                                             options=pt[3], run_metadata=pt[4]))
+        else ss.run(pt[1], feed_dict=_call(pt[2]) if callable(pt[2]) else pt[2],
+                    options=pt[3], run_metadata=pt[4]))
                                  for pt in self.processed_items])
 
         if self.timer: save_dict['Elapsed time (%s)' % self.timer.unit] = self.timer.elapsed_time()
@@ -371,7 +374,7 @@ class Saver:
         import glob
         all_files = sorted(glob.glob(join_paths(
             self.directory, FOLDER_NAMINGS['OBJ_DIR'], '[0-9]*%s.pkgz' % append_string)),
-                           key=os.path.getctime)  # sort by creation time
+            key=os.path.getctime)  # sort by creation time
         if len(all_files) == 0:
             print('No file found')
             return
@@ -388,7 +391,7 @@ class Saver:
 
         return packed_dict
 
-    def record(self, *what, append_string=None):  # TODO  this is un initial (maybe bad) idea.
+    def record(self, *what, append_string=''):  # TODO  this is un initial (maybe bad) idea.
         """
         Context manager for saver. saves executions
 
@@ -397,7 +400,7 @@ class Saver:
         :return:
         """
 
-        return _SaverContext(self, append_string=append_string)  # FIXME to be finished
+        return _SaverContext(self, append_string=append_string, record_what=what)  # FIXME to be finished
 
     def save_fig(self, name, extension='pdf', **savefig_kwargs):
         """
@@ -460,40 +463,75 @@ class Saver:
 
 
 class _SaverContext:
+    _METHODS_TO_WRAP = {rf.HyperOptimizer: rf.HyperOptimizer.run}
 
-    _METHODS_TO_WRAP = [rf.HyperOptimizer.run]
-
-    def __init__(self, saver, append_string):
+    def __init__(self, saver, append_string, record_what):
         self.saver = saver
         self.append_string = append_string
 
-        self._unwrapped_methods = []
+        self._unwrapped_run = None
+        self._unwrapped_initialize = None
+
+        self._record_what = record_what
 
     def __enter__(self):
+        self._unwrapped_initialize = rf.HyperOptimizer.initialize
+        rf.HyperOptimizer.initialize = self._initialize_wrapper(rf.HyperOptimizer.initialize)
 
-        for f in _SaverContext._METHODS_TO_WRAP:  # TODO one we wrap a method any subsequent call will be wrapped
-            # what if we have more savers?
-            self._unwrapped_methods.append(f)
-            f = self._saver_wrapper(f)
+        self._unwrapped_run = rf.HyperOptimizer.run
+        rf.HyperOptimizer.run = self._saver_wrapper(rf.HyperOptimizer.run)  # mmm...
+
+        # for cls, m in _SaverContext._METHODS_TO_WRAP.items():
+        #     self._unwrapped_methods.append(m)
+        #     m = self._saver_wrapper(m)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_tb:
             self.saver.save_obj((exc_type, exc_val, exc_tb), 'exception')
         self.saver.pack_save_dictionaries(append_string=self.append_string)
 
+        rf.HyperOptimizer.run = self._unwrapped_run  # mmm x2... (but looks like it works...)
+
     def _saver_wrapper(self, f):
         def _saver_wrapped(*args, **kwargs):
             res = f(*args, **kwargs)
             self.saver.save(append_string=self.append_string)  # todo maybe add other args...
             return res
+
         return _saver_wrapped
+
+    def _initialize_wrapper(self, f):  # this should be good since
+        def _initialize_wrapped(*args, **kwargs):
+            res = f(*args, **kwargs)
+            [self.saver.add_items(*e(args[0])) for e in self._record_what]
+            return res
+
+        return _initialize_wrapped
+
+
+# mmm x 4 decide where to put these things...
+def record_hyperparameteres():
+    def _call(hyper_optimizer):
+        return rf.flatten_list([rf.simple_name(hyp), [hyp, hyper_optimizer.hyper_gradients.hyper_gradients_dict[hyp]]]
+                               for hyp in hyper_optimizer.hyper_list)
+    return _call
+
+def record_collection(key, fd_or_dataset=None):  # TODO many problems here....
+    if isinstance(fd_or_dataset, Dataset):  # this is a problem... cos feed dictionary suppliers
+        # are usually defined internally inside the experiment function.
+        # could wrap also the feed_dict_suppliers??? find a way to obtain x and y! or whatsoever
+        pass
+    def _call(hyper_optimizer):
+        return
+
+    return _call
 
 
 if __name__ == '__main__':
     sav1 = Saver('tbd',
-                    'random', lambda step: np.random.randn(),
+                 'random', lambda step: np.random.randn(),
                  default_overwrite=True
-                    )
+                 )
     sav1.timer.start()
     sav1.save(0)
     time.sleep(2)
@@ -501,4 +539,3 @@ if __name__ == '__main__':
     time.sleep(1)
     sav1.save(2)
     sav1.pack_save_dictionaries()
-

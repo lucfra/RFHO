@@ -101,6 +101,132 @@ def define_errors_default_models(model, l1=0., l2=0., synthetic_hypers=None, aug
            base_training_error, gamma
 
 
+def experiment_no_saver(datasets=None, model='log_reg', model_kwargs=None, l1=0., l2=0.,
+                        synthetic_hypers=None, set_T=None,
+                        optimizer=rf.MomentumOptimizer, optimizer_kwargs=None, batch_size=200,
+                        algo_hyper_wrt_tr_error=False,
+                        mode='reverse', hyper_optimizer=rf.AdamOptimizer, hyper_optimizer_kwargs=None,
+                        hyper_iterations=100, hyper_batch_size=100, epochs=None, do_print=True):
+    """
+    General method for conducting various simple experiments (on MNIST dataset) with RFHO package.
+
+    :param datasets: (some dataset, usually MNIST....)
+    :param model: (default logarithmic regression) model type
+    :param model_kwargs:
+    :param l1: Initial value for l1 regularizer weight (if None does not uses it)
+    :param l2: Initial value for l2 regularizer weight (if None does not uses it)
+    :param synthetic_hypers: (default None, for benchmarking purposes) if integer adds some synthetic hyperparameters
+                                to the task.
+    :param set_T:
+    :param optimizer: (default `MomentumOptimizer`) optimizer for parameters
+    :param optimizer_kwargs:
+    :param batch_size:
+    :param epochs: number of ephocs
+    :param algo_hyper_wrt_tr_error: (default False) if True optimizes the algorithmic hyperparameters (learning rate, ..
+                                    w.r.t. training error instead of validation error
+    :param mode: forward reverse or rtho
+    :param hyper_optimizer: optimizer for the hyperparameters
+    :param hyper_optimizer_kwargs:
+    :param hyper_iterations: number of hyper-iterations
+    :param hyper_batch_size: hyper-batch size when RTHO is used
+    :param do_print: if True (default) prints intermediate results...
+    :return:
+    """
+    assert mode in HO_MODES
+
+    if synthetic_hypers:
+        batch_size = synthetic_hypers  # altrimenti divento matto!
+
+    if datasets is None: datasets = load_dataset()
+
+    x, model = create_model(datasets, model, **model_kwargs or {})
+    s, out, ws, y, error, training_error, rho_l1s, reg_l1s, rho_l2s, reg_l2s, accuracy, base_tr_error, gamma = \
+        define_errors_default_models(model, l1, l2, synthetic_hypers=synthetic_hypers,
+                                     augment=optimizer.get_augmentation_multiplier())
+
+    if optimizer_kwargs is None: optimizer_kwargs = {'lr': tf.Variable(.01, name='eta'),
+                                                     'mu': tf.Variable(.5, name='mu')}
+
+    tr_dynamics = optimizer.create(s, loss=training_error, w_is_state=True, **optimizer_kwargs)
+
+    # hyperparameters part!
+    algorithmic_hyperparameters = []
+    eta = tr_dynamics.learning_rate
+    if isinstance(eta, tf.Variable):
+        algorithmic_hyperparameters.append(eta)
+    if hasattr(tr_dynamics, 'momentum_factor'):
+        mu = tr_dynamics.momentum_factor
+        if isinstance(mu, tf.Variable):
+            algorithmic_hyperparameters.append(mu)
+
+    regularization_hyperparameters = []
+    vec_w = s.var_list(rf.VlMode.TENSOR)[0]  # vectorized representation of _model weights (always the first!)
+    if rho_l1s is not None:
+        regularization_hyperparameters += rho_l1s
+    if rho_l2s is not None:
+        regularization_hyperparameters += rho_l2s
+
+    synthetic_hyperparameters = []
+    if synthetic_hypers:
+        synthetic_hyperparameters.append(gamma)
+
+    hyper_dict = {error: regularization_hyperparameters + synthetic_hyperparameters}  # create hyper_dict
+    # end of hyperparameters
+
+    if algo_hyper_wrt_tr_error:  # it is possible to optimize different hyperparameters wrt different validation errors
+        hyper_dict[training_error] = algorithmic_hyperparameters
+    else:
+        hyper_dict[error] += algorithmic_hyperparameters
+    # print(hyper_dict)
+
+    hyper_opt = rf.HyperOptimizer(tr_dynamics, hyper_dict,
+                                  method=rf.ReverseHG if mode == 'reverse' else rf.ForwardHG,
+                                  hyper_optimizer_class=hyper_optimizer, **hyper_optimizer_kwargs or {})
+
+    positivity = rf.positivity(hyper_opt.hyper_list)
+
+    # stochastic descent
+    ev_data = ExampleVisiting(datasets.train, batch_size=batch_size, epochs=epochs)
+    if epochs: ev_data.generate_visiting_scheme()
+    tr_supplier = ev_data.create_feed_dict_supplier(x, y)
+    val_supplier = datasets.validation.create_supplier(x, y)
+    test_supplier = datasets.test.create_supplier(x, y)
+
+    def _all_training_supplier():
+        return {x: datasets.train.data, y: datasets.train.target}
+
+    # feed_dict supplier for validation errors
+    val_feed_dict_suppliers = {error: val_supplier}
+    if algo_hyper_wrt_tr_error: val_feed_dict_suppliers[training_error] = _all_training_supplier
+
+    def _calculate_memory_usage():
+        memory_usage = rf.simple_size_of_with_pickle([
+            hyper_opt.hyper_gradients.w.eval(),
+            [h.eval() for h in hyper_opt.hyper_gradients.hyper_list]
+        ])
+        if mode == 'reverse':
+            return memory_usage + rf.simple_size_of_with_pickle([
+                hyper_opt.hyper_gradients.w_hist,
+                [p.eval() for p in hyper_opt.hyper_gradients.p_dict.values()]
+            ])
+        else:
+            return memory_usage + rf.simple_size_of_with_pickle([
+                [z.eval() for z in hyper_opt.hyper_gradients.zs]
+            ])
+
+    # number of iterations
+    T = set_T or ev_data.T if mode != 'rtho' else hyper_batch_size
+
+    with tf.Session(config=rf.CONFIG_GPU_GROWTH).as_default():
+        hyper_opt.initialize()
+        for k in range(hyper_iterations):
+            hyper_opt.run(T, train_feed_dict_supplier=tr_supplier, val_feed_dict_suppliers=val_feed_dict_suppliers,
+                          hyper_constraints_ops=positivity)
+
+            if mode != 'rtho':
+                hyper_opt.initialize()
+
+
 def experiment(name_of_experiment, collect_data=False,
                datasets=None, model='log_reg', model_kwargs=None, l1=0., l2=0.,
                synthetic_hypers=None, set_T=None,
@@ -352,7 +478,15 @@ def _check_cnn():
                        )
 
 
+def _check_new_saver_mode():
+    saver = rf.Saver('TBD')
+    with saver.record(rf.record_hyperparameteres()):
+        experiment_no_saver(mode=HO_MODES[1], epochs=None, set_T=10, hyper_iterations=4)
+    experiment_no_saver(mode=HO_MODES[1], epochs=None, set_T=10, hyper_iterations=3)
+
+
 if __name__ == '__main__':
     # _check_forward()
     #  _check_adam()
-    [_check_cnn() for _ in range(3)]
+    #[_check_cnn() for _ in range(3)]
+    _check_new_saver_mode()
