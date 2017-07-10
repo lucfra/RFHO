@@ -119,6 +119,16 @@ def bias_variable(shape):
 
 
 def main(_):
+    """
+    Modified MNIST for expert (CNN part) tensorflow tutorial experiment to include real time
+    hyperparameter optimization. Hyperparameters being optimized are learning rate for
+    ADAM optimizer and coefficient of L2 norm of fully connected part of the network.
+    Note that this codes requires ~ 3x (gpu) memory and ~ 4x time compared to the original one
+    but should yield a final test error of around 99.4 %
+
+    :param _:
+    :return:
+    """
     # Import data
     mnist = input_data.read_data_sets(FLAGS.data_dir, one_hot=True)
 
@@ -136,13 +146,14 @@ def main(_):
     # use adam optimizer:
     optimizer = rf.AdamOptimizer
     w, y_conv, W_fc1, W_fc2 = rf.vectorize_model(model_vairables, y_conv, W_fc1, W_fc2,
-                                          augment=optimizer.get_augmentation_multiplier())
+                                                 augment=optimizer.get_augmentation_multiplier())
     # w is now a vector that contains all the weights, y_conv and W_fc2 are the same tensor as earlier,
     # but in the new graph
 
-    # RFHO use cross entropy defined in the package since tensorflow one does not have Hessian
+    # RFHO use cross entropy defined in the package since tensorflow one does not have Hessian,
+    # eps is the clipping threshold for cross entropy.
     cross_entropy = tf.reduce_mean(
-        rf.cross_entropy_loss(labels=y_, logits=y_conv))
+        rf.cross_entropy_loss(labels=y_, logits=y_conv, eps=1.e-4))
     # RFHO add an L2 regularizer on the last weight matrix, whose weight will be optimized
     rho = tf.Variable(0., name='rho')
     constraints = [rf.positivity(rho)]  # rho >= 0
@@ -164,13 +175,13 @@ def main(_):
 
     # RFHO last thing before running: define the example supplier:
     def _train_fd():
-        batch = mnist.train.next_batch(50)
+        batch = mnist.train.next_batch(50)  # batch size of 50
         return {x: batch[0], y_: batch[1]}
 
     def _validation_fd():
         return {x: mnist.validation.images, y_: mnist.validation.labels}
 
-    with tf.Session(config=rf.CONFIG_GPU_GROWTH).as_default():  # RFHO use default session.
+    with tf.Session(config=rf.CONFIG_GPU_GROWTH).as_default() as ss:  # RFHO use default session.
         hyper_opt.initialize()  # RFHO this will initialize all the variables, including hyperparameters
         for i in range(200):  # RFHO we run for 200 hyper-iterations
             hyper_opt.run(100, train_feed_dict_supplier=_train_fd,
@@ -179,18 +190,19 @@ def main(_):
 
             # if i % 100 == 0:
             train_accuracy = accuracy.eval(feed_dict=_train_fd())
-            val_accuracy = accuracy.eval(feed_dict=_validation_fd())
+            val_accuracy, val_error = ss.run([accuracy, cross_entropy], feed_dict=_validation_fd())
 
-            print('step %d, training accuracy %.2f; validation accuracy: %.4f, alpha: %.6f, %.5f, rho: %.6f, %.5f'
-                  % (i*100, train_accuracy, val_accuracy, alpha.eval(),
+            print('step %d, training accuracy %.2f; validation accuracy: %.4f, validation error: %.5f; '
+                  'alpha: %.6f, %.5f, rho: %.6f, %.5f'
+                  % (i*100, train_accuracy, val_accuracy, val_error, alpha.eval(),
                      hyper_opt.hyper_gradients.hyper_gradients_dict[alpha].eval(),
                      rho.eval(), hyper_opt.hyper_gradients.hyper_gradients_dict[rho].eval()))
-            print('test accuracy %g' % accuracy.eval(feed_dict={
-                x: mnist.test.images, y_: mnist.test.labels}))
             # train_step.run(feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
 
-        print('test accuracy %g' % accuracy.eval(feed_dict={
-            x: mnist.test.images, y_: mnist.test.labels}))
+        test_accuracy = accuracy.eval(feed_dict={
+            x: mnist.test.images, y_: mnist.test.labels})
+        print('test accuracy %g' % test_accuracy)
+        return test_accuracy
 
 
 if __name__ == '__main__':
@@ -199,4 +211,8 @@ if __name__ == '__main__':
                         default='/tmp/tensorflow/mnist/input_data',
                         help='Directory for storing input data')
     FLAGS, unparsed = parser.parse_known_args()
-    tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+
+    sv = rf.Saver(['TBD'])
+
+    with sv.record():
+        tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)

@@ -681,7 +681,7 @@ class HyperOptimizer:
             if hyper_constraints_ops: [op() if callable(op) else op.eval()
                                        for op in as_list(hyper_constraints_ops)]
 
-        self.hyper_batch_step.increase.eval()
+            self.hyper_batch_step.increase.eval()
 
 
 def create_hyperparameter_optimizers(rf_hyper_gradients, optimizer_class, **optimizers_kw_args):

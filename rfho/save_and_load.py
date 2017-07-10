@@ -1,11 +1,14 @@
 import time
 from collections import OrderedDict
+from contextlib import contextmanager
 from functools import reduce
 from inspect import signature
 
 import matplotlib.pyplot as plt
 
 from rfho import as_list
+
+import rfho as rf
 
 try:
     from IPython.display import IFrame
@@ -259,6 +262,7 @@ class Saver:
             timer = Timer()
 
         self.timer = timer
+        self._step = -1
 
     def clear_items(self):
         """
@@ -301,19 +305,23 @@ class Saver:
         self.processed_items += processed_args
         return [pt[0] for pt in processed_args]
 
-    def save(self, step, session=None, append_string="", do_print=None, collect_data=None):
+    def save(self, step=None, session=None, append_string="", do_print=None, collect_data=None):
         """
         Builds and save a dictionary with the keys and values specified at construction time or by method
         `add_items`
 
         :param session: Optional tensorflow session, otherwise uses default session
-        :param step: (int preferred, otherwise does not work well with `pack_save_dictionaries`).
+        :param step: optional step, if None (default) uses internal step
+                        (int preferred, otherwise does not work well with `pack_save_dictionaries`).
         :param append_string: (optional str) string to append at the file name to `str(step)`
         :param do_print: (default as object field)
         :param collect_data: (default as object field)
         :return: the dictionary
         """
         from tensorflow import get_default_session
+        if not step:
+            step = self._step
+            self._step += 1
 
         if do_print is None: do_print = self.do_print
         if collect_data is None: collect_data = self.collect_data
@@ -380,6 +388,17 @@ class Saver:
 
         return packed_dict
 
+    def record(self, *what, append_string=None):  # TODO  this is un initial (maybe bad) idea.
+        """
+        Context manager for saver. saves executions
+
+        :param what:
+        :param append_string:
+        :return:
+        """
+
+        return _SaverContext(self, append_string=append_string)  # FIXME to be finished
+
     def save_fig(self, name, extension='pdf', **savefig_kwargs):
         """
         Object-oriented version of `save_fig`
@@ -438,6 +457,36 @@ class Saver:
         :return: unpacked object
         """
         return load_obj(name, root_dir=self.directory, notebook_mode=False)
+
+
+class _SaverContext:
+
+    _METHODS_TO_WRAP = [rf.HyperOptimizer.run]
+
+    def __init__(self, saver, append_string):
+        self.saver = saver
+        self.append_string = append_string
+
+        self._unwrapped_methods = []
+
+    def __enter__(self):
+
+        for f in _SaverContext._METHODS_TO_WRAP:  # TODO one we wrap a method any subsequent call will be wrapped
+            # what if we have more savers?
+            self._unwrapped_methods.append(f)
+            f = self._saver_wrapper(f)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_tb:
+            self.saver.save_obj((exc_type, exc_val, exc_tb), 'exception')
+        self.saver.pack_save_dictionaries(append_string=self.append_string)
+
+    def _saver_wrapper(self, f):
+        def _saver_wrapped(*args, **kwargs):
+            res = f(*args, **kwargs)
+            self.saver.save(append_string=self.append_string)  # todo maybe add other args...
+            return res
+        return _saver_wrapped
 
 
 if __name__ == '__main__':

@@ -329,7 +329,7 @@ def _check_all_methods():
 
 def _check_cnn():
     print('END')
-    for _mode in HO_MODES:
+    for _mode in HO_MODES[2:3]:
         for _model in IMPLEMENTED_MODEL_TYPES[2:3]:
             tf.reset_default_graph()
             np.random.seed(1)
@@ -355,4 +355,4 @@ def _check_cnn():
 if __name__ == '__main__':
     # _check_forward()
     #  _check_adam()
-    _check_cnn()
+    [_check_cnn() for _ in range(3)]

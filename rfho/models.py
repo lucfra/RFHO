@@ -1,8 +1,6 @@
 # import data
 # import numpy as np
 # working with placeholders
-import contextlib
-import os
 from functools import reduce
 
 import tensorflow as tf
@@ -185,7 +183,7 @@ def ffnn_layer(init_w=tf.contrib.layers.xavier_initializer(),  # OK
 # standard layers end ##############
 
 
-def vectorize_model(model_vars, *o_outs, augment=0):
+def vectorize_model(model_vars, *o_outs, augment=0, suppress_err_out=True):
     """
     Function that "vectorizes" a model (as a computation graph).
 
@@ -208,8 +206,7 @@ def vectorize_model(model_vars, *o_outs, augment=0):
     Substantially you need to keep track of the tf.identity(variable) and use the resulting tensor to build up the model
     and then also of the initial value of variable. Probably it is not necessary to keep track of  variable itself. }
 
-
-    :param model_or_var_list: list of variables of the model or initializers
+    :param model_vars: list of variables of the model or initializers
     :param o_outs: output_variables, list or tensor. (e.g. model output)
     :param augment: (int: default 0) augment the all weights vector by creating augumented variables (initialized at 0)
                     that mirror rank and dimensions of the variables in `model_vars`. The process is repeated
@@ -217,6 +214,8 @@ def vectorize_model(model_vars, *o_outs, augment=0):
                     This new variables can be  accessed with methods in `MergedVariable`.
                     The common usage is to prepare the model to be optimized with optimizers that require states
                     such as `MomentumOptimizer` (`augment=1`) or `AdamOptimizer` (`augment=2`).
+    :param suppress_err_out: if `True` (default) suppress tensorflow warnings and outputs.
+                                This might cause system error in very very few cases...
 
     :return: a list which has as first element the `MergedVariable` that represents the all weights vector. Remaining
                 elements are the outputs
@@ -248,10 +247,11 @@ def vectorize_model(model_vars, *o_outs, augment=0):
 
         # with open(os.devnull, 'w') as dnf:
         # with utils.suppress_stdout_stderr():  # may cause ERROR TOO MANY FILES OPENED!.:((
-        new_outs = ge.graph_replace(outs, w.generate_swap_dict())
 
-        # with utils.suppress_stdout_stderr():  # FIXME deprecation here on GraphKey usage... now redirecting outs
-        #     new_outs = ge.graph_replace(outs, w.generate_swap_dict())
+        if suppress_err_out:  # FIXME deprecation here on GraphKey usage... now redirecting outs... should fix tf..
+            with utils.suppress_stdout_stderr():
+                new_outs = ge.graph_replace(outs, w.generate_swap_dict())
+        else: new_outs = ge.graph_replace(outs, w.generate_swap_dict())
 
     return [w] + new_outs
 
