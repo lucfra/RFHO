@@ -558,7 +558,7 @@ def record_norms_of_z():
         if isinstance(hg, rf.HyperOptimizer): hg = hg.hyper_gradients  # guess most common case
         assert isinstance(hg, rf.ForwardHG)
         _rs = []
-        # _rs.append(record_tensors(*hg.d_dynamics_d_hypers, op=tf.norm)(args, kwargs))
+        # _rs += record_tensors(*hg.d_dynamics_d_hypers, op=tf.norm)(args, kwargs)
         _rs += record_tensors(*hg.zs, op=tf.norm)(args, kwargs)
         return _rs
 

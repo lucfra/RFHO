@@ -456,14 +456,14 @@ def _check_new_saver_mode():
     saver = rf.Saver('TBD')
     datasets = load_dataset()
 
-    # with rf.record_hyperiteration(saver, rf.record_hyperparameters(),
-    #                               rf.record_tensors('error', 'accuracy', rec_name='valid',
-    #                                                 fd=('x', 'y', datasets.validation)),
-    #                               rf.record_tensors('error', 'accuracy', rec_name='test',
-    #                                                 fd=('x', 'y', datasets.test)),
-    #                               append_string='_1st_trial'
-    #                               ):
-    #     experiment_no_saver(datasets=datasets, mode=HO_MODES[1], epochs=None, set_T=100, hyper_iterations=5)
+    with rf.record_hyperiteration(saver, rf.record_hyperparameters(),
+                                  rf.record_tensors('error', 'accuracy', rec_name='valid',
+                                                    fd=('x', 'y', datasets.validation)),
+                                  rf.record_tensors('error', 'accuracy', rec_name='test',
+                                                    fd=('x', 'y', datasets.test)),
+                                  append_string='_1st_trial'
+                                  ):
+        experiment_no_saver(datasets=datasets, mode=HO_MODES[1], epochs=None, set_T=100, hyper_iterations=5)
     #
     # saver.timer.reset()
     # with rf.record_forward_hg(saver, rf.record_hyperparameters(),
@@ -492,8 +492,8 @@ def _check_new_saver_mode():
 
 
 if __name__ == '__main__':
-    _check_all_methods()
+    # _check_all_methods()
     # _check_forward()
     #  _check_adam()
     # [_check_cnn() for _ in range(3)]
-    # _check_new_saver_mode()
+    _check_new_saver_mode()
