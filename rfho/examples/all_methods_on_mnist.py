@@ -406,7 +406,7 @@ def _check_forward():
 
 
 def _check_all_methods():
-    for _mode in HO_MODES:
+    for _mode in HO_MODES[1:]:
         for _model in IMPLEMENTED_MODEL_TYPES:
             # _model_kwargs = {'dims': [None, 300, 300, None]}
             tf.reset_default_graph()

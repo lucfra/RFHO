@@ -10,6 +10,7 @@ import numpy as np
 import tensorflow as tf
 # noinspection PyProtectedMember
 from tensorflow.python.ops.gradients_impl import _hessian_vector_product as _hvp
+from tensorflow.python.client.session import register_session_run_conversion_functions
 from tensorflow.python.ops import control_flow_ops
 
 utils_settings = {
@@ -425,7 +426,10 @@ class MergedVariable:
         """
 
         self._var_list = var_list
-        self.tensor = tf.identity(vectorize_all([MergedVariable.get_tensor(v) for v in var_list]), name=name)
+        self.tensor = tf.identity(vectorize_all([
+            # MergedVariable.get_tensor(v)
+            v
+            for v in var_list]), name=name)
 
         self.name = name
         self.model = model
@@ -494,7 +498,9 @@ class MergedVariable:
 
     def _var_list_as_tensors(self):
         if any([isinstance(v, MergedVariable) for v in self._var_list]):
-            return [self.get_tensor(v) for v in self._var_list]
+            return [v
+                # self.get_tensor(v)
+            for v in self._var_list]
         else:
             return [self.tensor]
 
@@ -543,8 +549,12 @@ class MergedVariable:
         return self.tensor.graph
 
     @staticmethod
-    def get_tensor(v):
+    def get_tensor(v):  #
         return v.tensor if isinstance(v, MergedVariable) else v
+
+    @property
+    def dtype(self):
+        return self.tensor.dtype
 
     def __pow__(self, power, modulo=None):
         return self.tensor.__pow__(power)
@@ -569,11 +579,15 @@ class MergedVariable:
         :param as_ref:
         :return:
         """
-        if as_ref:
-            raise NotImplemented()
+        # if as_ref:
+        #     raise NotImplemented()
         return tf.convert_to_tensor(value.tensor, dtype=dtype, name=name)
 
 tf.register_tensor_conversion_function(MergedVariable, MergedVariable.tensor_conversion)
+# import tensorflow.client.session as tf_pcs
+register_session_run_conversion_functions(MergedVariable,
+                                          lambda merged_var: ([merged_var.tensor],
+                                                              lambda val: val[0]))  #
 
 
 def flatten_list(lst):
@@ -711,3 +725,6 @@ class ZMergedMatrix:
 
 
 tf.register_tensor_conversion_function(ZMergedMatrix, ZMergedMatrix.tensor_conversion)
+register_session_run_conversion_functions(ZMergedMatrix,
+                                          lambda zmm: ([zmm.tensor],
+                                                       lambda val: val[0]))  #
