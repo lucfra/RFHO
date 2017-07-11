@@ -558,6 +558,23 @@ class MergedVariable:
     def __mul__(self, other):
         return self.tensor.__mul__(other)
 
+    @staticmethod
+    def tensor_conversion(value, dtype=None, name=None, as_ref=False):
+        """
+        tensorflow tensor conversion function. Simply gives to tensorflow the underlying tensor
+
+        :param value:
+        :param dtype:
+        :param name:
+        :param as_ref:
+        :return:
+        """
+        if as_ref:
+            raise NotImplemented()
+        return tf.convert_to_tensor(value.tensor, dtype=dtype, name=name)
+
+tf.register_tensor_conversion_function(MergedVariable, MergedVariable.tensor_conversion)
+
 
 def flatten_list(lst):
     from itertools import chain
@@ -603,7 +620,11 @@ class GlobalStep:
 
 
 class ZMergedMatrix:
-    def __init__(self, matrix_list):
+    """
+    Class for dealing with the Z quantities in the forward mode (which are the total derivative of the state
+    w.r.t. hyperparameters).
+    """
+    def __init__(self, matrix_list, name='Z'):
 
         self.components = as_list(matrix_list)
 
@@ -613,7 +634,7 @@ class ZMergedMatrix:
             if c.get_shape().ndims == 1:
                 self.components[i] = tf.transpose(tf.stack([c]))
 
-        self.tensor = tf.concat(self.components, 0)
+        self.tensor = tf.concat(self.components, 0, name=name)
 
     # def create_copy(self):
     #     new_components = []
@@ -675,6 +696,15 @@ class ZMergedMatrix:
 
     @staticmethod
     def tensor_conversion(value, dtype=None, name=None, as_ref=False):
+        """
+        tensorflow tensor conversion function. Simply gives to tensorflow the underlying tensor
+
+        :param value:
+        :param dtype:
+        :param name:
+        :param as_ref:
+        :return:
+        """
         if as_ref:
             raise NotImplemented()
         return tf.convert_to_tensor(value.tensor, dtype=dtype, name=name)

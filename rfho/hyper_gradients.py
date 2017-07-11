@@ -474,7 +474,6 @@ class ForwardHG:
             z_components = [tf.Variable(tf.zeros([c.get_shape().as_list()[0], dim_h]), name=simple_name(hyper))
                             for c in components]
             mvz = ZMergedMatrix(z_components)
-            # print(mvz.tensor)
             return mvz
 
     def initialize(self, session=None):
