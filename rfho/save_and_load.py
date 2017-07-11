@@ -310,13 +310,17 @@ class Saver:
             part += [None] * (5 - len(part))  # representing name, fetches, feeds, options, metadata
             processed_args.append(part)
         self._processed_items += processed_args
-        return [pt[0] for pt in processed_args]
+        # return [pt[0] for pt in processed_args]
+        return processed_args
 
-    def save(self, step=None, session=None, append_string="", do_print=None, collect_data=None):
+    def save(self, step=None, session=None, append_string="", do_print=None, collect_data=None,
+             processed_items=None):
         """
         Builds and save a dictionary with the keys and values specified at construction time or by method
         `add_items`
 
+        :param processed_items: optional, processed item list (returned by add_items)
+                                if None uses internally stored items
         :param session: Optional tensorflow session, otherwise uses default session
         :param step: optional step, if None (default) uses internal step
                         (int preferred, otherwise does not work well with `pack_save_dictionaries`).
@@ -326,9 +330,10 @@ class Saver:
         :return: the dictionary
         """
         from tensorflow import get_default_session
-        if not step:
+        if step is None:
             self._step += 1
             step = self._step
+        if not processed_items: processed_items = self._processed_items
 
         if do_print is None: do_print = self.do_print
         if collect_data is None: collect_data = self.collect_data
@@ -347,7 +352,7 @@ class Saver:
         save_dict = OrderedDict([(pt[0], _call(pt[1]) if callable(pt[1])
                                 else ss.run(pt[1], feed_dict=_call(pt[2]) if callable(pt[2]) else pt[2],
                                 options=pt[3], run_metadata=pt[4]))
-                                for pt in self._processed_items])
+                                for pt in processed_items])
 
         if self.timer: save_dict['Elapsed time (%s)' % self.timer.unit] = self.timer.elapsed_time()
 
@@ -479,6 +484,9 @@ class record_hyperiteration:
         self._unwrapped = []
 
         self._record_what = record_what or []
+        self._processed_items = []
+
+        self._step = 0
 
     def __enter__(self):
         self._wrap()
@@ -509,7 +517,7 @@ class record_hyperiteration:
         @wraps(f)
         def _saver_wrapped(*args, **kwargs):
             res = f(*args, **kwargs)
-            self.saver.save(append_string=self.append_string)  # todo maybe add other args...
+            self._execute_save()
             return res
 
         return _saver_wrapped
@@ -517,16 +525,23 @@ class record_hyperiteration:
     def _initialize_wrapper(self, f):  # this should be good since
         @wraps(f)
         def _initialize_wrapped(*args, **kwargs):
-            res = f(*args, **kwargs)
+            first_init = f(*args, **kwargs)
             # add savers just at the first initialization
-            if res:
-                [self.saver.add_items(*e(*args, **kwargs)) for e in self._record_what]
-                self.saver.save(append_string=self.append_string)  # right here? better save just at the
-                # first initialization or also at the subsequent one??
+            if first_init:
+                self._processed_items += rf.flatten_list(
+                    [self.saver.add_items(*e(*args, **kwargs)) for e in self._record_what])
+                self._execute_save()
 
-            return res
+            return first_init
 
         return _initialize_wrapped
+
+    def _execute_save(self):
+        self.saver.save(step=self._step, append_string=self.append_string,
+                        processed_items=self._processed_items)  # todo maybe add other args...
+        self._step += 1
+
+
 
 
 # noinspection PyPep8Naming
@@ -595,7 +610,7 @@ def record_tensors(*tensors, key=None, scope=None, rec_name='', op=tf.identity, 
     :param fd: # given to _process_feed_dicts_for_rec
     :return:
     """
-    if rec_name: rec_name += '::'
+    if rec_name: rec_name += '::'  # maybe find a better way
 
     def _call(*args, **_kwargs):
         if tensors:

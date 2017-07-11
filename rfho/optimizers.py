@@ -13,7 +13,7 @@ class Optimizer:  # Gradient descent-like optimizer
     """
 
     def __init__(self, raw_w, w, assign_ops, dynamics, jac_z, learning_rate, gradient, loss):
-        self.raw_w = raw_w
+        self.raw_w = raw_w  # TODO distinction no more needed
         self.w = w
         self.assign_ops = assign_ops
         self.dynamics = dynamics
@@ -25,6 +25,9 @@ class Optimizer:  # Gradient descent-like optimizer
         self.algorithmic_hypers = {
             self.learning_rate: self.d_dynamics_d_learning_rate
         }
+
+    def get_assign_op(self):
+        return self.raw_w.assign(self.dynamics)
 
     def support_variables_initializer(self):
         """
@@ -141,7 +144,7 @@ class GradientDescentOptimizer(Optimizer):
     @staticmethod
     def create(w, lr, loss=None, grad=None, w_is_state=True, name='GradientDescent'):
         """
-        Just gradient descent dynamics.
+        Just gradient descent.
         :param w_is_state: Just for compatibility with other create methods.
         Gradient descent does not require auxiliary variables!
         :param loss: (optional) scalar loss

@@ -463,7 +463,8 @@ def _check_new_saver_mode():
                                                     fd=('x', 'y', datasets.test)),
                                   append_string='_1st_trial'
                                   ):
-        experiment_no_saver(datasets=datasets, mode=HO_MODES[1], epochs=None, set_T=100, hyper_iterations=5)
+        with rf.record_forward_hg(saver, rf.record_norms_of_z(), append_string='zs'):
+            experiment_no_saver(datasets=datasets, mode=HO_MODES[0], epochs=None, set_T=100, hyper_iterations=5)
     #
     # saver.timer.reset()
     # with rf.record_forward_hg(saver, rf.record_hyperparameters(),
@@ -484,9 +485,9 @@ def _check_new_saver_mode():
     #                                                 fd=('x', 'y', datasets.test)),
     #                               append_string='_1st_trial'
     #                               ):
-    with rf.record_forward_hg(saver, rf.record_norms_of_z(), append_string='norm_of_z'):
-        experiment_no_saver(datasets=datasets, mode=HO_MODES[0],
-                            epochs=None, set_T=100, hyper_iterations=5)
+    # with rf.record_forward_hg(saver, rf.record_norms_of_z(), append_string='norm_of_z'):
+    #     experiment_no_saver(datasets=datasets, mode=HO_MODES[0],
+    #                         epochs=None, set_T=100, hyper_iterations=5)
 
     experiment_no_saver(mode=HO_MODES[1], epochs=None, set_T=10, hyper_iterations=3)
 

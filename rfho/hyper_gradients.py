@@ -470,11 +470,11 @@ class ForwardHG:
 
         # print('components', components)
 
-        with tf.name_scope('z'):
-            z_components = [tf.Variable(tf.zeros([c.get_shape().as_list()[0], dim_h]), name=simple_name(hyper))
-                            for c in components]
-            mvz = ZMergedMatrix(z_components)
-            return mvz
+        z_components = [tf.Variable(tf.zeros([c.get_shape().as_list()[0], dim_h]),
+                                    name=simple_name(hyper))
+                        for c in components]
+        mvz = ZMergedMatrix(z_components, name='Z_' + simple_name(hyper))
+        return mvz
 
     def initialize(self, session=None):
         """
@@ -504,7 +504,7 @@ class ForwardHG:
                                         `tf.Session.run`
                                     feed_dict argument
         :param summary_utils: (optional) object with method `run(session, iteration)`
-        :return: None
+        :return: feed dictionary for this step
         """
 
         if not train_feed_dict_supplier:
@@ -517,9 +517,12 @@ class ForwardHG:
 
         ss.run(self._zs_assigns, feed_dict=fd)
         ss.run(self.fw_ops, feed_dict=fd)
-        if summary_utils:
+
+        if summary_utils:  # TODO delete!
             summary_utils.run(ss, self.global_step.eval())
+
         self.global_step.increase.eval()
+        return fd
 
     def hyper_gradients(self, val_feed_dict_supplier=None, hyper_batch_step=None):
         """
