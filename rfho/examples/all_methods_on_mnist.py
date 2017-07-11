@@ -23,7 +23,7 @@ HO_MODES = ['forward', 'reverse', 'rtho']
 
 def create_model(datasets, model_creator='log_reg', **model_kwargs):
     dataset = datasets.train
-    x = tf.placeholder(tf.float32)
+    x = tf.placeholder(tf.float32, name='x')
     assert model_creator in IMPLEMENTED_MODEL_TYPES or callable(model_creator), \
         '%s, available %s \n You can implement your own model' \
         'with a function that returns the model! Since a certain structure is assumed ' \
@@ -68,8 +68,8 @@ def define_errors_default_models(model, l1=0., l2=0., synthetic_hypers=None, aug
     s, out, ws = res[0], res[1], res[2:]
 
     # error
-    y = tf.placeholder(tf.float32)
-    error = tf.reduce_mean(rf.cross_entropy_loss(y, out))  # also validation error
+    y = tf.placeholder(tf.float32, name='y')
+    error = tf.reduce_mean(rf.cross_entropy_loss(y, out), name='error')  # also validation error
 
     base_training_error = rf.cross_entropy_loss(y, out)
 
@@ -95,7 +95,7 @@ def define_errors_default_models(model, l1=0., l2=0., synthetic_hypers=None, aug
         training_error += tf.reduce_sum([rho * rg_l1 for rho, rg_l1 in zip(rho_l2s, reg_l2s)])
 
     correct_prediction = tf.equal(tf.argmax(out, 1), tf.argmax(y, 1))
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"), name='accuracy')
 
     return s, out, ws, y, error, training_error, rho_l1s, reg_l1s, rho_l2s, reg_l2s, accuracy, \
            base_training_error, gamma
@@ -143,24 +143,14 @@ def experiment_no_saver(datasets=None, model='log_reg', model_kwargs=None, l1=0.
     s, out, ws, y, error, training_error, rho_l1s, reg_l1s, rho_l2s, reg_l2s, accuracy, base_tr_error, gamma = \
         define_errors_default_models(model, l1, l2, synthetic_hypers=synthetic_hypers,
                                      augment=optimizer.get_augmentation_multiplier())
+    tf.add_to_collection('errors', error)
 
     if optimizer_kwargs is None: optimizer_kwargs = {'lr': tf.Variable(.01, name='eta'),
                                                      'mu': tf.Variable(.5, name='mu')}
 
     tr_dynamics = optimizer.create(s, loss=training_error, w_is_state=True, **optimizer_kwargs)
 
-    # hyperparameters part!
-    algorithmic_hyperparameters = []
-    eta = tr_dynamics.learning_rate
-    if isinstance(eta, tf.Variable):
-        algorithmic_hyperparameters.append(eta)
-    if hasattr(tr_dynamics, 'momentum_factor'):
-        mu = tr_dynamics.momentum_factor
-        if isinstance(mu, tf.Variable):
-            algorithmic_hyperparameters.append(mu)
-
     regularization_hyperparameters = []
-    vec_w = s.var_list(rf.VlMode.TENSOR)[0]  # vectorized representation of _model weights (always the first!)
     if rho_l1s is not None:
         regularization_hyperparameters += rho_l1s
     if rho_l2s is not None:
@@ -174,10 +164,9 @@ def experiment_no_saver(datasets=None, model='log_reg', model_kwargs=None, l1=0.
     # end of hyperparameters
 
     if algo_hyper_wrt_tr_error:  # it is possible to optimize different hyperparameters wrt different validation errors
-        hyper_dict[training_error] = algorithmic_hyperparameters
+        hyper_dict[training_error] = tr_dynamics.get_optimization_hyperparameters(only_variables=True)
     else:
-        hyper_dict[error] += algorithmic_hyperparameters
-    # print(hyper_dict)
+        hyper_dict[error] += tr_dynamics.get_optimization_hyperparameters(only_variables=True)
 
     hyper_opt = rf.HyperOptimizer(tr_dynamics, hyper_dict,
                                   method=rf.ReverseHG if mode == 'reverse' else rf.ForwardHG,
@@ -190,7 +179,6 @@ def experiment_no_saver(datasets=None, model='log_reg', model_kwargs=None, l1=0.
     if epochs: ev_data.generate_visiting_scheme()
     tr_supplier = ev_data.create_feed_dict_supplier(x, y)
     val_supplier = datasets.validation.create_supplier(x, y)
-    test_supplier = datasets.test.create_supplier(x, y)
 
     def _all_training_supplier():
         return {x: datasets.train.data, y: datasets.train.target}
@@ -198,21 +186,6 @@ def experiment_no_saver(datasets=None, model='log_reg', model_kwargs=None, l1=0.
     # feed_dict supplier for validation errors
     val_feed_dict_suppliers = {error: val_supplier}
     if algo_hyper_wrt_tr_error: val_feed_dict_suppliers[training_error] = _all_training_supplier
-
-    def _calculate_memory_usage():
-        memory_usage = rf.simple_size_of_with_pickle([
-            hyper_opt.hyper_gradients.w.eval(),
-            [h.eval() for h in hyper_opt.hyper_gradients.hyper_list]
-        ])
-        if mode == 'reverse':
-            return memory_usage + rf.simple_size_of_with_pickle([
-                hyper_opt.hyper_gradients.w_hist,
-                [p.eval() for p in hyper_opt.hyper_gradients.p_dict.values()]
-            ])
-        else:
-            return memory_usage + rf.simple_size_of_with_pickle([
-                [z.eval() for z in hyper_opt.hyper_gradients.zs]
-            ])
 
     # number of iterations
     T = set_T or ev_data.T if mode != 'rtho' else hyper_batch_size
@@ -351,17 +324,17 @@ def experiment(name_of_experiment, collect_data=False,
     # create a Saver object
     if name_of_experiment:
         saver = rf.Saver(name_of_experiment,
-                         'step', lambda step: step,
-                         'mode', lambda step: mode,
-                         'test accuracy', accuracy, test_supplier,
-                         'validation accuracy', accuracy, val_supplier,
-                         'training accuracy', accuracy, tr_supplier,
-                         'validation error', error, val_supplier,
-                         'memory usage (mb)', lambda step: _calculate_memory_usage() * 9.5367e-7,
-                         'weights', vec_w,
-                         '# weights', lambda step: vec_w.get_shape().as_list()[0],
-                         '# hyperparameters', lambda step: len(hyper_opt.hyper_list),
-                         '# iterations', lambda step: T,
+                          'step', lambda step: step,
+                          'mode', lambda step: mode,
+                          'test accuracy', accuracy, test_supplier,
+                          'validation accuracy', accuracy, val_supplier,
+                          'training accuracy', accuracy, tr_supplier,
+                          'validation error', error, val_supplier,
+                          'memory usage (mb)', lambda step: _calculate_memory_usage() * 9.5367e-7,
+                          'weights', vec_w,
+                          '# weights', lambda step: vec_w.get_shape().as_list()[0],
+                          '# hyperparameters', lambda step: len(hyper_opt.hyper_list),
+                          '# iterations', lambda step: T,
                          *rf.flatten_list([rf.simple_name(hyp), [hyp, hyper_grads[hyp]]]
                                           for hyp in hyper_opt.hyper_list),
                          do_print=do_print, collect_data=collect_data
@@ -464,6 +437,7 @@ def _check_cnn():
             _model_kwargs = {'conv_dims': [[5, 5, 1, 2], [5, 5, 2, 4], [5, 5, 4, 8]],
                              'ffnn_dims': [128, 10]}
 
+            # noinspection PyTypeChecker
             experiment('test_with_model_' + _model, collect_data=False, hyper_iterations=3, mode=_mode,
                        epochs=2,
                        model=_model,
@@ -480,13 +454,45 @@ def _check_cnn():
 
 def _check_new_saver_mode():
     saver = rf.Saver('TBD')
-    with saver.record(rf.record_hyperparameteres()):
-        experiment_no_saver(mode=HO_MODES[1], epochs=None, set_T=10, hyper_iterations=4)
+    datasets = load_dataset()
+
+    # with rf.record_hyperiteration(saver, rf.record_hyperparameters(),
+    #                               rf.record_tensors('error', 'accuracy', rec_name='valid',
+    #                                                 fd=('x', 'y', datasets.validation)),
+    #                               rf.record_tensors('error', 'accuracy', rec_name='test',
+    #                                                 fd=('x', 'y', datasets.test)),
+    #                               append_string='_1st_trial'
+    #                               ):
+    #     experiment_no_saver(datasets=datasets, mode=HO_MODES[1], epochs=None, set_T=100, hyper_iterations=5)
+    #
+    # saver.timer.reset()
+    # with rf.record_forward_hg(saver, rf.record_hyperparameters(),
+    #                           rf.record_tensors('error', 'accuracy', rec_name='valid',
+    #                                             fd=('x', 'y', datasets.validation)),
+    #                           rf.record_tensors('error', 'accuracy', rec_name='test',
+    #                                             fd=('x', 'y', datasets.test)),
+    #                           append_string='_2nd_trial'
+    #                           ):
+    #     tf.reset_default_graph()
+    #     experiment_no_saver(datasets=datasets, mode=HO_MODES[0], epochs=None, set_T=10, hyper_iterations=3)
+    # ALL THE PREVIOUS CODE IS OK!
+
+    # with rf.record_hyperiteration(saver, rf.record_hyperparameters(),
+    #                               rf.record_tensors('error', 'accuracy', rec_name='valid',
+    #                                                 fd=('x', 'y', datasets.validation)),
+    #                               rf.record_tensors('error', 'accuracy', rec_name='test',
+    #                                                 fd=('x', 'y', datasets.test)),
+    #                               append_string='_1st_trial'
+    #                               ):
+    with rf.record_forward_hg(saver, rf.record_norms_of_z(), append_string='norm_of_z'):
+        experiment_no_saver(datasets=datasets, mode=HO_MODES[0],
+                            epochs=None, set_T=100, hyper_iterations=5)
+
     experiment_no_saver(mode=HO_MODES[1], epochs=None, set_T=10, hyper_iterations=3)
 
 
 if __name__ == '__main__':
     # _check_forward()
     #  _check_adam()
-    #[_check_cnn() for _ in range(3)]
+    # [_check_cnn() for _ in range(3)]
     _check_new_saver_mode()

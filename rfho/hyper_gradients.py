@@ -491,9 +491,10 @@ class ForwardHG:
         if isinstance(self.w, MergedVariable):
             self.w.initialize(session=session)
         else:
-            ss.run(tf.variables_initializer([self.w]))
+            ss.run(tf.variables_initializer([self.w]))  # never tested
         ss.run(tf.variables_initializer(self.hyper_gradient_vars + [self.global_step.var]))
         [z.initializer().run() for z in self.zs]
+        return True
 
     def step_forward(self, train_feed_dict_supplier=None, summary_utils=None):
         """
@@ -641,12 +642,14 @@ class HyperOptimizer:
                                         optimizers regardless of
         :param: session: optional tensorflow session (if None default session is used) 
 
-        :return: `None`
+        :return: True if this is the first initialization
         """
         ss = tf.get_default_session()
         assert ss, 'No default session.'
 
-        if complete_reinitialize or self._report_hyper_it_init.eval():  # never initialized or subsequent run of
+        never_initialized = bool(self._report_hyper_it_init.eval())
+
+        if complete_reinitialize or never_initialized:  # never initialized or subsequent run of
             # Session run block (for instance in a Ipython book)
             tf.variables_initializer(self.hyper_gradients.hyper_list).run()
             if self.hyper_optimizers:
@@ -656,6 +659,8 @@ class HyperOptimizer:
             self.hyper_iteration_step.increase.eval()
 
         self.hyper_gradients.initialize(session=session)
+
+        return never_initialized
 
     def run(self, T, train_feed_dict_supplier=None, val_feed_dict_suppliers=None,
             hyper_constraints_ops=None,

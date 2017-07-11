@@ -615,19 +615,23 @@ class ZMergedMatrix:
 
         self.tensor = tf.concat(self.components, 0)
 
-    def create_copy(self):
-        new_components = []
-        for c in self.components:
-            with tf.name_scope('copy_z'):
-                if isinstance(c, tf.Variable):
-                    print('copying variable')
-                    new_components.append(tf.Variable(c, name=simple_name(c)))
-                else:
-                    print('copying tensor')
-                    new_components.append(c)
-        return ZMergedMatrix(new_components)
+    # def create_copy(self):
+    #     new_components = []
+    #     for c in self.components:
+    #         with tf.name_scope('copy_z'):
+    #             if isinstance(c, tf.Variable):
+    #                 print('copying variable')
+    #                 new_components.append(tf.Variable(c, name=simple_name(c)))
+    #             else:
+    #                 print('copying tensor')
+    #                 new_components.append(c)
+    #     return ZMergedMatrix(new_components)
 
-    def initializer(self):  #
+    def initializer(self):
+        """
+
+        :return:
+        """
         assert all([isinstance(c, tf.Variable) for c in self.components]), 'this merged matrix is not composed by Vars'
         return tf.variables_initializer(self.components)
 
@@ -660,3 +664,20 @@ class ZMergedMatrix:
 
     def eval(self, feed_dict=None):
         return self.tensor.eval(feed_dict=feed_dict)
+
+    @property
+    def name(self):
+        """
+
+        :return: name of the tensor
+        """
+        return self.tensor.name
+
+    @staticmethod
+    def tensor_conversion(value, dtype=None, name=None, as_ref=False):
+        if as_ref:
+            raise NotImplemented()
+        return tf.convert_to_tensor(value.tensor, dtype=dtype, name=name)
+
+
+tf.register_tensor_conversion_function(ZMergedMatrix, ZMergedMatrix.tensor_conversion)

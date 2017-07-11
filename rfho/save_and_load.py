@@ -1,15 +1,15 @@
 import time
 from collections import OrderedDict
-from contextlib import contextmanager
-from functools import reduce
+from functools import reduce, wraps
 from inspect import signature
 
 import matplotlib.pyplot as plt
 
 from rfho import as_list
 
+import tensorflow as tf
+
 import rfho as rf
-from rfho.datasets import Dataset
 
 try:
     from IPython.display import IFrame
@@ -212,6 +212,9 @@ class Timer:
 
 
 class Saver:
+    """
+    Class for recording experiments
+    """
     def __init__(self, experiment_names, *items, append_date_to_name=True,
                  root_directory=FOLDER_NAMINGS['EXP_ROOT'],
                  timer=None, do_print=True, collect_data=True, default_overwrite=False):
@@ -257,22 +260,24 @@ class Saver:
 
         assert isinstance(timer, Timer) or timer is None or timer is False, 'timer param not good...'
 
-        self.processed_items = []
-        self.add_items(*items)
-
         if timer is None:
             timer = Timer()
 
         self.timer = timer
-        self._step = -1
 
+        self.clear_items()
+
+        self.add_items(*items)
+
+    # noinspection PyAttributeOutsideInit
     def clear_items(self):
         """
         Removes all previously inserted items
         
         :return: 
         """
-        self.processed_items = []
+        self._processed_items = []
+        self._step = -1
 
     def add_items(self, *items):
         """
@@ -304,7 +309,7 @@ class Saver:
             assert len(part) >= 2, 'Check args! Last part %s' % part
             part += [None] * (5 - len(part))  # representing name, fetches, feeds, options, metadata
             processed_args.append(part)
-        self.processed_items += processed_args
+        self._processed_items += processed_args
         return [pt[0] for pt in processed_args]
 
     def save(self, step=None, session=None, append_string="", do_print=None, collect_data=None):
@@ -340,9 +345,9 @@ class Saver:
             return _method(step) if len(signature(_method).parameters) > 0 else _method()
 
         save_dict = OrderedDict([(pt[0], _call(pt[1]) if callable(pt[1])
-        else ss.run(pt[1], feed_dict=_call(pt[2]) if callable(pt[2]) else pt[2],
-                    options=pt[3], run_metadata=pt[4]))
-                                 for pt in self.processed_items])
+                                else ss.run(pt[1], feed_dict=_call(pt[2]) if callable(pt[2]) else pt[2],
+                                options=pt[3], run_metadata=pt[4]))
+                                for pt in self._processed_items])
 
         if self.timer: save_dict['Elapsed time (%s)' % self.timer.unit] = self.timer.elapsed_time()
 
@@ -400,7 +405,7 @@ class Saver:
         :return:
         """
 
-        return _SaverContext(self, append_string=append_string, record_what=what)  # FIXME to be finished
+        return record_hyperiteration(self, *what, append_string=append_string)  # FIXME to be finished
 
     def save_fig(self, name, extension='pdf', **savefig_kwargs):
         """
@@ -462,37 +467,46 @@ class Saver:
         return load_obj(name, root_dir=self.directory, notebook_mode=False)
 
 
-class _SaverContext:
-    _METHODS_TO_WRAP = {rf.HyperOptimizer: rf.HyperOptimizer.run}
+class record_hyperiteration:
+    """
+    context for record at each hyperiteration
+    """
 
-    def __init__(self, saver, append_string, record_what):
+    def __init__(self, saver, *record_what, append_string=''):
         self.saver = saver
         self.append_string = append_string
 
-        self._unwrapped_run = None
-        self._unwrapped_initialize = None
+        self._unwrapped = []
 
-        self._record_what = record_what
+        self._record_what = record_what or []
 
     def __enter__(self):
-        self._unwrapped_initialize = rf.HyperOptimizer.initialize
-        rf.HyperOptimizer.initialize = self._initialize_wrapper(rf.HyperOptimizer.initialize)
-
-        self._unwrapped_run = rf.HyperOptimizer.run
-        rf.HyperOptimizer.run = self._saver_wrapper(rf.HyperOptimizer.run)  # mmm...
-
-        # for cls, m in _SaverContext._METHODS_TO_WRAP.items():
-        #     self._unwrapped_methods.append(m)
-        #     m = self._saver_wrapper(m)
+        self._wrap()
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_tb:
-            self.saver.save_obj((exc_type, exc_val, exc_tb), 'exception')
+            self.saver.save_obj((str(exc_type), str(exc_val), str(exc_tb)), 'exception' + self.append_string)
         self.saver.pack_save_dictionaries(append_string=self.append_string)
 
-        rf.HyperOptimizer.run = self._unwrapped_run  # mmm x2... (but looks like it works...)
+        self._unwrap()
+
+        # TODO is this a good thing? or should we leave it to do manually
+        self.saver.clear_items()
+        if self.saver.timer: self.saver.timer.stop()
+
+    def _wrap(self):
+        self._unwrapped.append(rf.HyperOptimizer.initialize)
+        rf.HyperOptimizer.initialize = self._initialize_wrapper(rf.HyperOptimizer.initialize)
+
+        self._unwrapped.append(rf.HyperOptimizer.run)
+        rf.HyperOptimizer.run = self._saver_wrapper(rf.HyperOptimizer.run)  # mmm...
+
+    def _unwrap(self):
+        rf.HyperOptimizer.initialize = self._unwrapped[0]
+        rf.HyperOptimizer.run = self._unwrapped[1]
 
     def _saver_wrapper(self, f):
+        @wraps(f)
         def _saver_wrapped(*args, **kwargs):
             res = f(*args, **kwargs)
             self.saver.save(append_string=self.append_string)  # todo maybe add other args...
@@ -501,30 +515,143 @@ class _SaverContext:
         return _saver_wrapped
 
     def _initialize_wrapper(self, f):  # this should be good since
+        @wraps(f)
         def _initialize_wrapped(*args, **kwargs):
             res = f(*args, **kwargs)
-            [self.saver.add_items(*e(args[0])) for e in self._record_what]
+            # add savers just at the first initialization
+            if res:
+                [self.saver.add_items(*e(*args, **kwargs)) for e in self._record_what]
+                self.saver.save(append_string=self.append_string)  # right here? better save just at the
+                # first initialization or also at the subsequent one??
+
             return res
 
         return _initialize_wrapped
 
 
+# noinspection PyPep8Naming
+class record_forward_hg(record_hyperiteration):  # context class
+    """
+    Saves at every iteration (before call of method `step_forward`)
+    """
+
+    def _wrap(self):
+        self._unwrapped.append(rf.HyperOptimizer.initialize)
+        rf.HyperOptimizer.initialize = self._initialize_wrapper(rf.HyperOptimizer.initialize)
+
+        self._unwrapped.append(rf.ForwardHG.step_forward)
+        rf.ForwardHG.step_forward = self._saver_wrapper(rf.ForwardHG.step_forward)  # mmm...
+
+    def _unwrap(self):
+        rf.HyperOptimizer.initialize = self._unwrapped[0]
+        rf.ForwardHG.step_forward = self._unwrapped[1]
+
+
+def record_norms_of_z():
+    """
+
+    :return:
+    """
+
+    def _call(*args, **kwargs):
+        hg = args[0]
+        if isinstance(hg, rf.HyperOptimizer): hg = hg.hyper_gradients  # guess most common case
+        assert isinstance(hg, rf.ForwardHG)
+        _rs = []
+        # _rs.append(record_tensors(*hg.d_dynamics_d_hypers, op=tf.norm)(args, kwargs))
+        _rs += record_tensors(*hg.zs, op=tf.norm)(args, kwargs)
+        return _rs
+
+    return _call
+
+
 # mmm x 4 decide where to put these things...
-def record_hyperparameteres():
-    def _call(hyper_optimizer):
+def record_hyperparameters():
+    """
+    Simple one! record all hyperparameter values, assuming the usage of `HyperOptimizer`
+
+    :return: a function
+    """
+
+    # noinspection PyUnusedLocal
+    def _call(*args, **kwargs):
+        hyper_optimizer = args[0]
+        assert isinstance(hyper_optimizer, rf.HyperOptimizer)
         return rf.flatten_list([rf.simple_name(hyp), [hyp, hyper_optimizer.hyper_gradients.hyper_gradients_dict[hyp]]]
                                for hyp in hyper_optimizer.hyper_list)
-    return _call
-
-def record_collection(key, fd_or_dataset=None):  # TODO many problems here....
-    if isinstance(fd_or_dataset, Dataset):  # this is a problem... cos feed dictionary suppliers
-        # are usually defined internally inside the experiment function.
-        # could wrap also the feed_dict_suppliers??? find a way to obtain x and y! or whatsoever
-        pass
-    def _call(hyper_optimizer):
-        return
 
     return _call
+
+
+def record_tensors(*tensors, key=None, scope=None, rec_name='', op=tf.identity, fd=None):
+    """
+    Little more difficult... attempts to record tensor named name
+
+    :param tensors: varargs of tensor names
+    :param scope: optional for collections
+    :param key: to record collections
+    :param op: optional operation to apply to each tensor
+    :param rec_name: optional name to prepend to all tensors recorded by this
+    :param fd: # given to _process_feed_dicts_for_rec
+    :return:
+    """
+    if rec_name: rec_name += '::'
+
+    def _call(*args, **_kwargs):
+        if tensors:
+            _tensors = [tf.get_default_graph().get_tensor_by_name(tns+':0') if isinstance(tns, str)
+                        else tns for tns in tensors]
+        elif key:
+            _tensors = tf.get_collection(key, scope=scope)
+        else:
+            raise NotImplemented('One between key and names should be given')
+        # try with dictionary of form (string (simple name of placeholder), data)
+        _rs2 = rf.flatten_list([rec_name + _strip_0(tns.name),
+                                op(tns), _process_feed_dicts_for_rec(fd, *args, **_kwargs)]
+                               if fd else [rec_name + _strip_0(tns.name), op(tns)]
+                               for tns in _tensors)
+        return _rs2
+
+    return _call
+
+
+def record_model():  # TODO discuss with others to see what's best way to save models...
+    raise NotImplemented()
+
+
+def _strip_0(name):
+    return name.split(':')[0]
+
+
+def _process_feed_dicts_for_rec(fd, *args, **kwargs):
+    # TODO add more functionality...
+    """
+
+    # try with dictionary of form (string (simple name of placeholder), data)
+
+    :param fd:
+    :param args:
+    :param kwargs:
+    :return:
+    """
+
+    def _std_process_dict(_dict):
+        return {tf.get_default_graph().get_tensor_by_name(n + ':0'): v for n, v in _dict.items()}
+
+    def _fds():
+        if isinstance(fd, dict):
+            _rs = _std_process_dict(fd)
+        elif isinstance(fd, (list, tuple)):  # (x, y, dataset)
+            if len(fd) == 3 and isinstance(fd[2], rf.Dataset):  # very common scenario
+                _rs = {tf.get_default_graph().get_tensor_by_name(fd[0] + ':0'): fd[2].data,
+                       tf.get_default_graph().get_tensor_by_name(fd[1] + ':0'): fd[2].target,
+                       }
+            else: raise NotImplemented('not understood')
+        else: raise NotImplemented('not understood')
+
+        return _rs
+
+    return _fds
 
 
 if __name__ == '__main__':

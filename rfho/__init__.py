@@ -5,4 +5,5 @@ from rfho.hyper_gradients import *
 from rfho.optimizers import *
 from rfho.save_and_load import *
 from rfho.utils import *
+from rfho.datasets import Dataset, ExampleVisiting, Datasets
 
