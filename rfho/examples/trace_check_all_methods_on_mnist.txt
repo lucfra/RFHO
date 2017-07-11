@@ -1,0 +1,742 @@
+/home/luca/anaconda3/bin/python /media/luca/DATA/Progs/RFHO/rfho/examples/all_methods_on_mnist.py
+Experiment save directory is  /media/luca/DATA/EXPERIMENTS
+Data folder is /media/luca/DATA/DATASETS
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-labels-idx1-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-labels-idx1-ubyte.gz
+datasets.redivide_data:, computed partitions numbers - [0, 35000, 56000, 70000] len all 70000 DONE
+2017-07-11 16:39:51.766519: W tensorflow/core/platform/cpu_feature_guard.cc:45] The TensorFlow library wasn't compiled to use SSE4.1 instructions, but these are available on your machine and could speed up CPU computations.
+2017-07-11 16:39:51.766540: W tensorflow/core/platform/cpu_feature_guard.cc:45] The TensorFlow library wasn't compiled to use SSE4.2 instructions, but these are available on your machine and could speed up CPU computations.
+2017-07-11 16:39:51.766544: W tensorflow/core/platform/cpu_feature_guard.cc:45] The TensorFlow library wasn't compiled to use AVX instructions, but these are available on your machine and could speed up CPU computations.
+2017-07-11 16:39:51.766547: W tensorflow/core/platform/cpu_feature_guard.cc:45] The TensorFlow library wasn't compiled to use AVX2 instructions, but these are available on your machine and could speed up CPU computations.
+2017-07-11 16:39:51.766549: W tensorflow/core/platform/cpu_feature_guard.cc:45] The TensorFlow library wasn't compiled to use FMA instructions, but these are available on your machine and could speed up CPU computations.
+folder /media/luca/DATA/EXPERIMENTS/test_with_model_log_reg has been created
+folder /media/luca/DATA/EXPERIMENTS/test_with_model_log_reg/11-07-17__16h39m has been created
+2017-07-11 16:39:52.065228: I tensorflow/core/common_runtime/gpu/gpu_device.cc:940] Found device 0 with properties:
+name: GeForce GTX TITAN X
+major: 5 minor: 2 memoryClockRate (GHz) 1.076
+pciBusID 0000:02:00.0
+Total memory: 11.92GiB
+Free memory: 10.84GiB
+2017-07-11 16:39:52.313702: W tensorflow/stream_executor/cuda/cuda_driver.cc:523] A non-primary context 0x79169c0 exists before initializing the StreamExecutor. We haven't verified StreamExecutor works with that.
+2017-07-11 16:39:52.314674: I tensorflow/core/common_runtime/gpu/gpu_device.cc:940] Found device 1 with properties:
+name: GeForce GTX TITAN X
+major: 5 minor: 2 memoryClockRate (GHz) 1.076
+pciBusID 0000:03:00.0
+Total memory: 11.92GiB
+Free memory: 11.81GiB
+2017-07-11 16:39:52.315060: I tensorflow/core/common_runtime/gpu/gpu_device.cc:961] DMA: 0 1
+2017-07-11 16:39:52.315077: I tensorflow/core/common_runtime/gpu/gpu_device.cc:971] 0:   Y Y
+2017-07-11 16:39:52.315080: I tensorflow/core/common_runtime/gpu/gpu_device.cc:971] 1:   Y Y
+2017-07-11 16:39:52.315094: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:0) -> (device: 0, name: GeForce GTX TITAN X, pci bus id: 0000:02:00.0)
+2017-07-11 16:39:52.315098: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:1) -> (device: 1, name: GeForce GTX TITAN X, pci bus id: 0000:03:00.0)
+Step 0               Values
+-------------------  -------------------------
+step                 0
+mode                 forward
+test accuracy        0.8195711970329285
+validation accuracy  0.8130944967269897
+training accuracy    0.7799999713897705
+validation error     1.1924129724502563
+memory usage (mb)    0.29999311088999997
+weights              [ 0.          0.          0.         ...,  0.0133307  -0.02487721
+ -0.00233138]
+# weights            7850
+# hyperparameters    4
+# iterations         100
+rho_l1_0             [0.0, 36.578094]
+rho_l2_0             [0.0, 1.2705822]
+eta                  [0.011000023, -51.830055]
+mu                   [0.50100005, -1.028383]
+Elapsed time (sec)   3
+Step 1               Values
+-------------------  -------------------------
+step                 1
+mode                 forward
+test accuracy        0.8234283328056335
+validation accuracy  0.8174755573272705
+training accuracy    0.7999999523162842
+validation error     1.1425437927246094
+memory usage (mb)    0.29999311088999997
+weights              [ 0.          0.          0.         ...,  0.01440423 -0.02750108
+ -0.00259092]
+# weights            7850
+# hyperparameters    4
+# iterations         100
+rho_l1_0             [0.0, 37.103977]
+rho_l2_0             [0.0, 1.3983895]
+eta                  [0.011995186, -46.025177]
+mu                   [0.50199944, -1.0075002]
+Elapsed time (sec)   4
+Step 2               Values
+-------------------  -------------------------
+step                 2
+mode                 forward
+test accuracy        0.8258569240570068
+validation accuracy  0.8207612037658691
+training accuracy    0.824999988079071
+validation error     1.098261833190918
+memory usage (mb)    0.29999311088999997
+weights              [ 0.          0.          0.         ...,  0.01545268 -0.03009558
+ -0.00286075]
+# weights            7850
+# hyperparameters    4
+# iterations         100
+rho_l1_0             [0.0, 37.478104]
+rho_l2_0             [0.0, 1.5194483]
+eta                  [0.01298273, -41.097645]
+mu                   [0.50299776, -0.98387074]
+Elapsed time (sec)   6
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-labels-idx1-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-labels-idx1-ubyte.gz
+datasets.redivide_data:, computed partitions numbers - [0, 35000, 56000, 70000] len all 70000 DONE
+folder /media/luca/DATA/EXPERIMENTS/test_with_model_ffnn/11-07-17__16h40m has been created
+2017-07-11 16:40:15.212935: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:0) -> (device: 0, name: GeForce GTX TITAN X, pci bus id: 0000:02:00.0)
+2017-07-11 16:40:15.212965: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:1) -> (device: 1, name: GeForce GTX TITAN X, pci bus id: 0000:03:00.0)
+2017-07-11 16:40:36.629349: I tensorflow/core/common_runtime/gpu/pool_allocator.cc:247] PoolAllocator: After 62487 get requests, put_count=62412 evicted_count=1000 eviction_rate=0.0160226 and unsatisfied allocation rate=0.0188039
+2017-07-11 16:40:36.629380: I tensorflow/core/common_runtime/gpu/pool_allocator.cc:259] Raising pool_size_limit_ from 100 to 110
+2017-07-11 16:40:40.593230: I tensorflow/core/common_runtime/gpu/pool_allocator.cc:247] PoolAllocator: After 14420 get requests, put_count=14441 evicted_count=1000 eviction_rate=0.0692473 and unsatisfied allocation rate=0.0694868
+2017-07-11 16:40:40.593261: I tensorflow/core/common_runtime/gpu/pool_allocator.cc:259] Raising pool_size_limit_ from 256 to 281
+Step 0               Values
+-------------------  --------------------------
+step                 0
+mode                 forward
+test accuracy        0.22707146406173706
+validation accuracy  0.2220475971698761
+training accuracy    0.17000000178813934
+validation error     2.2966573238372803
+memory usage (mb)    4.70322673671
+weights              [-0.01944263 -0.02341129 -0.00893642 ...,  0.00867619 -0.00233514
+ -0.00072745]
+# weights            47410
+# hyperparameters    12
+# iterations         100
+rho_l1_0             [0.0, 0.31968614]
+rho_l1_1             [0.0, 0.1212918]
+rho_l1_2             [0.0, 0.10843154]
+rho_l1_3             [0.0, 0.10243497]
+rho_l1_4             [0.0, 1.5540589]
+rho_l2_0             [0.0, 0.031318758]
+rho_l2_1             [0.0, 0.034696076]
+rho_l2_2             [0.0, 0.034941636]
+rho_l2_3             [0.0, 0.03509368]
+rho_l2_4             [0.0, 0.011328639]
+eta                  [0.011000023, -0.77895778]
+mu                   [0.50100005, -0.015138035]
+Elapsed time (sec)   30
+Step 1               Values
+-------------------  --------------------------
+step                 1
+mode                 forward
+test accuracy        0.2176428735256195
+validation accuracy  0.22414284944534302
+training accuracy    0.23499998450279236
+validation error     2.295797824859619
+memory usage (mb)    4.70322673671
+weights              [ 0.02247212  0.01101225 -0.012035   ...,  0.00958832 -0.00445845
+ -0.00071192]
+# weights            47410
+# hyperparameters    12
+# iterations         100
+rho_l1_0             [0.0, 0.38282105]
+rho_l1_1             [0.0, 0.13158827]
+rho_l1_2             [0.0, 0.135083]
+rho_l1_3             [0.0, 0.14959064]
+rho_l1_4             [0.0, 1.78025]
+rho_l2_0             [0.0, 0.038789395]
+rho_l2_1             [0.0, 0.043662533]
+rho_l2_2             [0.0, 0.043806065]
+rho_l2_3             [0.0, 0.044020765]
+rho_l2_4             [0.0, 0.014425615]
+eta                  [0.012001052, -0.82102621]
+mu                   [0.50200117, -0.017568903]
+Elapsed time (sec)   43
+Step 2               Values
+-------------------  --------------------------
+step                 2
+mode                 forward
+test accuracy        0.220857173204422
+validation accuracy  0.21809522807598114
+training accuracy    0.23999999463558197
+validation error     2.2952301502227783
+memory usage (mb)    4.70322673671
+weights              [-0.02861852  0.0628328   0.01238517 ...,  0.00917619 -0.00239797
+ -0.00024478]
+# weights            47410
+# hyperparameters    12
+# iterations         100
+rho_l1_0             [0.0, 0.3905212]
+rho_l1_1             [0.0, 0.1701832]
+rho_l1_2             [0.0, 0.15939181]
+rho_l1_3             [0.0, 0.16586548]
+rho_l1_4             [0.0, 2.157176]
+rho_l2_0             [0.0, 0.047084086]
+rho_l2_1             [0.0, 0.05271082]
+rho_l2_2             [0.0, 0.053198919]
+rho_l2_3             [0.0, 0.053629208]
+rho_l2_4             [0.0, 0.017217418]
+eta                  [0.013002983, -0.83466482]
+mu                   [0.50300461, -0.019498419]
+Elapsed time (sec)   57
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-labels-idx1-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-labels-idx1-ubyte.gz
+datasets.redivide_data:, computed partitions numbers - [0, 35000, 56000, 70000] len all 70000 DONE
+folder /media/luca/DATA/EXPERIMENTS/test_with_model_cnn has been created
+folder /media/luca/DATA/EXPERIMENTS/test_with_model_cnn/11-07-17__16h41m has been created
+2017-07-11 16:41:35.955526: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:0) -> (device: 0, name: GeForce GTX TITAN X, pci bus id: 0000:02:00.0)
+2017-07-11 16:41:35.955547: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:1) -> (device: 1, name: GeForce GTX TITAN X, pci bus id: 0000:03:00.0)
+Step 0               Values
+-------------------  -------------------------
+step                 0
+mode                 forward
+test accuracy        0.3484286367893219
+validation accuracy  0.34899988770484924
+training accuracy    0.3449999690055847
+validation error     2.258112907409668
+memory usage (mb)    26.44284773187
+weights              [ -3.93963605e-02   1.07700735e-01   1.45048320e-01 ...,   9.90027096e-03
+  -5.10352338e-03  -2.39258225e-06]
+# weights            315074
+# hyperparameters    10
+# iterations         100
+rho_l1_0             [0.0, 1.0899649]
+rho_l1_1             [0.0, 1.7087896]
+rho_l1_2             [0.0, 3.7186241]
+rho_l1_3             [0.0, 23.422264]
+rho_l2_0             [0.0, 0.25247666]
+rho_l2_1             [0.0, 0.31532758]
+rho_l2_2             [0.0, 0.34747371]
+rho_l2_3             [0.0, 0.105646]
+eta                  [0.011000023, -10.389875]
+mu                   [0.50100005, -0.19871275]
+Elapsed time (sec)   27
+Step 1               Values
+-------------------  -------------------------
+step                 1
+mode                 forward
+test accuracy        0.45128580927848816
+validation accuracy  0.45557114481925964
+training accuracy    0.44499993324279785
+validation error     2.2202165126800537
+memory usage (mb)    26.44284773187
+weights              [ 0.19594699  0.08658807 -0.05207568 ...,  0.0068491  -0.00491626
+ -0.00100442]
+# weights            315074
+# hyperparameters    10
+# iterations         100
+rho_l1_0             [0.0, 1.4438723]
+rho_l1_1             [0.0, 3.1900797]
+rho_l1_2             [0.0, 8.1421547]
+rho_l1_3             [0.0, 38.610039]
+rho_l2_0             [0.0, 0.5406037]
+rho_l2_1             [0.0, 0.69426781]
+rho_l2_2             [0.0, 0.76865524]
+rho_l2_3             [0.0, 0.23194224]
+eta                  [0.011964066, -21.0028]
+mu                   [0.50195378, -0.44067931]
+Elapsed time (sec)   43
+Step 2               Values
+-------------------  -------------------------
+step                 2
+mode                 forward
+test accuracy        0.33914297819137573
+validation accuracy  0.3410474956035614
+training accuracy    0.3199999928474426
+validation error     2.251575469970703
+memory usage (mb)    26.44284773187
+weights              [ 0.00305091  0.14644535  0.01850444 ...,  0.01200758 -0.00697137
+ -0.00106984]
+# weights            315074
+# hyperparameters    10
+# iterations         100
+rho_l1_0             [0.0, 1.3552891]
+rho_l1_1             [0.0, 2.5251942]
+rho_l1_2             [0.0, 5.3222733]
+rho_l1_3             [0.0, 33.326748]
+rho_l2_0             [0.0, 0.34258175]
+rho_l2_1             [0.0, 0.48460585]
+rho_l2_2             [0.0, 0.52319795]
+rho_l2_3             [0.0, 0.15516335]
+eta                  [0.012916159, -11.694189]
+mu                   [0.50290817, -0.26742324]
+Elapsed time (sec)   60
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-labels-idx1-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-labels-idx1-ubyte.gz
+datasets.redivide_data:, computed partitions numbers - [0, 35000, 56000, 70000] len all 70000 DONE
+folder /media/luca/DATA/EXPERIMENTS/test_with_model_log_reg/11-07-17__16h42m has been created
+2017-07-11 16:42:47.818385: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:0) -> (device: 0, name: GeForce GTX TITAN X, pci bus id: 0000:02:00.0)
+2017-07-11 16:42:47.818407: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:1) -> (device: 1, name: GeForce GTX TITAN X, pci bus id: 0000:03:00.0)
+Step 0               Values
+-------------------  -------------------------
+step                 0
+mode                 reverse
+test accuracy        0.8195711970329285
+validation accuracy  0.8130944967269897
+training accuracy    0.7799999713897705
+validation error     1.1924128532409668
+memory usage (mb)    6.1141023471
+weights              [ 0.          0.          0.         ...,  0.0133307  -0.02487721
+ -0.00233138]
+# weights            7850
+# hyperparameters    4
+# iterations         100
+rho_l1_0             [0.0, 36.57811]
+rho_l2_0             [0.0, 1.2705821]
+eta                  [0.011000023, -51.830055]
+mu                   [0.50100005, -1.0283833]
+Elapsed time (sec)   1
+Step 1               Values
+-------------------  -------------------------
+step                 1
+mode                 reverse
+test accuracy        0.8234283924102783
+validation accuracy  0.8174755573272705
+training accuracy    0.7999999523162842
+validation error     1.1425437927246094
+memory usage (mb)    6.1141023471
+weights              [ 0.          0.          0.         ...,  0.01440423 -0.02750108
+ -0.00259092]
+# weights            7850
+# hyperparameters    4
+# iterations         100
+rho_l1_0             [0.0, 37.103958]
+rho_l2_0             [0.0, 1.3983895]
+eta                  [0.011995186, -46.025185]
+mu                   [0.50199944, -1.0075004]
+Elapsed time (sec)   3
+Step 2               Values
+-------------------  -------------------------
+step                 2
+mode                 reverse
+test accuracy        0.8258569240570068
+validation accuracy  0.8207612037658691
+training accuracy    0.824999988079071
+validation error     1.098261833190918
+memory usage (mb)    6.1141023471
+weights              [ 0.          0.          0.         ...,  0.01545268 -0.03009558
+ -0.00286075]
+# weights            7850
+# hyperparameters    4
+# iterations         100
+rho_l1_0             [0.0, 37.478096]
+rho_l2_0             [0.0, 1.5194484]
+eta                  [0.01298273, -41.097645]
+mu                   [0.50299776, -0.98387057]
+Elapsed time (sec)   4
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-labels-idx1-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-labels-idx1-ubyte.gz
+datasets.redivide_data:, computed partitions numbers - [0, 35000, 56000, 70000] len all 70000 DONE
+folder /media/luca/DATA/EXPERIMENTS/test_with_model_ffnn/11-07-17__16h42m has been created
+2017-07-11 16:42:56.518312: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:0) -> (device: 0, name: GeForce GTX TITAN X, pci bus id: 0000:02:00.0)
+2017-07-11 16:42:56.518335: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:1) -> (device: 1, name: GeForce GTX TITAN X, pci bus id: 0000:03:00.0)
+Step 0               Values
+-------------------  --------------------------
+step                 0
+mode                 reverse
+test accuracy        0.22707146406173706
+validation accuracy  0.2220475971698761
+training accuracy    0.16999998688697815
+validation error     2.2966573238372803
+memory usage (mb)    36.89981734746
+weights              [-0.01944263 -0.02341129 -0.00893642 ...,  0.00867619 -0.00233514
+ -0.00072745]
+# weights            47410
+# hyperparameters    12
+# iterations         100
+rho_l1_0             [0.0, 0.31968629]
+rho_l1_1             [0.0, 0.12129183]
+rho_l1_2             [0.0, 0.10843158]
+rho_l1_3             [0.0, 0.10243495]
+rho_l1_4             [0.0, 1.5540595]
+rho_l2_0             [0.0, 0.031318761]
+rho_l2_1             [0.0, 0.034696076]
+rho_l2_2             [0.0, 0.03494164]
+rho_l2_3             [0.0, 0.035093676]
+rho_l2_4             [0.0, 0.011328639]
+eta                  [0.011000023, -0.77895772]
+mu                   [0.50100005, -0.015138033]
+Elapsed time (sec)   4
+Step 1               Values
+-------------------  --------------------------
+step                 1
+mode                 reverse
+test accuracy        0.2176428735256195
+validation accuracy  0.22414281964302063
+training accuracy    0.23499998450279236
+validation error     2.295797824859619
+memory usage (mb)    36.89981734746
+weights              [ 0.02247212  0.01101225 -0.012035   ...,  0.00958832 -0.00445845
+ -0.00071192]
+# weights            47410
+# hyperparameters    12
+# iterations         100
+rho_l1_0             [0.0, 0.38282102]
+rho_l1_1             [0.0, 0.13158825]
+rho_l1_2             [0.0, 0.13508298]
+rho_l1_3             [0.0, 0.14959063]
+rho_l1_4             [0.0, 1.7802496]
+rho_l2_0             [0.0, 0.038789384]
+rho_l2_1             [0.0, 0.043662526]
+rho_l2_2             [0.0, 0.043806072]
+rho_l2_3             [0.0, 0.044020765]
+rho_l2_4             [0.0, 0.01442562]
+eta                  [0.012001052, -0.82102638]
+mu                   [0.50200117, -0.017568905]
+Elapsed time (sec)   6
+Step 2               Values
+-------------------  --------------------------
+step                 2
+mode                 reverse
+test accuracy        0.220857173204422
+validation accuracy  0.21809522807598114
+training accuracy    0.23999997973442078
+validation error     2.2952301502227783
+memory usage (mb)    36.89981734746
+weights              [-0.02861852  0.0628328   0.01238517 ...,  0.00917619 -0.00239797
+ -0.00024478]
+# weights            47410
+# hyperparameters    12
+# iterations         100
+rho_l1_0             [0.0, 0.3905215]
+rho_l1_1             [0.0, 0.17018324]
+rho_l1_2             [0.0, 0.15939187]
+rho_l1_3             [0.0, 0.16586547]
+rho_l1_4             [0.0, 2.1571767]
+rho_l2_0             [0.0, 0.047084093]
+rho_l2_1             [0.0, 0.052710816]
+rho_l2_2             [0.0, 0.053198911]
+rho_l2_3             [0.0, 0.053629205]
+rho_l2_4             [0.0, 0.01721742]
+eta                  [0.013002983, -0.834665]
+mu                   [0.50300461, -0.019498421]
+Elapsed time (sec)   9
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-labels-idx1-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-labels-idx1-ubyte.gz
+datasets.redivide_data:, computed partitions numbers - [0, 35000, 56000, 70000] len all 70000 DONE
+2017-07-11 16:43:11.100771: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:0) -> (device: 0, name: GeForce GTX TITAN X, pci bus id: 0000:02:00.0)
+2017-07-11 16:43:11.100794: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:1) -> (device: 1, name: GeForce GTX TITAN X, pci bus id: 0000:03:00.0)
+folder /media/luca/DATA/EXPERIMENTS/test_with_model_cnn/11-07-17__16h43m has been created
+Step 0               Values
+-------------------  -------------------------
+step                 0
+mode                 reverse
+test accuracy        0.3484286665916443
+validation accuracy  0.34852367639541626
+training accuracy    0.3449999690055847
+validation error     2.258122444152832
+memory usage (mb)    245.19449454942
+weights              [ -3.93930338e-02   1.07699849e-01   1.45049185e-01 ...,   9.90198553e-03
+  -5.10146376e-03   5.27041266e-07]
+# weights            315074
+# hyperparameters    10
+# iterations         100
+rho_l1_0             [0.0, 1.0896404]
+rho_l1_1             [0.0, 1.7079215]
+rho_l1_2             [0.0, 3.7176049]
+rho_l1_3             [0.0, 23.412151]
+rho_l2_0             [0.0, 0.25239033]
+rho_l2_1             [0.0, 0.31525114]
+rho_l2_2             [0.0, 0.34732756]
+rho_l2_3             [0.0, 0.10560349]
+eta                  [0.011000023, -10.385243]
+mu                   [0.50100005, -0.19862536]
+Elapsed time (sec)   5
+Step 1               Values
+-------------------  -------------------------
+step                 1
+mode                 reverse
+test accuracy        0.45128580927848816
+validation accuracy  0.45557117462158203
+training accuracy    0.44499993324279785
+validation error     2.2202165126800537
+memory usage (mb)    245.19449454942
+weights              [ 0.19594695  0.08658815 -0.05207569 ...,  0.0068491  -0.00491626
+ -0.00100442]
+# weights            315074
+# hyperparameters    10
+# iterations         100
+rho_l1_0             [0.0, 1.4438729]
+rho_l1_1             [0.0, 3.1900797]
+rho_l1_2             [0.0, 8.1421585]
+rho_l1_3             [0.0, 38.610077]
+rho_l2_0             [0.0, 0.54060417]
+rho_l2_1             [0.0, 0.69426817]
+rho_l2_2             [0.0, 0.7686559]
+rho_l2_3             [0.0, 0.23194247]
+eta                  [0.011964018, -21.002819]
+mu                   [0.50195372, -0.44067982]
+Elapsed time (sec)   8
+Step 2               Values
+-------------------  -------------------------
+step                 2
+mode                 reverse
+test accuracy        0.33914297819137573
+validation accuracy  0.3410474956035614
+training accuracy    0.3199999928474426
+validation error     2.2515761852264404
+memory usage (mb)    245.19449454942
+weights              [ 0.00305097  0.14644508  0.01850438 ...,  0.01200751 -0.0069713
+ -0.00106984]
+# weights            315074
+# hyperparameters    10
+# iterations         100
+rho_l1_0             [0.0, 1.3552716]
+rho_l1_1             [0.0, 2.5251482]
+rho_l1_2             [0.0, 5.3221679]
+rho_l1_3             [0.0, 33.326214]
+rho_l2_0             [0.0, 0.34257659]
+rho_l2_1             [0.0, 0.48459652]
+rho_l2_2             [0.0, 0.52318782]
+rho_l2_3             [0.0, 0.1551605]
+eta                  [0.012916083, -11.694022]
+mu                   [0.50290805, -0.26741832]
+Elapsed time (sec)   12
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-labels-idx1-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-labels-idx1-ubyte.gz
+datasets.redivide_data:, computed partitions numbers - [0, 35000, 56000, 70000] len all 70000 DONE
+folder /media/luca/DATA/EXPERIMENTS/test_with_model_log_reg/11-07-17__16h43m has been created
+2017-07-11 16:43:38.170711: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:0) -> (device: 0, name: GeForce GTX TITAN X, pci bus id: 0000:02:00.0)
+2017-07-11 16:43:38.170733: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:1) -> (device: 1, name: GeForce GTX TITAN X, pci bus id: 0000:03:00.0)
+Step 0               Values
+-------------------  -------------------------
+step                 0
+mode                 rtho
+test accuracy        0.8195711970329285
+validation accuracy  0.8130945563316345
+training accuracy    0.7799999713897705
+validation error     1.1924128532409668
+memory usage (mb)    0.29999311088999997
+weights              [ 0.          0.          0.         ...,  0.0133307  -0.02487721
+ -0.00233138]
+# weights            7850
+# hyperparameters    4
+# iterations         100
+rho_l1_0             [0.0, 36.578094]
+rho_l2_0             [0.0, 1.2705821]
+eta                  [0.011000023, -51.830055]
+mu                   [0.50100005, -1.028383]
+Elapsed time (sec)   2
+Step 1               Values
+-------------------  -------------------------
+step                 1
+mode                 rtho
+test accuracy        0.847856879234314
+validation accuracy  0.8414278626441956
+training accuracy    0.8149999380111694
+validation error     0.8543068170547485
+memory usage (mb)    0.29999311088999997
+weights              [ 0.          0.          0.         ...,  0.02395408 -0.05270802
+ -0.00339607]
+# weights            7850
+# hyperparameters    4
+# iterations         100
+rho_l1_0             [0.0, 38.630348]
+rho_l2_0             [0.0, 2.3978257]
+eta                  [0.011975288, -36.12405]
+mu                   [0.50198132, -0.76063538]
+Elapsed time (sec)   3
+Step 2               Values
+-------------------  -------------------------
+step                 2
+mode                 rtho
+test accuracy        0.8607139587402344
+validation accuracy  0.8550468683242798
+training accuracy    0.8549999594688416
+validation error     0.704048752784729
+memory usage (mb)    0.29999311088999997
+weights              [ 0.          0.          0.         ...,  0.03680024 -0.0791878
+ -0.00987404]
+# weights            7850
+# hyperparameters    4
+# iterations         100
+rho_l1_0             [0.0, 38.946747]
+rho_l2_0             [0.0, 3.2192483]
+eta                  [0.012915743, -26.024776]
+mu                   [0.50293523, -0.57556164]
+Elapsed time (sec)   5
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-labels-idx1-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-labels-idx1-ubyte.gz
+datasets.redivide_data:, computed partitions numbers - [0, 35000, 56000, 70000] len all 70000 DONE
+2017-07-11 16:43:59.031913: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:0) -> (device: 0, name: GeForce GTX TITAN X, pci bus id: 0000:02:00.0)
+2017-07-11 16:43:59.031935: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:1) -> (device: 1, name: GeForce GTX TITAN X, pci bus id: 0000:03:00.0)
+folder /media/luca/DATA/EXPERIMENTS/test_with_model_ffnn/11-07-17__16h43m has been created
+Step 0               Values
+-------------------  --------------------------
+step                 0
+mode                 rtho
+test accuracy        0.22707144916057587
+validation accuracy  0.2220476269721985
+training accuracy    0.16999998688697815
+validation error     2.296657085418701
+memory usage (mb)    4.70322673671
+weights              [-0.01944263 -0.02341129 -0.00893642 ...,  0.00867619 -0.00233514
+ -0.00072745]
+# weights            47410
+# hyperparameters    12
+# iterations         100
+rho_l1_0             [0.0, 0.31968617]
+rho_l1_1             [0.0, 0.1212918]
+rho_l1_2             [0.0, 0.10843154]
+rho_l1_3             [0.0, 0.10243497]
+rho_l1_4             [0.0, 1.554059]
+rho_l2_0             [0.0, 0.031318761]
+rho_l2_1             [0.0, 0.034696076]
+rho_l2_2             [0.0, 0.034941636]
+rho_l2_3             [0.0, 0.035093676]
+rho_l2_4             [0.0, 0.011328639]
+eta                  [0.011000023, -0.77895772]
+mu                   [0.50100005, -0.015138036]
+Elapsed time (sec)   28
+Step 1               Values
+-------------------  ------------------------------------------------------------------------------
+step                 1
+mode                 rtho
+test accuracy        0.25307148694992065
+validation accuracy  0.25176185369491577
+training accuracy    0.2499999850988388
+validation error     2.2800724506378174
+memory usage (mb)    4.70322673671
+weights              [-0.01944263 -0.02341129 -0.00893642 ...,  0.0118527  -0.009943    0.00559369]
+# weights            47410
+# hyperparameters    12
+# iterations         100
+rho_l1_0             [0.0, 2.3748071]
+rho_l1_1             [0.0, 1.3175887]
+rho_l1_2             [0.0, 1.1325119]
+rho_l1_3             [0.0, 1.1291256]
+rho_l1_4             [0.0, 7.6246438]
+rho_l2_0             [0.0, 0.24756654]
+rho_l2_1             [0.0, 0.36611632]
+rho_l2_2             [0.0, 0.37580422]
+rho_l2_3             [0.0, 0.38001996]
+rho_l2_4             [0.0, 0.11429914]
+eta                  [0.01183209, -5.4053364]
+mu                   [0.50182784, -0.11108504]
+Elapsed time (sec)   33
+Step 2               Values
+-------------------  -------------------------
+step                 2
+mode                 rtho
+test accuracy        0.2617143392562866
+validation accuracy  0.26038092374801636
+training accuracy    0.2849999964237213
+validation error     2.1866607666015625
+memory usage (mb)    4.70322673671
+weights              [-0.01944263 -0.02341129 -0.00893642 ...,  0.04257054 -0.01801956
+  0.0149127 ]
+# weights            47410
+# hyperparameters    12
+# iterations         100
+rho_l1_0             [0.0, 14.869368]
+rho_l1_1             [0.0, 13.155718]
+rho_l1_2             [0.0, 11.225177]
+rho_l1_3             [0.0, 11.479817]
+rho_l1_4             [0.0, 47.848869]
+rho_l2_0             [0.0, 1.714955]
+rho_l2_1             [0.0, 3.5391665]
+rho_l2_2             [0.0, 3.6937499]
+rho_l2_3             [0.0, 3.7148347]
+rho_l2_4             [0.0, 0.99695665]
+eta                  [0.012543838, -44.908943]
+mu                   [0.50253612, -0.96625936]
+Elapsed time (sec)   37
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/train-labels-idx1-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-images-idx3-ubyte.gz
+Extracting /media/luca/DATA/DATASETS/mnist_data/t10k-labels-idx1-ubyte.gz
+datasets.redivide_data:, computed partitions numbers - [0, 35000, 56000, 70000] len all 70000 DONE
+2017-07-11 16:44:51.661312: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:0) -> (device: 0, name: GeForce GTX TITAN X, pci bus id: 0000:02:00.0)
+2017-07-11 16:44:51.661353: I tensorflow/core/common_runtime/gpu/gpu_device.cc:1030] Creating TensorFlow device (/gpu:1) -> (device: 1, name: GeForce GTX TITAN X, pci bus id: 0000:03:00.0)
+folder /media/luca/DATA/EXPERIMENTS/test_with_model_cnn/11-07-17__16h44m has been created
+Step 0               Values
+-------------------  -------------------------
+step                 0
+mode                 rtho
+test accuracy        0.3484286367893219
+validation accuracy  0.34899988770484924
+training accuracy    0.3449999988079071
+validation error     2.258112907409668
+memory usage (mb)    26.44284773187
+weights              [ -3.93963568e-02   1.07700787e-01   1.45048261e-01 ...,   9.90027003e-03
+  -5.10352338e-03  -2.39336805e-06]
+# weights            315074
+# hyperparameters    10
+# iterations         100
+rho_l1_0             [0.0, 1.0899636]
+rho_l1_1             [0.0, 1.7087897]
+rho_l1_2             [0.0, 3.7186251]
+rho_l1_3             [0.0, 23.422234]
+rho_l2_0             [0.0, 0.25247669]
+rho_l2_1             [0.0, 0.31532747]
+rho_l2_2             [0.0, 0.34747359]
+rho_l2_3             [0.0, 0.10564598]
+eta                  [0.011000023, -10.389865]
+mu                   [0.50100005, -0.19871254]
+Elapsed time (sec)   26
+Step 1               Values
+-------------------  -------------------------
+step                 1
+mode                 rtho
+test accuracy        0.7936426997184753
+validation accuracy  0.7896184325218201
+training accuracy    0.7150000333786011
+validation error     1.1273058652877808
+memory usage (mb)    26.44284773187
+weights              [-0.03445741  0.11225376  0.18297803 ...,  0.02699389 -0.03454043
+  0.00710516]
+# weights            315074
+# hyperparameters    10
+# iterations         100
+rho_l1_0             [0.0, 33.024235]
+rho_l1_1             [0.0, 71.879433]
+rho_l1_2             [0.0, 193.70955]
+rho_l1_3             [0.0, 650.27185]
+rho_l2_0             [0.0, 8.7010794]
+rho_l2_1             [0.0, 13.367168]
+rho_l2_2             [0.0, 17.921343]
+rho_l2_3             [0.0, 4.5872993]
+eta                  [0.011758303, -486.16089]
+mu                   [0.50175762, -9.7804585]
+Elapsed time (sec)   37
+Step 2               Values
+-------------------  -------------------------
+step                 2
+mode                 rtho
+test accuracy        0.8845711350440979
+validation accuracy  0.8763325214385986
+training accuracy    0.8650000691413879
+validation error     0.4281672239303589
+memory usage (mb)    26.44284773187
+weights              [-0.03176216  0.12140106  0.18540783 ...,  0.03435843 -0.05745178
+  0.00486675]
+# weights            315074
+# hyperparameters    10
+# iterations         100
+rho_l1_0             [0.0, 2.4909697]
+rho_l1_1             [0.0, 6.0432305]
+rho_l1_2             [0.0, 17.542257]
+rho_l1_3             [0.0, 34.181446]
+rho_l2_0             [0.0, 0.7924509]
+rho_l2_1             [0.0, 1.3635054]
+rho_l2_2             [0.0, 1.6539414]
+rho_l2_3             [0.0, 0.47486565]
+eta                  [0.012383169, -30.385111]
+mu                   [0.5023852, -0.66470212]
+Elapsed time (sec)   48
+
+Process finished with exit code 0
