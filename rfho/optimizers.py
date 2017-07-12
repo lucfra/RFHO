@@ -437,14 +437,14 @@ class AdamOptimizer(MomentumOptimizer):
             if global_step is None:
                 global_step = GlobalStep()
 
-            m_k = beta1 * m + (1. - beta1) * grad
-            v_k = beta2 * v + (1. - beta2) * grad ** 2
+            m_k = tf.multiply(beta1, m) + (1. - beta1) * grad
+            v_k = tf.multiply(beta2, v) + (1. - beta2) * grad ** 2
 
             bias_correction = tf.sqrt(1. - tf.pow(beta2, tf.to_float(global_step.var + 1))) / (
                 1. - tf.pow(beta1, tf.to_float(global_step.var + 1)))
             lr_k = lr * bias_correction
 
-            v_epsilon_k = beta2 * v + (1. - beta2) * grad ** 2 + eps
+            v_epsilon_k = tf.multiply(beta2, v) + (1. - beta2) * grad ** 2 + eps
             v_tilde_k = tf.sqrt(v_epsilon_k)  # + eps
             """
             to make it the same as tensorflow adam optimizer the eps should go after the square root... this
@@ -460,7 +460,7 @@ class AdamOptimizer(MomentumOptimizer):
             )
             pre_j_31_out = 2. * (1. - beta2) * grad
 
-            w_base_k = w_base - lr_k * (beta1 * m + (1. - beta1) * grad) / v_tilde_k
+            w_base_k = w_base - lr_k * (tf.multiply(beta1, m) + (1. - beta1) * grad) / v_tilde_k
 
             # noinspection PyUnresolvedReferences
             def _jac_z(z):
