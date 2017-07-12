@@ -207,7 +207,7 @@ def main(_):
         return test_accuracy
 
 
-def experiment():
+def experiment(mnist, T=200):
     """
     Modified MNIST for expert (CNN part) tensorflow tutorial experiment to include real time
     hyperparameter optimization. Hyperparameters being optimized are learning rate for
@@ -217,15 +217,11 @@ def experiment():
 
     :return:
     """
-    # Import data
-    from rfho.datasets import load_mnist
-    mnist = load_mnist(partitions=(.85, .075))
-
     # Create the model
-    x = tf.placeholder(tf.float32, [None, 784])
+    x = tf.placeholder(tf.float32, [None, 784], name='x')
 
     # Define loss and optimizer
-    y_ = tf.placeholder(tf.float32, [None, 10])
+    y_ = tf.placeholder(tf.float32, [None, 10], name='y')
 
     # Build the graph for the deep net
     y_conv, W_fc1, W_fc2 = deepnn(x)
@@ -242,7 +238,7 @@ def experiment():
     # RFHO use cross entropy defined in the package since tensorflow one does not have Hessian,
     # eps is the clipping threshold for cross entropy.
     cross_entropy = tf.reduce_mean(
-        rf.cross_entropy_loss(labels=y_, logits=y_conv, eps=1.e-4))
+        rf.cross_entropy_loss(labels=y_, logits=y_conv, eps=1.e-4), name='error')
     # RFHO add an L2 regularizer on the last weight matrix, whose weight will be optimized
     rho = tf.Variable(0., name='rho')
     constraints = [rf.positivity(rho)]  # rho >= 0
@@ -270,7 +266,7 @@ def experiment():
 
     with tf.Session(config=rf.CONFIG_GPU_GROWTH).as_default():  # RFHO use default session.
         hyper_opt.initialize()  # RFHO this will initialize all the variables, including hyperparameters
-        for i in range(200):  # RFHO we run for 200 hyper-iterations
+        for i in range(T):  # RFHO we run for 200 hyper-iterations
             hyper_opt.run(100, train_feed_dict_supplier=_train_fd,
                           val_feed_dict_suppliers={cross_entropy: _validation_fd},
                           hyper_constraints_ops=constraints)
@@ -286,8 +282,7 @@ def experiment():
             #          rho.eval(), hyper_opt.hyper_gradients.hyper_gradients_dict[rho].eval()))
             # # train_step.run(feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
 
-        test_accuracy = accuracy.eval(feed_dict={
-            x: mnist.test.images, y_: mnist.test.labels})
+        test_accuracy = accuracy.eval(feed_dict=mnist.test.create_supplier(x, y_)())
         print('test accuracy %g' % test_accuracy)
         return test_accuracy
 
