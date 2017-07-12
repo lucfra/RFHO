@@ -456,15 +456,15 @@ def _check_new_saver_mode():
     saver = rf.Saver('TBD')
     datasets = load_dataset()
 
-    with rf.record_hyperiteration(saver, rf.record_hyperparameters(),
-                                  rf.record_tensors('error', 'accuracy', rec_name='valid',
-                                                    fd=('x', 'y', datasets.validation)),
-                                  rf.record_tensors('error', 'accuracy', rec_name='test',
-                                                    fd=('x', 'y', datasets.test)),
-                                  append_string='_1st_trial'
+    with rf.record_hyperiteration(saver, rf.Records.hyperparameters(),
+                                  rf.Records.tensors('error', 'accuracy', rec_name='valid',
+                                                     fd=('x', 'y', datasets.validation)),
+                                  rf.Records.tensors('error', 'accuracy', rec_name='test',
+                                                     fd=('x', 'y', datasets.test))
                                   ):
-        with rf.record_forward_hg(saver, rf.record_norms_of_z(), append_string='zs'):
-            experiment_no_saver(datasets=datasets, mode=HO_MODES[0], epochs=None, set_T=100, hyper_iterations=5)
+        with rf.record_forward_hg(saver, rf.Records.norms_of_z(), append_string='zs', do_print=False):
+            experiment_no_saver(datasets=datasets, mode=HO_MODES[0],
+                                epochs=None, set_T=100, hyper_iterations=5)
     #
     # saver.timer.reset()
     # with rf.record_forward_hg(saver, rf.record_hyperparameters(),

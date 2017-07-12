@@ -26,7 +26,12 @@ class Optimizer:  # Gradient descent-like optimizer
             self.learning_rate: self.d_dynamics_d_learning_rate
         }
 
-    def get_assign_op(self):
+    def get_assign_op(self):  # TODO delete the other one
+        """
+        Return assign op for this optimizer (corresponds to result of calling tensorflow optimizer.minimize)
+
+        :return:
+        """
         return self.raw_w.assign(self.dynamics)
 
     def support_variables_initializer(self):
@@ -79,22 +84,23 @@ class Optimizer:  # Gradient descent-like optimizer
         """
         pass
 
-    def d_dynamics_d_learning_rate(self):
+    def d_dynamics_d_learning_rate(self, name):
         """
 
         :return: Partial derivative of dynamics w.r.t. learning rate
         """
-        return ZMergedMatrix(-self.gradient)
+        return ZMergedMatrix(-self.gradient, name=name)
 
-    def d_dynamics_d_hyper_loss(self, grad_loss_term):
+    def d_dynamics_d_hyper_loss(self, grad_loss_term, name):
         """
         Helper function for building the partial derivative of the dynamics w.r.t. an hyperparameter
         inside the loss function, given the gradient or Jacobian of loss w.r.t.
 
+        :param name: name of the resulting MergedMatrix
         :param grad_loss_term: should be \nabla R
         :return: Partial derivative of dynamics w.r.t. weighting hyperparameter (e.g. gamma)
         """
-        return ZMergedMatrix(-self.learning_rate * grad_loss_term)
+        return ZMergedMatrix(-self.learning_rate * grad_loss_term, name=name)
 
     def _auto_d_dynamics_d_hyper_no_zmm(self, hyper):
         d_loss_d_lambda = tf.gradients(self.loss, hyper)[0]
@@ -112,18 +118,21 @@ class Optimizer:  # Gradient descent-like optimizer
             raise NotImplementedError('For forward mode hyperparameters should be either scalar or vectors. \n'
                                       '%s is a %d rank tensor instead' % (simple_name(hyper), shape.ndims))
 
-    def auto_d_dynamics_d_hyper(self, hyper):
+    def auto_d_dynamics_d_hyper(self, hyper, name=None):
         """
         Automatic attempt to build the term d(phi)/(d hyper)
         
-        :param hyper: 
-        :return: 
+        :param hyper:
+        :param name: optional name
+        :return:
         """
+        if name is None:
+            name = 'd_phi_d_' + simple_name(hyper)
         if hyper in self.algorithmic_hypers:
-            return self.algorithmic_hypers[hyper]()  # the call to the function is here because otherwise it could
+            return self.algorithmic_hypers[hyper](name)  # the call to the function is here because otherwise it could
         # rise an error at the initialization part in the case that the optimizer is used in gradient mode
         # (i.e. loss is not provided in creation method)
-        return self.d_dynamics_d_hyper_loss(self._auto_d_dynamics_d_hyper_no_zmm(hyper))
+        return self.d_dynamics_d_hyper_loss(self._auto_d_dynamics_d_hyper_no_zmm(hyper), name)
 
     @staticmethod
     def get_augmentation_multiplier():
@@ -164,7 +173,7 @@ class GradientDescentOptimizer(Optimizer):
             if loss is not None:
                 # TODO add type checking for w (should work only with vectors...)
                 integral = tf.reduce_sum(
-                    w** 2) / 2. - lr * loss
+                    w ** 2) / 2. - lr * loss
 
                 def _jac_z(z):
                     return ZMergedMatrix(hvp(integral, w,
@@ -203,19 +212,19 @@ class MomentumOptimizer(Optimizer):
         return Optimizer._filter_variables(
             super().get_optimization_hyperparameters() + [self.momentum_factor], only_variables)
 
-    def d_dynamics_d_learning_rate(self):
+    def d_dynamics_d_learning_rate(self, name):
         return ZMergedMatrix([- self.momentum_factor * self.m - self.gradient,
                               tf.zeros(self.m.get_shape())
-                              ])
+                              ], name=name)
 
-    def d_dynamics_d_momentum_factor(self):
-        return ZMergedMatrix([- (self.learning_rate * self.m), self.m])
+    def d_dynamics_d_momentum_factor(self, name):
+        return ZMergedMatrix([- (self.learning_rate * self.m), self.m], name=name)
 
-    def d_dynamics_d_hyper_loss(self, grad_loss_term):
+    def d_dynamics_d_hyper_loss(self, grad_loss_term, name):
         return ZMergedMatrix([
             - self.learning_rate * grad_loss_term,
             grad_loss_term
-        ])
+        ], name=name)
 
     @staticmethod
     def get_augmentation_multiplier():
@@ -372,17 +381,17 @@ class AdamOptimizer(MomentumOptimizer):
                 tf.minimum(tf.maximum(self.second_momentum_factor, 0.), 0.9999)))
         return constraints
 
-    def d_dynamics_d_momentum_factor(self):
+    def d_dynamics_d_momentum_factor(self, name):
         raise NotImplementedError()  # TODO
 
-    def d_dynamics_d_learning_rate(self):
-        return self._d_dyn_d_lr()
+    def d_dynamics_d_learning_rate(self, name):
+        return self._d_dyn_d_lr(name)
 
-    def d_dynamics_d_second_momentum_factor(self):
+    def d_dynamics_d_second_momentum_factor(self, name):
         raise NotImplementedError()  # TODO
 
-    def d_dynamics_d_hyper_loss(self, grad_loss_term):
-        return self._d_dyn_d_hyper(grad_loss_term)
+    def d_dynamics_d_hyper_loss(self, grad_loss_term, name):
+        return self._d_dyn_d_hyper(grad_loss_term, name)
 
     @staticmethod
     def get_augmentation_multiplier():
@@ -541,22 +550,22 @@ class AdamOptimizer(MomentumOptimizer):
                         return ZMergedMatrix(res)
 
             # algorithmic partial derivatives (as functions so that we do not create unnecessary nodes
-            def _d_dyn_d_lr():
+            def _d_dyn_d_lr(_name):
                 res = [
                     - bias_correction * m_k / v_tilde_k,
                     tf.zeros_like(m_k),
                     tf.zeros_like(v_k)  # just aesthetics
                 ]
-                return ZMergedMatrix(res)
+                return ZMergedMatrix(res, name=_name)
 
-            def _d_dyn_d_hyp_gl(cross_der_l):
+            def _d_dyn_d_hyp_gl(cross_der_l, _name):
                 dwt_dl_hat = pre_j_11_out
                 dwt_dl = l_diag_mul(dwt_dl_hat, cross_der_l)
 
                 dmt_dl = (1 - beta1) * cross_der_l
 
                 dvt_dl = l_diag_mul(pre_j_31_out, cross_der_l)
-                return ZMergedMatrix([dwt_dl, dmt_dl, dvt_dl])
+                return ZMergedMatrix([dwt_dl, dmt_dl, dvt_dl], name=_name)
 
             # noinspection PyUnresolvedReferences
             dynamics = tf.concat([w_base_k, m_k, v_k], 0) if w_base_k.get_shape().ndims != 0 \

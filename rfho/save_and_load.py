@@ -79,7 +79,7 @@ def save_fig(name, root_dir=None, notebook_mode=True, default_overwrite=False, e
             print('No changes done.')
             return
     plt.savefig(filename, **savefig_kwargs)
-    print('file saved')
+    # print('file saved')
 
 
 def save_obj(obj, name, root_dir=None, notebook_mode=True, default_overwrite=False):
@@ -96,7 +96,7 @@ def save_obj(obj, name, root_dir=None, notebook_mode=True, default_overwrite=Fal
         print('Overwriting...')
     with gzip.open(filename, 'wb') as f:
         pickle.dump(obj, f)
-        print('File saved!')
+        # print('File saved!')
 
 
 def load_obj(name, root_dir=None, notebook_mode=True):
@@ -213,8 +213,11 @@ class Timer:
 
 class Saver:
     """
-    Class for recording experiments
+    Class for recording experiment data
     """
+
+    SKIP = 'SKIP'  # skip saving value in save_dict
+
     def __init__(self, experiment_names, *items, append_date_to_name=True,
                  root_directory=FOLDER_NAMINGS['EXP_ROOT'],
                  timer=None, do_print=True, collect_data=True, default_overwrite=False):
@@ -279,7 +282,8 @@ class Saver:
         self._processed_items = []
         self._step = -1
 
-    def add_items(self, *items):
+    @staticmethod
+    def process_items(*items):
         """
         Add items to the save dictionary
 
@@ -307,14 +311,29 @@ class Saver:
                 part.append(items[k])
                 k += 1
             assert len(part) >= 2, 'Check args! Last part %s' % part
-            part += [None] * (5 - len(part))  # representing name, fetches, feeds, options, metadata
+            if callable(part[1]):  # python stuff
+                if len(part) == 2: part.append(True)  # always true default condition
+            else:  # tensorflow stuff
+                part += [None] * (6 - len(part))  # representing name, fetches, feeds, options, metadata
+                if part[3] is None: part[3] = True  # default condition
             processed_args.append(part)
-        self._processed_items += processed_args
+        # self._processed_items += processed_args
         # return [pt[0] for pt in processed_args]
         return processed_args
 
+    def add_items(self, *items):
+        """
+        Adds internally items to this saver
+
+        :param items:
+        :return:
+        """
+        processed_items = Saver.process_items(*items)
+        self._processed_items += processed_items
+        return [pt[0] for pt in processed_items]
+
     def save(self, step=None, session=None, append_string="", do_print=None, collect_data=None,
-             processed_items=None):
+             processed_items=None, _res=None):
         """
         Builds and save a dictionary with the keys and values specified at construction time or by method
         `add_items`
@@ -327,6 +346,8 @@ class Saver:
         :param append_string: (optional str) string to append at the file name to `str(step)`
         :param do_print: (default as object field)
         :param collect_data: (default as object field)
+        :param _res: used internally by context managers
+
         :return: the dictionary
         """
         from tensorflow import get_default_session
@@ -346,13 +367,21 @@ class Saver:
 
         if self.timer: self.timer.stop()
 
-        def _call(_method):
-            return _method(step) if len(signature(_method).parameters) > 0 else _method()
+        def _maybe_call(_method):
+            if not callable(_method): return _method
+            if len(signature(_method).parameters) == 0:
+                return _method()
+            elif len(signature(_method).parameters) == 1:
+                return _method(step)
+            else:  # complete signature?
+                return _method(step, _res)
 
-        save_dict = OrderedDict([(pt[0], _call(pt[1]) if callable(pt[1])
-                                else ss.run(pt[1], feed_dict=_call(pt[2]) if callable(pt[2]) else pt[2],
-                                options=pt[3], run_metadata=pt[4]))
-                                for pt in processed_items])
+        save_dict = OrderedDict([(pt[0], _maybe_call(pt[1]) if callable(pt[1])
+                                else ss.run(pt[1], feed_dict=_maybe_call(pt[2]),
+                                            options=pt[4], run_metadata=pt[5])
+                                  if _maybe_call(pt[2 if callable(pt[1]) else 3]) else Saver.SKIP)
+                                for pt in processed_items]
+                                )
 
         if self.timer: save_dict['Elapsed time (%s)' % self.timer.unit] = self.timer.elapsed_time()
 
@@ -391,9 +420,10 @@ class Saver:
 
         objs = [load_obj(path, root_dir='', notebook_mode=False) for path in all_files]
 
-        packed_dict = OrderedDict([(k, []) for k in objs[0]])
+        # packed_dict = OrderedDict([(k, []) for k in objs[0]])
+        packed_dict = OrderedDict()
         for obj in objs:
-            [packed_dict[k].append(v) for k, v in obj.items()]
+            [packed_dict.get(k, []).append(v) for k, v in obj.items()]
         self.save_obj(packed_dict, name=name + append_string)
 
         if erase_others:
@@ -477,9 +507,12 @@ class record_hyperiteration:
     context for record at each hyperiteration
     """
 
-    def __init__(self, saver, *record_what, append_string=''):
+    def __init__(self, saver, *record_what, append_string='', do_print=None, collect_data=None):
         self.saver = saver
         self.append_string = append_string
+        if self.append_string: self.append_string = '__' + self.append_string
+        self.do_print = do_print
+        self.collect_data = collect_data
 
         self._unwrapped = []
 
@@ -493,7 +526,8 @@ class record_hyperiteration:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_tb:
-            self.saver.save_obj((str(exc_type), str(exc_val), str(exc_tb)), 'exception' + self.append_string)
+            self.saver.save_obj((str(exc_type), str(exc_val), str(exc_tb)),
+                                'exception' + self.append_string)
         self.saver.pack_save_dictionaries(append_string=self.append_string)
 
         self._unwrap()
@@ -517,7 +551,7 @@ class record_hyperiteration:
         @wraps(f)
         def _saver_wrapped(*args, **kwargs):
             res = f(*args, **kwargs)
-            self._execute_save()
+            self._execute_save(res, *args, **kwargs)
             return res
 
         return _saver_wrapped
@@ -529,19 +563,20 @@ class record_hyperiteration:
             # add savers just at the first initialization
             if first_init:
                 self._processed_items += rf.flatten_list(
-                    [self.saver.add_items(*e(*args, **kwargs)) for e in self._record_what])
-                self._execute_save()
+                    [Saver.process_items(*e(*args, **kwargs)) for e in self._record_what])
+                self._execute_save('INIT', *args, **kwargs)
 
             return first_init
 
         return _initialize_wrapped
 
-    def _execute_save(self):
+    # noinspection PyUnusedLocal
+    def _execute_save(self, res, *args, **kwargs):  # maybe args and kwargs could be useful...
         self.saver.save(step=self._step, append_string=self.append_string,
-                        processed_items=self._processed_items)  # todo maybe add other args...
+                        processed_items=self._processed_items,
+                        do_print=self.do_print, collect_data=self.collect_data,
+                        _res=res)
         self._step += 1
-
-
 
 
 # noinspection PyPep8Naming
@@ -562,111 +597,158 @@ class record_forward_hg(record_hyperiteration):  # context class
         rf.ForwardHG.step_forward = self._unwrapped[1]
 
 
-def record_norms_of_z():
+class Records:
+    """
+    Contains (for the moment) static convenience methods for recording quantities
     """
 
-    :return:
-    """
+    @staticmethod
+    def direct(*items):
+        """
+        Everything passed in items is passed directly to `Saver.
 
-    def _call(*args, **kwargs):
-        hg = args[0]
-        if isinstance(hg, rf.HyperOptimizer): hg = hg.hyper_gradients  # guess most common case
-        assert isinstance(hg, rf.ForwardHG)
-        _rs = []
-        # _rs += record_tensors(*hg.d_dynamics_d_hypers, op=tf.norm)(args, kwargs)
-        _rs += record_tensors(*hg.zs, op=tf.norm)(args, kwargs)
-        return _rs
+        :param items:
+        :return:
+        """
 
-    return _call
+        # noinspection PyUnusedLocal
+        def _call(*args, **kwargs):
+            return items
 
+        return _call
 
-# mmm x 4 decide where to put these things...
-def record_hyperparameters():
-    """
-    Simple one! record all hyperparameter values, assuming the usage of `HyperOptimizer`
+    @staticmethod
+    def norms_of_z():
+        """
 
-    :return: a function
-    """
+        :return:
+        """
 
-    # noinspection PyUnusedLocal
-    def _call(*args, **kwargs):
-        hyper_optimizer = args[0]
-        assert isinstance(hyper_optimizer, rf.HyperOptimizer)
-        return rf.flatten_list([rf.simple_name(hyp), [hyp, hyper_optimizer.hyper_gradients.hyper_gradients_dict[hyp]]]
-                               for hyp in hyper_optimizer.hyper_list)
+        def _call(*args, **kwargs):
+            hg = args[0]
+            if isinstance(hg, rf.HyperOptimizer): hg = hg.hyper_gradients  # guess most common case
+            assert isinstance(hg, rf.ForwardHG)
+            _rs = Records.tensors(*hg.zs, op=tf.norm)(args, kwargs)
 
-    return _call
+            _rs += Records.tensors(*hg.d_dynamics_d_hypers, op=tf.norm,
+                                   fd=lambda stp, rs: rs,
+                                   condition=lambda stp, rs: rs != 'INIT')(args, kwargs)
+            return _rs
 
+        return _call
 
-def record_tensors(*tensors, key=None, scope=None, rec_name='', op=tf.identity, fd=None):
-    """
-    Little more difficult... attempts to record tensor named name
+    @staticmethod
+    def hyperparameters():
+        """
+        Simple one! record all hyperparameter values, assuming the usage of `HyperOptimizer`
 
-    :param tensors: varargs of tensor names
-    :param scope: optional for collections
-    :param key: to record collections
-    :param op: optional operation to apply to each tensor
-    :param rec_name: optional name to prepend to all tensors recorded by this
-    :param fd: # given to _process_feed_dicts_for_rec
-    :return:
-    """
-    if rec_name: rec_name += '::'  # maybe find a better way
+        :return: a function
+        """
 
-    def _call(*args, **_kwargs):
-        if tensors:
-            _tensors = [tf.get_default_graph().get_tensor_by_name(tns+':0') if isinstance(tns, str)
-                        else tns for tns in tensors]
-        elif key:
-            _tensors = tf.get_collection(key, scope=scope)
-        else:
-            raise NotImplemented('One between key and names should be given')
+        # noinspection PyUnusedLocal
+        def _call(*args, **kwargs):
+            hyper_optimizer = args[0]
+            assert isinstance(hyper_optimizer, rf.HyperOptimizer)
+            return rf.flatten_list(
+                [rf.simple_name(hyp), [hyp, hyper_optimizer.hyper_gradients.hyper_gradients_dict[hyp]]]
+                for hyp in hyper_optimizer.hyper_list)
+
+        return _call
+
+    @staticmethod
+    def tensors(*tensors, key=None, scope=None, rec_name='', op=tf.identity, fd=None,
+                condition=True):
+        """
+        Little more difficult... attempts to record tensor named name
+
+        :type condition: bool | function
+        :param condition: optional condition for triggering the saving of tensors, can have different
+                            signatures
+        :param tensors: varargs of tensor names
+        :param scope: optional for collections
+        :param key: to record collections
+        :param op: optional operation to apply to each tensor
+        :param rec_name: optional name to prepend to all tensors recorded by this
+        :param fd: # given to _process_feed_dicts_for_rec
+        :return:
+        """
+        if rec_name: rec_name += '::'  # maybe find a better way
+
+        def _call(*args, **_kwargs):
+            if tensors:
+                _tensors = [tf.get_default_graph().get_tensor_by_name(tns + ':0') if isinstance(tns, str)
+                            else tns for tns in tensors]
+            elif key:
+                _tensors = tf.get_collection(key, scope=scope)
+            else:
+                raise NotImplemented('One between key and names should be given')
+            # try with dictionary of form (string (simple name of placeholder), data)
+            _rs2 = rf.flatten_list([rec_name + Records._strip_0(tns.name),
+                                    op(tns),
+                                    Records._process_feed_dicts_for_rec(fd, *args, **_kwargs),
+                                    condition]
+                                   for tns in _tensors)
+            return _rs2
+
+        return _call
+
+    @staticmethod
+    def model():  # TODO discuss with others to see what's best way to save models...
+        """
+        Should save the model(s) in a useful way..
+
+        :return:
+        """
+        raise NotImplemented()
+
+    @staticmethod
+    def setting():  # TODO I have no precise idea on how to implement this...
+        """
+        Should save experiment meta-info like params, dataset, beginning/end...
+        name of experiment function, git version and so on.
+
+        :return:
+        """
+        raise NotImplemented()
+
+    @staticmethod
+    def _strip_0(name):
+        return name.split(':')[0]
+
+    @staticmethod
+    def _process_feed_dicts_for_rec(fd, *args, **kwargs):
+        # TODO add more functionality...
+        """
+
         # try with dictionary of form (string (simple name of placeholder), data)
-        _rs2 = rf.flatten_list([rec_name + _strip_0(tns.name),
-                                op(tns), _process_feed_dicts_for_rec(fd, *args, **_kwargs)]
-                               if fd else [rec_name + _strip_0(tns.name), op(tns)]
-                               for tns in _tensors)
-        return _rs2
 
-    return _call
+        :param fd:
+        :param args:  # might be useful??
+        :param kwargs:
+        :return:
+        """
+        if fd is None or callable(fd): return fd
 
+        def _std_process_dict(_dict):
+            return {tf.get_default_graph().get_tensor_by_name(n + ':0'): v for n, v in _dict.items()}
 
-def record_model():  # TODO discuss with others to see what's best way to save models...
-    raise NotImplemented()
+        def _fds():
+            if isinstance(fd, dict):
+                _rs = _std_process_dict(fd)
 
+            elif isinstance(fd, (list, tuple)):  # (x, y, dataset)
+                if len(fd) == 3 and isinstance(fd[2], rf.Dataset):  # very common scenario
+                    _rs = {tf.get_default_graph().get_tensor_by_name(fd[0] + ':0'): fd[2].data,
+                           tf.get_default_graph().get_tensor_by_name(fd[1] + ':0'): fd[2].target,
+                           }
+                else:
+                    raise NotImplemented('not understood')
+            else:
+                raise NotImplemented('not understood')
 
-def _strip_0(name):
-    return name.split(':')[0]
+            return _rs
 
-
-def _process_feed_dicts_for_rec(fd, *args, **kwargs):
-    # TODO add more functionality...
-    """
-
-    # try with dictionary of form (string (simple name of placeholder), data)
-
-    :param fd:
-    :param args:
-    :param kwargs:
-    :return:
-    """
-
-    def _std_process_dict(_dict):
-        return {tf.get_default_graph().get_tensor_by_name(n + ':0'): v for n, v in _dict.items()}
-
-    def _fds():
-        if isinstance(fd, dict):
-            _rs = _std_process_dict(fd)
-        elif isinstance(fd, (list, tuple)):  # (x, y, dataset)
-            if len(fd) == 3 and isinstance(fd[2], rf.Dataset):  # very common scenario
-                _rs = {tf.get_default_graph().get_tensor_by_name(fd[0] + ':0'): fd[2].data,
-                       tf.get_default_graph().get_tensor_by_name(fd[1] + ':0'): fd[2].target,
-                       }
-            else: raise NotImplemented('not understood')
-        else: raise NotImplemented('not understood')
-
-        return _rs
-
-    return _fds
+        return _fds
 
 
 if __name__ == '__main__':
