@@ -453,7 +453,7 @@ def _check_cnn():
 
 
 def _check_new_saver_mode():
-    saver = rf.Saver('TBD')
+    saver = rf.Saver('TBD2')
     datasets = load_dataset()
 
     with rf.record_hyperiteration(saver, rf.Records.hyperparameters(),
