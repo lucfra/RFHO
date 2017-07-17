@@ -1,5 +1,5 @@
 import time
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from functools import reduce, wraps
 from inspect import signature
 
@@ -250,9 +250,11 @@ class Saver:
             experiment_names += [datetime.today().strftime('%d-%m-%y__%Hh%Mm')]
         self.experiment_names = list(experiment_names)
 
-        self.directory = join_paths(root_directory)
-        if collect_data:
-            check_or_create_dir(root_directory, notebook_mode=False)
+        if not os.path.isabs(experiment_names[0]):
+            self.directory = join_paths(root_directory)  # otherwise assume no use of root_directory
+            if collect_data:
+                check_or_create_dir(root_directory, notebook_mode=False)
+        else: self.directory = ''
         for name in self.experiment_names:
             self.directory = join_paths(self.directory, name)
             check_or_create_dir(self.directory, notebook_mode=False)
@@ -421,9 +423,10 @@ class Saver:
         objs = [load_obj(path, root_dir='', notebook_mode=False) for path in all_files]
 
         # packed_dict = OrderedDict([(k, []) for k in objs[0]])
-        packed_dict = OrderedDict()
+
+        packed_dict = defaultdict(list, OrderedDict())
         for obj in objs:
-            [packed_dict.get(k, []).append(v) for k, v in obj.items()]
+            [packed_dict[k].append(v) for k, v in obj.items()]
         self.save_obj(packed_dict, name=name + append_string)
 
         if erase_others:
@@ -500,6 +503,21 @@ class Saver:
         :return: unpacked object
         """
         return load_obj(name, root_dir=self.directory, notebook_mode=False)
+
+
+# noinspection PyPep8Naming
+def Loader(folder_name):
+    """
+    utility method for creating a Saver with loading intentions,
+    does not create timer nor append time to name. just give the folder name
+    for the saver
+
+    :param folder_name: (string or list of strings)
+                        either absolute or relative, in which case root_directory will be used
+    :return: a `Saver` object
+    """
+    return Saver(folder_name, append_date_to_name=False, timer=False,
+                 collect_data=False)
 
 
 class record_hyperiteration:
