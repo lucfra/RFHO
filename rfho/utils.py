@@ -48,9 +48,9 @@ CONFIG_GPU_GROWTH = tf.ConfigProto(allow_soft_placement=True)
 CONFIG_GPU_GROWTH.gpu_options.allow_growth = True
 
 
-def simple_name(tensor):
-    return tensor.name.split(':')[0]
-
+def simple_name(tensor_or_name):
+    if isinstance(tensor_or_name, str): return tensor_or_name.split(':')[0]
+    return tensor_or_name.name.split(':')[0]
 
 class SummaryUtil:
     def __init__(self, ops=None, condition=None, writer=None, fd_supplier=None):
@@ -272,7 +272,7 @@ class suppress_stdout_stderr(object):
         os.close(self.null_fds[1])
 
 
-def dot(v1, v2):
+def dot(v1, v2, name='dot'):
     """
     Dot product (No idea why there isn't already in tensorflow...) and some partial extensions for matrix vector
     multiplication. Should ideally copy `np.dot` method.
@@ -285,21 +285,21 @@ def dot(v1, v2):
     v2_shape = v2.get_shape().ndims
     # print(v1_shape, v2_shape)
     if v1_shape > 1 and v2_shape > 1:
-        return tf.matmul(v1, v2)
+        return tf.matmul(v1, v2, name=name)
     elif v1_shape == 2 and v2_shape == 1:
         if v1.get_shape().as_list()[1] != 1:  # it is a true matrix
-            return tf.reduce_sum(v1 * v2, reduction_indices=[1])
+            return tf.reduce_sum(v1 * v2, reduction_indices=[1], name=name)
         else:
             raise NotImplementedError('This would be a multiplication column vector times row vector.. TODO')
     elif v1_shape == 1 and v2_shape == 2:  # fine for mat
         # this is a thing that is useful in DirectDoh
         res = tf.reduce_sum(v1 * tf.transpose(v2), reduction_indices=[1])
         if v2.get_shape().as_list()[1] == 1:
-            return res[0]
+            return tf.identity(res[0], name=name)
         else:
-            return res
+            return tf.identity(res[0], name=name)
     elif v1_shape == 1 and v2_shape == 1:
-        return tf.reduce_sum(v1 * v2)
+        return tf.reduce_sum(v1 * v2, name=name)
     else:
         raise NotImplementedError()  # TODO finish implement this also with scalars and maybe with others
 

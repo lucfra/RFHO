@@ -701,7 +701,7 @@ def load_mnist(folder=None, one_hot=True, partitions=None, filters=None, maps=No
     if partitions:
         res = redivide_data(res, partition_proportions=partitions, filters=filters, maps=maps, shuffle=shuffle)
         res += [None] * (3 - len(res))
-    return Datasets(train=res[0], validation=res[1], test=res[2])
+    return Datasets.from_list(res)
 
 
 def load_caltech101_30(folder=CALTECH101_30_DIR, tiny_problem=False):
