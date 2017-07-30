@@ -381,7 +381,8 @@ class TestD(unittest.TestCase):
 
         iterations = 5
         lr = .5
-        mu = .5
+        mu = tf.Variable(.5, name='mu')
+
 
         momentum_dict = MomentumOptimizer.create(v1, lr=lr, mu=mu, loss=obj1, w_is_state=True)
         print(momentum_dict)
