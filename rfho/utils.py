@@ -498,8 +498,9 @@ class MergedVariable:
 
     def _var_list_as_tensors(self):
         if any([isinstance(v, MergedVariable) for v in self._var_list]):
-            return [v
-                # self.get_tensor(v)
+            return [
+                #v
+                 self.get_tensor(v)
             for v in self._var_list]
         else:
             return [self.tensor]
