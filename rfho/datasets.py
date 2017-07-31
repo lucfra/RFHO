@@ -628,6 +628,71 @@ def load_XRMB(folder=XRMB_DIR, half_window=2, max_speakers=100, only_independent
         return Datasets(train=res['train'][0], validation=res['val'][0], test=res['test'][0])
 
 
+def load_timit_for_joint_training(folder, small=False, one_hot=True, only_gender=False):
+    """
+
+    :param folder: source folder...
+    :param small: if `True` loads a smaller version of the dataset
+    :param one_hot: whether to use one hot encoding for output
+    :return: A list of `Datasets` where the first one is for the speaker
+                dependent net and the subsequent are for group dependent nets.
+                The first dataset should include validation and test data,
+                while for the others (at the moment) is not needed
+    """
+    # # example
+    # X, Y = np.array(), np.array()
+    # group_id = 0
+    # gender = 'M'
+    # train = Dataset(X, Y, general_info_dict={'group': group_id, 'gender': gender})
+    # datasets = Datasets(train=train)
+
+    if small:
+        set_names = ['train_small', 'validation_small', 'coretest_small']
+    else:
+        set_names = ['train', 'validation', 'coretest']
+    Xall = {}
+    Yall = {}
+    datasets = [None]
+    for gender in ['F', 'M']:
+        _temp_gender = []
+        for dr in range(1, 9):
+            sets = []
+
+            for s in set_names:
+                # Loading data
+                fname = '{}_DR{}_{}.npy'.format(s, dr, gender)
+                data = np.load(os.path.join(folder, fname))
+                # Creating dataset
+                X = data[:, :-1]
+                Y = data[:, -1]
+                if one_hot:
+                    Y = to_one_hot_enc(np.array(Y, dtype=np.int32), dimension=183)
+                info = {'group': dr, 'gender': gender}
+                sets.append(Dataset(X, Y, info=info))
+                # Stacking data for full dataset
+                Xall[s] = np.vstack((Xall[s], X)) if s in Xall else X
+                if one_hot:
+                    Yall[s] = np.vstack((Yall[s], Y)) if s in Yall else Y
+                else:
+                    Yall[s] = np.hstack((Yall[s], Y)) if s in Yall else Y
+            ds = Datasets(train=sets[0], validation=sets[1], test=sets[2])
+            if not only_gender:
+                datasets.append(ds)
+            else:
+                _temp_gender.append(ds)
+        if only_gender:
+            datasets.append(Datasets.stack(*_temp_gender))
+    # Building full dataset
+    # sets = []
+    # for s in set_names:
+    #     sets.append(Dataset(Xall[s], Yall[s]))
+    # ds = Datasets(train=sets[0], validation=sets[1], test=sets[2])
+    # datasets[0] = ds
+    datasets[0] = Datasets.stack(*datasets[1:])
+
+    return datasets
+
+
 # noinspection PyUnusedLocal
 def load_timit(folder=TIMIT_DIR, only_primary=False, filters=None, maps=None, small=False, context=None,
                fake=False, process_all=False):

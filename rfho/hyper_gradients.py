@@ -167,7 +167,7 @@ class ReverseHG:
 
         for t in range(T):
             self.w_hist.append(self.w_t.eval())
-            ss.run([self._fw_ops], feed_dict=cmo(train_feed_dict_supplier, t))
+            ss.run([self._fw_ops], feed_dict=cmo(train_feed_dict_supplier, self.global_step.eval()))
             self.global_step.increase.eval()
             if summary_utils:
                 summary_utils.run(ss, t)
