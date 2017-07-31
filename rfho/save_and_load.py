@@ -4,12 +4,10 @@ from functools import reduce, wraps
 from inspect import signature
 
 import matplotlib.pyplot as plt
-
-from rfho import as_list
-
 import tensorflow as tf
 
 import rfho as rf
+from rfho import as_list
 
 try:
     from IPython.display import IFrame
@@ -686,7 +684,7 @@ class Records:
             hyper_optimizer = args[0]
             assert isinstance(hyper_optimizer, rf.HyperOptimizer)
             return rf.flatten_list(
-                [rf.simple_name(hyp), [hyp, hyper_optimizer.hyper_gradients.hyper_gradients_dict[hyp]]]
+                [rf.simple_name(hyp), hyp]
                 for hyp in hyper_optimizer.hyper_list)
 
         return _call

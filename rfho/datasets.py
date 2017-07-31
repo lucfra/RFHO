@@ -942,6 +942,10 @@ class ExampleVisiting:
                                                  for _ in range(self.epochs or 1)])
         return self
 
+    def create_supplier(self, x, y, other_feeds=None, lambda_feeds=None):
+        return self.create_feed_dict_supplier(x, y, other_feeds=other_feeds,
+                                              lambda_feeds=lambda_feeds)
+
     def create_feed_dict_supplier(self, x, y, other_feeds=None, lambda_feeds=None):
         """
 

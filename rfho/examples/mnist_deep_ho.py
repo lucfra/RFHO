@@ -146,7 +146,8 @@ def main(_):
     # use adam optimizer:
     optimizer = rf.AdamOptimizer
     w, y_conv, W_fc1, W_fc2 = rf.vectorize_model(model_vairables, y_conv, W_fc1, W_fc2,
-                                                 augment=optimizer.get_augmentation_multiplier())
+                                                 augment=optimizer.get_augmentation_multiplier(),
+                                                 suppress_err_out=False)
     # w is now a vector that contains all the weights, y_conv and W_fc2 are the same tensor as earlier,
     # but in the new graph
 
@@ -208,7 +209,7 @@ def main(_):
 
 
 def experiment(mnist, optimizer=rf.AdamOptimizer, optimizer_kwargs=None,
-               hyper_batch_size=100, T=200, hyper_learning_rate=1.e-4):
+               hyper_batch_size=100, T=200, hyper_learning_rate=1.e-4, use_mse=False):
     """
     Modified MNIST for expert (CNN part) tensorflow tutorial experiment to include real time
     hyperparameter optimization. Hyperparameters being optimized are learning rate for
@@ -237,13 +238,16 @@ def experiment(mnist, optimizer=rf.AdamOptimizer, optimizer_kwargs=None,
 
     # RFHO use cross entropy defined in the package since tensorflow one does not have Hessian,
     # eps is the clipping threshold for cross entropy.
-    cross_entropy = tf.reduce_mean(
-        rf.cross_entropy_loss(labels=y_, logits=y_conv, eps=1.e-4), name='error')
+    if use_mse:
+        error = tf.reduce_mean(tf.squared_difference(y_, y_conv))
+    else:
+        error = tf.reduce_mean(
+            rf.cross_entropy_loss(labels=y_, logits=y_conv, eps=1.e-4), name='error')
     # RFHO add an L2 regularizer on the last weight matrix, whose weight will be optimized
     rho = tf.Variable(0., name='rho')
     constraints = [rf.positivity(rho)]  # rho >= 0
     iterations_per_epoch = 1100  # with mini batch size of 50
-    training_error = cross_entropy + 1/iterations_per_epoch*tf.multiply(
+    training_error = error + 1/iterations_per_epoch*tf.multiply(
         rho, tf.nn.l2_loss(W_fc1) + tf.nn.l2_loss(W_fc2))
 
     # train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
@@ -257,7 +261,7 @@ def experiment(mnist, optimizer=rf.AdamOptimizer, optimizer_kwargs=None,
     # algorithmic hyperparameters
 
     # RFHO we want to optimize learning rate and L2 coefficient w.r.t. cross entropy loss on validation set
-    hyper_dict = {cross_entropy: [rho] + dynamics.get_optimization_hyperparameters(only_variables=True)}
+    hyper_dict = {error: [rho] + dynamics.get_optimization_hyperparameters(only_variables=True)}
     # RFHO define the hyperparameter optimizer, we use Forward-HG method to compute hyper-gradients and RTHO algorithm
     hyper_opt = rf.HyperOptimizer(dynamics, hyper_dict, rf.ForwardHG, lr=hyper_learning_rate)
 
@@ -272,7 +276,7 @@ def experiment(mnist, optimizer=rf.AdamOptimizer, optimizer_kwargs=None,
         hyper_opt.initialize()  # RFHO this will initialize all the variables, including hyperparameters
         for i in range(T):  # RFHO we run for 200 hyper-iterations
             hyper_opt.run(hyper_batch_size, train_feed_dict_supplier=_train_fd,
-                          val_feed_dict_suppliers={cross_entropy: _validation_fd},
+                          val_feed_dict_suppliers={error: _validation_fd},
                           hyper_constraints_ops=constraints)
 
         test_accuracy = accuracy.eval(feed_dict=mnist.test.create_supplier(x, y_)())
