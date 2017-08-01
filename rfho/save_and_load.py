@@ -46,7 +46,7 @@ FOLDER_NAMINGS = {  # TODO should go into a settings file?
     'OBJ_DIR': 'Obj_data',
     'PLOTS_DIR': 'Plots',
     'MODELS_DIR': 'Models',
-    'GEPHI_DIR': 'GePhi'
+    'GEPHI_DIR': 'GePhi',
 }
 
 
@@ -95,6 +95,22 @@ def save_obj(obj, name, root_dir=None, notebook_mode=True, default_overwrite=Fal
     with gzip.open(filename, 'wb') as f:
         pickle.dump(obj, f)
         # print('File saved!')
+
+def save_text(text, name, root_dir=None, notebook_mode=True, default_overwrite=False):
+    if root_dir is None: root_dir = os.getcwd()
+    directory = check_or_create_dir(join_paths(root_dir),
+                                    notebook_mode=notebook_mode)
+
+    filename = join_paths(directory, '%s.txt' % name)  # directory + '/%s.pkgz' % name
+    if not default_overwrite and os.path.isfile(filename):
+        overwrite = input('A file named %s already exists. Overwrite (Leave string empty for NO!)?' % filename)
+        if not overwrite:
+            print('No changes done.')
+            return
+        print('Overwriting...')
+
+    with open(filename, "w") as text_file:
+        text_file.write(text)
 
 
 def load_obj(name, root_dir=None, notebook_mode=True):
@@ -444,6 +460,10 @@ class Saver:
         """
 
         return Records.on_hyperiteration(self, *what, append_string=append_string)  # FIXME to be finished
+
+    def save_text(self, text, name):
+        return save_text(text=text, name=name, root_dir=self.directory, default_overwrite=self.default_overwrite,
+                         notebook_mode=False)
 
     def save_fig(self, name, extension='pdf', **savefig_kwargs):
         """
