@@ -462,6 +462,7 @@ class Saver:
         return Records.on_hyperiteration(self, *what, append_string=append_string)  # FIXME to be finished
 
     def save_text(self, text, name):
+
         return save_text(text=text, name=name, root_dir=self.directory, default_overwrite=self.default_overwrite,
                          notebook_mode=False)
 
