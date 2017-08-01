@@ -373,8 +373,6 @@ class Network(object):
         self.saver.restore(sess, self.name + "-" + str(step))
 
 
-
-
 class LinearModel(Network):
 
     def __init__(self, _input, dim_input, dim_output, name='Linear_Model', deterministic_initialization=False,

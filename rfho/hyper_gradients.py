@@ -384,11 +384,13 @@ class ForwardHG:
         self.hyper_list = []  # more comfortable to use
         self.d_dynamics_d_hypers = []
         self.hyper_dict = {}  # standardizes hyper_dict parameter
+        self._inverse_hyper_dict = {}  # hyperparameter-validation error pairs
         for k, v in hyper_dict.items():
             list_v = as_list(v)
             # assert isinstance(list_v[0], tuple), "Something's wrong in hyper_dict %s, at least in entry%s. Check!"\
             #                                      % (hyper_dict, list_v[0])
             self.hyper_dict[k] = list_v  # be sure values are lists!
+            self._inverse_hyper_dict = {**self._inverse_hyper_dict, **{hyp: k for hyp in list_v}}
             self.hyper_list += [pair[0] if isinstance(pair, (tuple, list)) else pair for pair in list_v]
             self.d_dynamics_d_hypers += [pair[1] if isinstance(pair, (tuple, list)) else
                                          optimizer.auto_d_dynamics_d_hyper(pair)  # try to compute it automatically
@@ -416,13 +418,17 @@ class ForwardHG:
 
             self.fw_ops = optimizer.assign_ops  # add here when hypers are sequence (...)
 
-            with tf.name_scope('direct_HO'):
+            with tf.name_scope('ForwardHG'):
                 '''
                 Creates one z per hyper-parameter and assumes that each hyper-parameter is a vector
                 '''
-                self.zs, self.zs_dynamics, self._zs_assigns = [], [], []
-                self.grad_val_err, self.grad_wrt_hypers = [], []
+                self.grad_wrt_hypers, self.zs, self.zs_dynamics, self._zs_assigns = [], [], [], []
                 self.hyper_gradient_vars, self._hyper_assign_ops = [], []
+
+                self.grad_val_err = {ve: tf.identity(tf.gradients(ve, self.w_t)[0],
+                                                      name='grad_val_err_%s' % simple_name(ve.name))
+                                     for ve in self.hyper_dict.keys()}
+                self._gve_inv_dict = {hyp: self.grad_val_err[ve] for hyp, ve in self._inverse_hyper_dict.items()}
 
                 for k, hyp in enumerate(self.hyper_list):
                     with tf.device(devices[k % len(devices)]):
@@ -432,9 +438,7 @@ class ForwardHG:
                             self.zs_dynamics.append(optimizer.jac_z(self.zs[k]) + self.d_dynamics_d_hypers[k])
                             self._zs_assigns.append(self.zs[k].assign(self.zs_dynamics[k]))
 
-                        with tf.name_scope('grad_val_err'):
-                            self.grad_val_err.append(tf.gradients(self.val_errors[k], self.w_t)[0])
-                            self.grad_wrt_hypers.append(dot(self.grad_val_err[k], self.zs[k]))
+                        self.grad_wrt_hypers.append(dot(self._gve_inv_dict[hyp], self.zs[k], name='hyper_grad_wrt_h'))
 
                         with tf.name_scope('hyper_gradients'):
                             self.hyper_gradient_vars.append(tf.Variable(tf.zeros_like(hyp), name=simple_name(hyp)))

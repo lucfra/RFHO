@@ -456,44 +456,22 @@ def _check_new_saver_mode():
     saver = rf.Saver('TBD2')
     datasets = load_dataset()
 
-    with rf.record_hyperiteration(saver, rf.Records.hyperparameters(),
+    with rf.Records.on_hyperiteration(saver, rf.Records.hyperparameters(), rf.Records.hypergradients(),
                                   rf.Records.tensors('error', 'accuracy', rec_name='valid',
                                                      fd=('x', 'y', datasets.validation)),
                                   rf.Records.tensors('error', 'accuracy', rec_name='test',
                                                      fd=('x', 'y', datasets.test))
                                   ):
-        with rf.record_forward_hg(saver, rf.Records.norms_of_z(), append_string='zs', do_print=False):
+        with rf.Records.on_forward(saver, rf.Records.norms_of_z(), rf.Records.norms_of_d_dynamics_d_hypers(),
+                                   append_string='zs', do_print=False):
             experiment_no_saver(datasets=datasets, mode=HO_MODES[0],
                                 epochs=None, set_T=100, hyper_iterations=5)
-    #
-    # saver.timer.reset()
-    # with rf.record_forward_hg(saver, rf.record_hyperparameters(),
-    #                           rf.record_tensors('error', 'accuracy', rec_name='valid',
-    #                                             fd=('x', 'y', datasets.validation)),
-    #                           rf.record_tensors('error', 'accuracy', rec_name='test',
-    #                                             fd=('x', 'y', datasets.test)),
-    #                           append_string='_2nd_trial'
-    #                           ):
-    #     tf.reset_default_graph()
-    #     experiment_no_saver(datasets=datasets, mode=HO_MODES[0], epochs=None, set_T=10, hyper_iterations=3)
-    # ALL THE PREVIOUS CODE IS OK!
-
-    # with rf.record_hyperiteration(saver, rf.record_hyperparameters(),
-    #                               rf.record_tensors('error', 'accuracy', rec_name='valid',
-    #                                                 fd=('x', 'y', datasets.validation)),
-    #                               rf.record_tensors('error', 'accuracy', rec_name='test',
-    #                                                 fd=('x', 'y', datasets.test)),
-    #                               append_string='_1st_trial'
-    #                               ):
-    # with rf.record_forward_hg(saver, rf.record_norms_of_z(), append_string='norm_of_z'):
-    #     experiment_no_saver(datasets=datasets, mode=HO_MODES[0],
-    #                         epochs=None, set_T=100, hyper_iterations=5)
 
     experiment_no_saver(mode=HO_MODES[1], epochs=None, set_T=10, hyper_iterations=3)
 
 
 if __name__ == '__main__':
-    _check_all_methods()
+    # _check_all_methods()
     # _check_forward()
     #  _check_adam()
     # [_check_cnn() for _ in range(3)]
