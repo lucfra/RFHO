@@ -239,7 +239,7 @@ def experiment(mnist, optimizer=rf.AdamOptimizer, optimizer_kwargs=None,
     # RFHO use cross entropy defined in the package since tensorflow one does not have Hessian,
     # eps is the clipping threshold for cross entropy.
     if use_mse:
-        error = tf.reduce_mean(tf.squared_difference(y_, y_conv))
+        error = tf.reduce_mean(tf.squared_difference(y_, y_conv), name='error')
     else:
         error = tf.reduce_mean(
             rf.cross_entropy_loss(labels=y_, logits=y_conv, eps=1.e-4), name='error')
