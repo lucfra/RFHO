@@ -766,7 +766,7 @@ def load_mnist(folder=None, one_hot=True, partitions=None, filters=None, maps=No
     if partitions:
         res = redivide_data(res, partition_proportions=partitions, filters=filters, maps=maps, shuffle=shuffle)
         res += [None] * (3 - len(res))
-    return Datasets(train=res[0], validation=res[1], test=res[2])
+    return Datasets.from_list(res)
 
 
 def load_caltech101_30(folder=CALTECH101_30_DIR, tiny_problem=False):
@@ -1006,6 +1006,10 @@ class ExampleVisiting:
         self.training_schedule = np.concatenate([all_indices_shuffled()
                                                  for _ in range(self.epochs or 1)])
         return self
+
+    def create_supplier(self, x, y, other_feeds=None, lambda_feeds=None):
+        return self.create_feed_dict_supplier(x, y, other_feeds=other_feeds,
+                                              lambda_feeds=lambda_feeds)
 
     def create_feed_dict_supplier(self, x, y, other_feeds=None, lambda_feeds=None):
         """

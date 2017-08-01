@@ -146,7 +146,8 @@ def main(_):
     # use adam optimizer:
     optimizer = rf.AdamOptimizer
     w, y_conv, W_fc1, W_fc2 = rf.vectorize_model(model_vairables, y_conv, W_fc1, W_fc2,
-                                                 augment=optimizer.get_augmentation_multiplier())
+                                                 augment=optimizer.get_augmentation_multiplier(),
+                                                 suppress_err_out=False)
     # w is now a vector that contains all the weights, y_conv and W_fc2 are the same tensor as earlier,
     # but in the new graph
 
@@ -170,7 +171,7 @@ def main(_):
     # RFHO we want to optimize learning rate and L2 coefficient w.r.t. cross entropy loss on validation set
     hyper_dict = {cross_entropy: [alpha, rho]}
     # RFHO define the hyperparameter optimizer, we use Forward-HG method to compute hyper-gradients and RTHO algorithm
-    hyper_opt = rf.HyperOptimizer(dynamics, hyper_dict, rf.ForwardHG, lr=5.e-5)
+    hyper_opt = rf.HyperOptimizer(dynamics, hyper_dict, rf.ForwardHG, lr=1.e-5)
 
     correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32), name='accuracy')
@@ -207,7 +208,8 @@ def main(_):
         return test_accuracy
 
 
-def experiment(mnist, T=200):
+def experiment(mnist, optimizer=rf.AdamOptimizer, optimizer_kwargs=None,
+               hyper_batch_size=100, T=200, hyper_learning_rate=1.e-4, use_mse=False):
     """
     Modified MNIST for expert (CNN part) tensorflow tutorial experiment to include real time
     hyperparameter optimization. Hyperparameters being optimized are learning rate for
@@ -229,7 +231,6 @@ def experiment(mnist, T=200):
     # RFHO: collect model variables and "vectorize the model"
     model_vairables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
     # use adam optimizer:
-    optimizer = rf.AdamOptimizer
     w, y_conv, W_fc1, W_fc2 = rf.vectorize_model(model_vairables, y_conv, W_fc1, W_fc2,
                                                  augment=optimizer.get_augmentation_multiplier())
     # w is now a vector that contains all the weights, y_conv and W_fc2 are the same tensor as earlier,
@@ -237,25 +238,32 @@ def experiment(mnist, T=200):
 
     # RFHO use cross entropy defined in the package since tensorflow one does not have Hessian,
     # eps is the clipping threshold for cross entropy.
-    cross_entropy = tf.reduce_mean(
-        rf.cross_entropy_loss(labels=y_, logits=y_conv, eps=1.e-4), name='error')
+    if use_mse:
+        error = tf.reduce_mean(tf.squared_difference(y_, y_conv), name='error')
+    else:
+        error = tf.reduce_mean(
+            rf.cross_entropy_loss(labels=y_, logits=y_conv, eps=1.e-4), name='error')
     # RFHO add an L2 regularizer on the last weight matrix, whose weight will be optimized
     rho = tf.Variable(0., name='rho')
     constraints = [rf.positivity(rho)]  # rho >= 0
     iterations_per_epoch = 1100  # with mini batch size of 50
-    training_error = cross_entropy + 1/iterations_per_epoch*tf.multiply(
+    training_error = error + 1/iterations_per_epoch*tf.multiply(
         rho, tf.nn.l2_loss(W_fc1) + tf.nn.l2_loss(W_fc2))
 
     # train_step = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy)
     # RFHO define learning rate as an hyperparameter and create the parameter optimization dynamics
-    alpha = tf.Variable(1.e-4, name='alpha')
-    constraints.append(rf.positivity(alpha))
-    dynamics = optimizer.create(w, lr=alpha, loss=training_error)
+    if optimizer_kwargs is None:
+        optimizer_kwargs = {'lr': tf.Variable(1.e-4, name='alpha')}
+    dynamics = optimizer.create(w, loss=training_error, **optimizer_kwargs)
+    constraints += dynamics.get_natural_hyperparameter_constraints()  # add 'usual' constraints for
+    if optimizer is rf.AdamOptimizer:
+        constraints.append(dynamics.learning_rate.assign(tf.minimum(1.e-3, dynamics.learning_rate)))
+    # algorithmic hyperparameters
 
     # RFHO we want to optimize learning rate and L2 coefficient w.r.t. cross entropy loss on validation set
-    hyper_dict = {cross_entropy: [alpha, rho]}
+    hyper_dict = {error: [rho] + dynamics.get_optimization_hyperparameters(only_variables=True)}
     # RFHO define the hyperparameter optimizer, we use Forward-HG method to compute hyper-gradients and RTHO algorithm
-    hyper_opt = rf.HyperOptimizer(dynamics, hyper_dict, rf.ForwardHG, lr=5.e-5)
+    hyper_opt = rf.HyperOptimizer(dynamics, hyper_dict, rf.ForwardHG, lr=hyper_learning_rate)
 
     correct_prediction = tf.equal(tf.argmax(y_conv, 1), tf.argmax(y_, 1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32), name='accuracy')
@@ -267,20 +275,9 @@ def experiment(mnist, T=200):
     with tf.Session(config=rf.CONFIG_GPU_GROWTH).as_default():  # RFHO use default session.
         hyper_opt.initialize()  # RFHO this will initialize all the variables, including hyperparameters
         for i in range(T):  # RFHO we run for 200 hyper-iterations
-            hyper_opt.run(100, train_feed_dict_supplier=_train_fd,
-                          val_feed_dict_suppliers={cross_entropy: _validation_fd},
+            hyper_opt.run(hyper_batch_size, train_feed_dict_supplier=_train_fd,
+                          val_feed_dict_suppliers={error: _validation_fd},
                           hyper_constraints_ops=constraints)
-
-            # # if i % 100 == 0:
-            # train_accuracy = accuracy.eval(feed_dict=_train_fd())
-            # val_accuracy, val_error = ss.run([accuracy, cross_entropy], feed_dict=_validation_fd())
-            #
-            # print('step %d, training accuracy %.2f; validation accuracy: %.4f, validation error: %.5f; '
-            #       'alpha: %.6f, %.5f, rho: %.6f, %.5f'
-            #       % (i*100, train_accuracy, val_accuracy, val_error, alpha.eval(),
-            #          hyper_opt.hyper_gradients.hyper_gradients_dict[alpha].eval(),
-            #          rho.eval(), hyper_opt.hyper_gradients.hyper_gradients_dict[rho].eval()))
-            # # train_step.run(feed_dict={x: batch[0], y_: batch[1], keep_prob: 0.5})
 
         test_accuracy = accuracy.eval(feed_dict=mnist.test.create_supplier(x, y_)())
         print('test accuracy %g' % test_accuracy)
@@ -294,7 +291,4 @@ if __name__ == '__main__':
                         help='Directory for storing input data')
     FLAGS, unparsed = parser.parse_known_args()
 
-    sv = rf.Saver(['TBD'])
-
-    with sv.record():
-        tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+    tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
