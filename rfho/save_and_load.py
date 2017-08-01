@@ -109,6 +109,24 @@ def load_obj(name, root_dir=None, notebook_mode=True):
         return pickle.load(f)
 
 
+def save_model(session, model, step, root_dir=None, notebook_mode=True):
+    if root_dir is None: root_dir = os.getcwd()
+    directory = check_or_create_dir(join_paths(root_dir, FOLDER_NAMINGS['MODELS_DIR']),
+                                    notebook_mode=notebook_mode)
+
+    filename = join_paths(directory, '%s' % model.name)
+    model.saver.save(session, filename, global_step=step)
+
+
+def load_model(session, model, step, root_dir=None, notebook_mode=True):
+    if root_dir is None: root_dir = os.getcwd()
+    directory = check_or_create_dir(join_paths(root_dir, FOLDER_NAMINGS['MODELS_DIR']),
+                                    notebook_mode=notebook_mode, create=False)
+
+    filename = join_paths(directory, model.name)
+    model.saver.restore(session, filename + "-" + str(step))
+
+
 def save_adjacency_matrix_for_gephi(matrix, name, root_dir=None, notebook_mode=True, class_names=None):
     if root_dir is None: root_dir = os.getcwd()
     directory = check_or_create_dir(join_paths(root_dir, FOLDER_NAMINGS['GEPHI_DIR']),
@@ -503,6 +521,12 @@ class Saver:
         :return: unpacked object
         """
         return load_obj(name, root_dir=self.directory, notebook_mode=False)
+
+    def save_model(self, session, model, step):
+        save_model(session, model, step, root_dir=self.directory, notebook_mode=False)
+
+    def load_model(self, session, model, step):
+        load_model(session, model, step, root_dir=self.directory)
 
 
 # noinspection PyPep8Naming

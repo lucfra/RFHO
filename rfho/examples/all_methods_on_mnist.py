@@ -493,7 +493,7 @@ def _check_new_saver_mode():
 
 
 if __name__ == '__main__':
-    # _check_all_methods()
+    _check_all_methods()
     # _check_forward()
     #  _check_adam()
     # [_check_cnn() for _ in range(3)]
