@@ -39,7 +39,7 @@ class ReverseHG:
 
         self.w = optimizer.raw_w  # might be variable or MergedVariable
         #  TODO check if it works also with w as simple Variable
-        self.w_t = self.w  # MergedVariable.get_tensor(self.w)  # this is always a tensor
+        self.w_t = self.w # MergedVariable.get_tensor(self.w)  # this is always a tensor
 
         self.tr_dynamics = optimizer.dynamics
         assert isinstance(hyper_dict, dict), '%s not allowed type. Should be a dict of ' \
@@ -374,7 +374,7 @@ class ForwardHG:
         assert isinstance(optimizer, Optimizer)
 
         self.w = optimizer.raw_w  # might be variable or MergedVariable (never tested on Variables actually) ...
-        self.w_t = self.w  # MergedVariable.get_tensor(self.w)  # this is always a tensor
+        self.w_t = self.w # MergedVariable.get_tensor(self.w)  # this is always a tensor
 
         self.tr_dynamics = optimizer.dynamics
 
@@ -384,13 +384,11 @@ class ForwardHG:
         self.hyper_list = []  # more comfortable to use
         self.d_dynamics_d_hypers = []
         self.hyper_dict = {}  # standardizes hyper_dict parameter
-        self._inverse_hyper_dict = {}  # hyperparameter-validation error pairs
         for k, v in hyper_dict.items():
             list_v = as_list(v)
             # assert isinstance(list_v[0], tuple), "Something's wrong in hyper_dict %s, at least in entry%s. Check!"\
             #                                      % (hyper_dict, list_v[0])
             self.hyper_dict[k] = list_v  # be sure values are lists!
-            self._inverse_hyper_dict = {**self._inverse_hyper_dict, **{hyp: k for hyp in list_v}}
             self.hyper_list += [pair[0] if isinstance(pair, (tuple, list)) else pair for pair in list_v]
             self.d_dynamics_d_hypers += [pair[1] if isinstance(pair, (tuple, list)) else
                                          optimizer.auto_d_dynamics_d_hyper(pair)  # try to compute it automatically
@@ -418,17 +416,13 @@ class ForwardHG:
 
             self.fw_ops = optimizer.assign_ops  # add here when hypers are sequence (...)
 
-            with tf.name_scope('ForwardHG'):
+            with tf.name_scope('direct_HO'):
                 '''
                 Creates one z per hyper-parameter and assumes that each hyper-parameter is a vector
                 '''
-                self.grad_wrt_hypers, self.zs, self.zs_dynamics, self._zs_assigns = [], [], [], []
+                self.zs, self.zs_dynamics, self._zs_assigns = [], [], []
+                self.grad_val_err, self.grad_wrt_hypers = [], []
                 self.hyper_gradient_vars, self._hyper_assign_ops = [], []
-
-                self.grad_val_err = {ve: tf.identity(tf.gradients(ve, self.w_t)[0],
-                                                      name='grad_val_err_%s' % simple_name(ve.name))
-                                     for ve in self.hyper_dict.keys()}
-                self._gve_inv_dict = {hyp: self.grad_val_err[ve] for hyp, ve in self._inverse_hyper_dict.items()}
 
                 for k, hyp in enumerate(self.hyper_list):
                     with tf.device(devices[k % len(devices)]):
@@ -438,7 +432,9 @@ class ForwardHG:
                             self.zs_dynamics.append(optimizer.jac_z(self.zs[k]) + self.d_dynamics_d_hypers[k])
                             self._zs_assigns.append(self.zs[k].assign(self.zs_dynamics[k]))
 
-                        self.grad_wrt_hypers.append(dot(self._gve_inv_dict[hyp], self.zs[k], name='hyper_grad_wrt_h'))
+                        with tf.name_scope('grad_val_err'):
+                            self.grad_val_err.append(tf.gradients(self.val_errors[k], self.w_t)[0])
+                            self.grad_wrt_hypers.append(dot(self.grad_val_err[k], self.zs[k]))
 
                         with tf.name_scope('hyper_gradients'):
                             self.hyper_gradient_vars.append(tf.Variable(tf.zeros_like(hyp), name=simple_name(hyp)))
@@ -543,7 +539,7 @@ class ForwardHG:
         val_sup_lst = []
         if val_feed_dict_supplier is None:
             val_sup_lst = [lambda: None] * len(self.hyper_list)
-        else:  # probably here could use _inverse_hyper_dict
+        else:
             for hyp in self.hyper_list:  # find the right validation error for hyp!
                 for k, v in self.hyper_dict.items():
                     all_hypers = [e[0] if isinstance(e, (list, tuple)) else e for e in v]

@@ -256,8 +256,8 @@ def experiment(mnist, optimizer=rf.AdamOptimizer, optimizer_kwargs=None,
         optimizer_kwargs = {'lr': tf.Variable(1.e-4, name='alpha')}
     dynamics = optimizer.create(w, loss=training_error, **optimizer_kwargs)
     constraints += dynamics.get_natural_hyperparameter_constraints()  # add 'usual' constraints for
-    if optimizer is rf.AdamOptimizer:
-        constraints.append(dynamics.learning_rate.assign(tf.minimum(1.e-3, dynamics.learning_rate)))
+    # if optimizer is rf.AdamOptimizer:
+    #     constraints.append(dynamics.learning_rate.assign(tf.minimum(1.e-3, dynamics.learning_rate)))
     # algorithmic hyperparameters
 
     # RFHO we want to optimize learning rate and L2 coefficient w.r.t. cross entropy loss on validation set
