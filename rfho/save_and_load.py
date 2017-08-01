@@ -4,10 +4,12 @@ from functools import reduce, wraps
 from inspect import signature
 
 import matplotlib.pyplot as plt
+
+from rfho import as_list
+
 import tensorflow as tf
 
 import rfho as rf
-from rfho import as_list
 
 try:
     from IPython.display import IFrame
@@ -46,7 +48,7 @@ FOLDER_NAMINGS = {  # TODO should go into a settings file?
     'OBJ_DIR': 'Obj_data',
     'PLOTS_DIR': 'Plots',
     'MODELS_DIR': 'Models',
-    'GEPHI_DIR': 'GePhi',
+    'GEPHI_DIR': 'GePhi'
 }
 
 
@@ -96,22 +98,6 @@ def save_obj(obj, name, root_dir=None, notebook_mode=True, default_overwrite=Fal
         pickle.dump(obj, f)
         # print('File saved!')
 
-def save_text(text, name, root_dir=None, notebook_mode=True, default_overwrite=False):
-    if root_dir is None: root_dir = os.getcwd()
-    directory = check_or_create_dir(join_paths(root_dir),
-                                    notebook_mode=notebook_mode)
-
-    filename = join_paths(directory, '%s.txt' % name)  # directory + '/%s.pkgz' % name
-    if not default_overwrite and os.path.isfile(filename):
-        overwrite = input('A file named %s already exists. Overwrite (Leave string empty for NO!)?' % filename)
-        if not overwrite:
-            print('No changes done.')
-            return
-        print('Overwriting...')
-
-    with open(filename, "w") as text_file:
-        text_file.write(text)
-
 
 def load_obj(name, root_dir=None, notebook_mode=True):
     if root_dir is None: root_dir = os.getcwd()
@@ -121,6 +107,24 @@ def load_obj(name, root_dir=None, notebook_mode=True):
     filename = join_paths(directory, name if name.endswith('.pkgz') else name + '.pkgz')
     with gzip.open(filename, 'rb') as f:
         return pickle.load(f)
+
+
+def save_model(session, model, step, root_dir=None, notebook_mode=True):
+    if root_dir is None: root_dir = os.getcwd()
+    directory = check_or_create_dir(join_paths(root_dir, FOLDER_NAMINGS['MODELS_DIR']),
+                                    notebook_mode=notebook_mode)
+
+    filename = join_paths(directory, '%s' % model.name)
+    model.saver.save(session, filename, global_step=step)
+
+
+def load_model(session, model, step, root_dir=None, notebook_mode=True):
+    if root_dir is None: root_dir = os.getcwd()
+    directory = check_or_create_dir(join_paths(root_dir, FOLDER_NAMINGS['MODELS_DIR']),
+                                    notebook_mode=notebook_mode, create=False)
+
+    filename = join_paths(directory, model.name)
+    model.saver.restore(session, filename + "-" + str(step))
 
 
 def save_adjacency_matrix_for_gephi(matrix, name, root_dir=None, notebook_mode=True, class_names=None):
@@ -268,8 +272,7 @@ class Saver:
             self.directory = join_paths(root_directory)  # otherwise assume no use of root_directory
             if collect_data:
                 check_or_create_dir(root_directory, notebook_mode=False)
-        else:
-            self.directory = ''
+        else: self.directory = ''
         for name in self.experiment_names:
             self.directory = join_paths(self.directory, name)
             check_or_create_dir(self.directory, notebook_mode=False)
@@ -394,10 +397,10 @@ class Saver:
                 return _method(step, _res)
 
         save_dict = OrderedDict([(pt[0], _maybe_call(pt[1]) if callable(pt[1])
-        else ss.run(pt[1], feed_dict=_maybe_call(pt[2]),
-                    options=pt[4], run_metadata=pt[5])
-        if _maybe_call(pt[2 if callable(pt[1]) else 3]) else Saver.SKIP)
-                                 for pt in processed_items]
+                                else ss.run(pt[1], feed_dict=_maybe_call(pt[2]),
+                                            options=pt[4], run_metadata=pt[5])
+                                  if _maybe_call(pt[2 if callable(pt[1]) else 3]) else Saver.SKIP)
+                                for pt in processed_items]
                                 )
 
         if self.timer: save_dict['Elapsed time (%s)' % self.timer.unit] = self.timer.elapsed_time()
@@ -439,7 +442,6 @@ class Saver:
 
         # packed_dict = OrderedDict([(k, []) for k in objs[0]])
 
-        # noinspection PyArgumentList
         packed_dict = defaultdict(list, OrderedDict())
         for obj in objs:
             [packed_dict[k].append(v) for k, v in obj.items()]
@@ -459,11 +461,7 @@ class Saver:
         :return:
         """
 
-        return Records.on_hyperiteration(self, *what, append_string=append_string)  # FIXME to be finished
-
-    def save_text(self, text, name):
-        return save_text(text=text, name=name, root_dir=self.directory, default_overwrite=self.default_overwrite,
-                         notebook_mode=False)
+        return record_hyperiteration(self, *what, append_string=append_string)  # FIXME to be finished
 
     def save_fig(self, name, extension='pdf', **savefig_kwargs):
         """
@@ -524,6 +522,12 @@ class Saver:
         """
         return load_obj(name, root_dir=self.directory, notebook_mode=False)
 
+    def save_model(self, session, model, step):
+        save_model(session, model, step, root_dir=self.directory, notebook_mode=False)
+
+    def load_model(self, session, model, step):
+        load_model(session, model, step, root_dir=self.directory)
+
 
 # noinspection PyPep8Naming
 def Loader(folder_name):
@@ -540,103 +544,105 @@ def Loader(folder_name):
                  collect_data=False)
 
 
+class record_hyperiteration:
+    """
+    context for record at each hyperiteration
+    """
+
+    def __init__(self, saver, *record_what, append_string='', do_print=None, collect_data=None):
+        self.saver = saver
+        self.append_string = append_string
+        if self.append_string: self.append_string = '__' + self.append_string
+        self.do_print = do_print
+        self.collect_data = collect_data
+
+        self._unwrapped = []
+
+        self._record_what = record_what or []
+        self._processed_items = []
+
+        self._step = 0
+
+    def __enter__(self):
+        self._wrap()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_tb:
+            self.saver.save_obj((str(exc_type), str(exc_val), str(exc_tb)),
+                                'exception' + self.append_string)
+        self.saver.pack_save_dictionaries(append_string=self.append_string)
+
+        self._unwrap()
+
+        # TODO is this a good thing? or should we leave it to do manually
+        self.saver.clear_items()
+        if self.saver.timer: self.saver.timer.stop()
+
+    def _wrap(self):
+        self._unwrapped.append(rf.HyperOptimizer.initialize)
+        rf.HyperOptimizer.initialize = self._initialize_wrapper(rf.HyperOptimizer.initialize)
+
+        self._unwrapped.append(rf.HyperOptimizer.run)
+        rf.HyperOptimizer.run = self._saver_wrapper(rf.HyperOptimizer.run)  # mmm...
+
+    def _unwrap(self):
+        rf.HyperOptimizer.initialize = self._unwrapped[0]
+        rf.HyperOptimizer.run = self._unwrapped[1]
+
+    def _saver_wrapper(self, f):
+        @wraps(f)
+        def _saver_wrapped(*args, **kwargs):
+            res = f(*args, **kwargs)
+            self._execute_save(res, *args, **kwargs)
+            return res
+
+        return _saver_wrapped
+
+    def _initialize_wrapper(self, f):  # this should be good since
+        @wraps(f)
+        def _initialize_wrapped(*args, **kwargs):
+            first_init = f(*args, **kwargs)
+            # add savers just at the first initialization
+            if first_init:
+                self._processed_items += rf.flatten_list(
+                    [Saver.process_items(*e(*args, **kwargs)) for e in self._record_what])
+                self._execute_save('INIT', *args, **kwargs)
+
+            return first_init
+
+        return _initialize_wrapped
+
+    # noinspection PyUnusedLocal
+    def _execute_save(self, res, *args, **kwargs):  # maybe args and kwargs could be useful...
+        self.saver.save(step=self._step, append_string=self.append_string,
+                        processed_items=self._processed_items,
+                        do_print=self.do_print, collect_data=self.collect_data,
+                        _res=res)
+        self._step += 1
+
+
+# noinspection PyPep8Naming
+class record_forward_hg(record_hyperiteration):  # context class
+    """
+    Saves at every iteration (before call of method `step_forward`)
+    """
+
+    def _wrap(self):
+        self._unwrapped.append(rf.HyperOptimizer.initialize)
+        rf.HyperOptimizer.initialize = self._initialize_wrapper(rf.HyperOptimizer.initialize)
+
+        self._unwrapped.append(rf.ForwardHG.step_forward)
+        rf.ForwardHG.step_forward = self._saver_wrapper(rf.ForwardHG.step_forward)  # mmm...
+
+    def _unwrap(self):
+        rf.HyperOptimizer.initialize = self._unwrapped[0]
+        rf.ForwardHG.step_forward = self._unwrapped[1]
+
+
 class Records:
     """
     Contains (for the moment) static convenience methods for recording quantities
     """
-
-    class on_hyperiteration:
-        """
-        context for record at each hyperiteration
-        """
-
-        def __init__(self, saver, *record_what, append_string='', do_print=None, collect_data=None):
-            self.saver = saver
-            self.append_string = append_string
-            if self.append_string: self.append_string = '__' + self.append_string
-            self.do_print = do_print
-            self.collect_data = collect_data
-
-            self._unwrapped = []
-
-            self._record_what = record_what or []
-            self._processed_items = []
-
-            self._step = 0
-
-        def __enter__(self):
-            self._wrap()
-
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            if exc_tb:
-                self.saver.save_obj((str(exc_type), str(exc_val), str(exc_tb)),
-                                    'exception' + self.append_string)
-            self.saver.pack_save_dictionaries(append_string=self.append_string)
-
-            self._unwrap()
-
-            # TODO is this a good thing? or should we leave it to do manually
-            self.saver.clear_items()
-            if self.saver.timer: self.saver.timer.stop()
-
-        def _wrap(self):
-            self._unwrapped.append(rf.HyperOptimizer.initialize)
-            rf.HyperOptimizer.initialize = self._initialize_wrapper(rf.HyperOptimizer.initialize)
-
-            self._unwrapped.append(rf.HyperOptimizer.run)
-            rf.HyperOptimizer.run = self._saver_wrapper(rf.HyperOptimizer.run)  # mmm...
-
-        def _unwrap(self):
-            rf.HyperOptimizer.initialize = self._unwrapped[0]
-            rf.HyperOptimizer.run = self._unwrapped[1]
-
-        def _saver_wrapper(self, f):
-            @wraps(f)
-            def _saver_wrapped(*args, **kwargs):
-                res = f(*args, **kwargs)
-                self._execute_save(res, *args, **kwargs)
-                return res
-
-            return _saver_wrapped
-
-        def _initialize_wrapper(self, f):  # this should be good since
-            @wraps(f)
-            def _initialize_wrapped(*args, **kwargs):
-                first_init = f(*args, **kwargs)
-                # add savers just at the first initialization
-                if first_init:
-                    self._processed_items += rf.flatten_list(
-                        [Saver.process_items(*e(*args, **kwargs)) for e in self._record_what])
-                    self._execute_save('INIT', *args, **kwargs)
-
-                return first_init
-
-            return _initialize_wrapped
-
-        # noinspection PyUnusedLocal
-        def _execute_save(self, res, *args, **kwargs):  # maybe args and kwargs could be useful...
-            self.saver.save(step=self._step, append_string=self.append_string,
-                            processed_items=self._processed_items,
-                            do_print=self.do_print, collect_data=self.collect_data,
-                            _res=res)
-            self._step += 1
-
-    # noinspection PyClassHasNoInit,PyPep8Naming
-    class on_forward(on_hyperiteration):  # context class
-        """
-        Saves at every iteration (before call of method `step_forward`)
-        """
-
-        def _wrap(self):
-            self._unwrapped.append(rf.HyperOptimizer.initialize)
-            rf.HyperOptimizer.initialize = self._initialize_wrapper(rf.HyperOptimizer.initialize)
-
-            self._unwrapped.append(rf.ForwardHG.step_forward)
-            rf.ForwardHG.step_forward = self._saver_wrapper(rf.ForwardHG.step_forward)  # mmm...
-
-        def _unwrap(self):
-            rf.HyperOptimizer.initialize = self._unwrapped[0]
-            rf.ForwardHG.step_forward = self._unwrapped[1]
 
     @staticmethod
     def direct(*items):
@@ -665,28 +671,10 @@ class Records:
             if isinstance(hg, rf.HyperOptimizer): hg = hg.hyper_gradients  # guess most common case
             assert isinstance(hg, rf.ForwardHG)
             _rs = Records.tensors(*hg.zs, op=tf.norm)(args, kwargs)
-            return _rs
 
-        return _call
-
-    @staticmethod
-    def norms_of_d_dynamics_d_hypers(fd=None):
-        """
-        In `ForwardHG` records the norm of the partial derivatives of the dynamics w.r.t. the hyperparameters.
-
-        :param fd:
-        :return:
-        """
-        if fd is None: fd = lambda stp, rs: rs
-
-        def _call(*args, **kwargs):
-            hg = args[0]
-            if isinstance(hg, rf.HyperOptimizer):
-                hg = hg.hyper_gradients  # guess most common case
-            assert isinstance(hg, rf.ForwardHG)
-            _rs = Records.tensors(*hg.d_dynamics_d_hypers, op=tf.norm,
-                                  fd=fd,
-                                  condition=lambda stp, rs: rs != 'INIT')(args, kwargs)
+            _rs += Records.tensors(*hg.d_dynamics_d_hypers, op=tf.norm,
+                                   fd=lambda stp, rs: rs,
+                                   condition=lambda stp, rs: rs != 'INIT')(args, kwargs)
             return _rs
 
         return _call
@@ -704,37 +692,17 @@ class Records:
             hyper_optimizer = args[0]
             assert isinstance(hyper_optimizer, rf.HyperOptimizer)
             return rf.flatten_list(
-                [rf.simple_name(hyp), hyp]
+                [rf.simple_name(hyp), [hyp, hyper_optimizer.hyper_gradients.hyper_gradients_dict[hyp]]]
                 for hyp in hyper_optimizer.hyper_list)
 
         return _call
 
     @staticmethod
-    def hypergradients():
-        """
-        Record all hypergradient values, assuming the usage of `HyperOptimizer`
-
-        :return:
-        """
-
-        # noinspection PyUnusedLocal
-        def _call(*args, **kwargs):
-            hyper_optimizer = args[0]
-            assert isinstance(hyper_optimizer, rf.HyperOptimizer)
-            return rf.flatten_list(
-                ['grad::' + rf.simple_name(hyp), hyper_optimizer.hyper_gradients.hyper_gradients_dict[hyp]]
-                for hyp in hyper_optimizer.hyper_list)
-
-        return _call
-
-    @staticmethod
-    def tensors(*tensors, key=None, scope=None, name_contains=None,
-                rec_name='', op=tf.identity, fd=None,
+    def tensors(*tensors, key=None, scope=None, rec_name='', op=tf.identity, fd=None,
                 condition=True):
         """
         Little more difficult... attempts to record tensor named name
 
-        :param name_contains: record all tensors which name contains this string. Can be a list.
         :type condition: bool | function
         :param condition: optional condition for triggering the saving of tensors, can have different
                             signatures
@@ -754,14 +722,10 @@ class Records:
                             else tns for tns in tensors]
             elif key:
                 _tensors = tf.get_collection(key, scope=scope)
-            elif name_contains:
-                _names = rf.flatten_list([[n.name for n in tf.get_default_graph().as_graph_def().node
-                                           if nc in n.name] for nc in as_list(name_contains)])
-                return Records.tensors(*_names, rec_name=rec_name, op=op, fd=fd, condition=True)(*args, **_kwargs)
             else:
                 raise NotImplemented('One between key and names should be given')
             # try with dictionary of form (string (simple name of placeholder), data)
-            _rs2 = rf.flatten_list([rec_name + rf.simple_name(tns.name),
+            _rs2 = rf.flatten_list([rec_name + Records._strip_0(tns.name),
                                     op(tns),
                                     Records._process_feed_dicts_for_rec(fd, *args, **_kwargs),
                                     condition]
@@ -788,6 +752,10 @@ class Records:
         :return:
         """
         raise NotImplemented()
+
+    @staticmethod
+    def _strip_0(name):
+        return name.split(':')[0]
 
     @staticmethod
     def _process_feed_dicts_for_rec(fd, *args, **kwargs):
