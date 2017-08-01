@@ -4,10 +4,12 @@ from functools import reduce, wraps
 from inspect import signature
 
 import matplotlib.pyplot as plt
+
+from rfho import as_list
+
 import tensorflow as tf
 
 import rfho as rf
-from rfho import as_list
 
 try:
     from IPython.display import IFrame
@@ -121,6 +123,24 @@ def load_obj(name, root_dir=None, notebook_mode=True):
     filename = join_paths(directory, name if name.endswith('.pkgz') else name + '.pkgz')
     with gzip.open(filename, 'rb') as f:
         return pickle.load(f)
+
+
+def save_model(session, model, step, root_dir=None, notebook_mode=True):
+    if root_dir is None: root_dir = os.getcwd()
+    directory = check_or_create_dir(join_paths(root_dir, FOLDER_NAMINGS['MODELS_DIR']),
+                                    notebook_mode=notebook_mode)
+
+    filename = join_paths(directory, '%s' % model.name)
+    model.saver.save(session, filename, global_step=step)
+
+
+def load_model(session, model, step, root_dir=None, notebook_mode=True):
+    if root_dir is None: root_dir = os.getcwd()
+    directory = check_or_create_dir(join_paths(root_dir, FOLDER_NAMINGS['MODELS_DIR']),
+                                    notebook_mode=notebook_mode, create=False)
+
+    filename = join_paths(directory, model.name)
+    model.saver.restore(session, filename + "-" + str(step))
 
 
 def save_adjacency_matrix_for_gephi(matrix, name, root_dir=None, notebook_mode=True, class_names=None):
@@ -268,8 +288,7 @@ class Saver:
             self.directory = join_paths(root_directory)  # otherwise assume no use of root_directory
             if collect_data:
                 check_or_create_dir(root_directory, notebook_mode=False)
-        else:
-            self.directory = ''
+        else: self.directory = ''
         for name in self.experiment_names:
             self.directory = join_paths(self.directory, name)
             check_or_create_dir(self.directory, notebook_mode=False)
@@ -394,10 +413,10 @@ class Saver:
                 return _method(step, _res)
 
         save_dict = OrderedDict([(pt[0], _maybe_call(pt[1]) if callable(pt[1])
-        else ss.run(pt[1], feed_dict=_maybe_call(pt[2]),
-                    options=pt[4], run_metadata=pt[5])
-        if _maybe_call(pt[2 if callable(pt[1]) else 3]) else Saver.SKIP)
-                                 for pt in processed_items]
+                                else ss.run(pt[1], feed_dict=_maybe_call(pt[2]),
+                                            options=pt[4], run_metadata=pt[5])
+                                  if _maybe_call(pt[2 if callable(pt[1]) else 3]) else Saver.SKIP)
+                                for pt in processed_items]
                                 )
 
         if self.timer: save_dict['Elapsed time (%s)' % self.timer.unit] = self.timer.elapsed_time()
@@ -524,6 +543,12 @@ class Saver:
         :return: unpacked object
         """
         return load_obj(name, root_dir=self.directory, notebook_mode=False)
+
+    def save_model(self, session, model, step):
+        save_model(session, model, step, root_dir=self.directory, notebook_mode=False)
+
+    def load_model(self, session, model, step):
+        load_model(session, model, step, root_dir=self.directory)
 
 
 # noinspection PyPep8Naming
