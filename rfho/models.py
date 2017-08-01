@@ -363,6 +363,17 @@ class Network(object):
         self.w = res[0]
         return res
 
+    def set_saver(self):
+        self.saver = tf.train.Saver(var_list=self.var_list)
+
+    def save(self, sess, step):
+        self.saver.save(sess, self.name, global_step=step)
+
+    def load(self, sess, step):
+        self.saver.restore(sess, self.name + "-" + str(step))
+
+
+
 
 class LinearModel(Network):
 
