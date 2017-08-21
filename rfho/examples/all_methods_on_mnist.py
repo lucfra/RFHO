@@ -406,7 +406,7 @@ def _check_forward():
 
 
 def _check_all_methods():
-    for _mode in HO_MODES[1:]:
+    for _mode in HO_MODES[:]:
         for _model in IMPLEMENTED_MODEL_TYPES:
             # _model_kwargs = {'dims': [None, 300, 300, None]}
             tf.reset_default_graph()
@@ -471,8 +471,8 @@ def _check_new_saver_mode():
 
 
 if __name__ == '__main__':
-    # _check_all_methods()
+    _check_all_methods()
     # _check_forward()
     #  _check_adam()
     # [_check_cnn() for _ in range(3)]
-    _check_new_saver_mode()
+    # _check_new_saver_mode()

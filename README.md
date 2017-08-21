@@ -3,15 +3,19 @@ Gradient-based hyperparameter optimization package with
 [TensorFlow](https://www.tensorflow.org/)
 
 The package implements the three algorithms presented in the paper
- _Forward and Reverse Gradient-Based Hyperparameter Optimization_ [2017]
- (https://arxiv.org/abs/1703.01785). 
+ _Forward and Reverse Gradient-Based Hyperparameter Optimization_
+ (http://proceedings.mlr.press/v70/franceschi17a). 
 - Reverse-HG, generalization of algorithms presented in Domke [2012] and MacLaurin et Al. [2015] (without reversable dynamics and "reversable dtype")
 - Forward-HG
 - Real-Time Hyperparameter Optimization (RTHO)
 
 The first two algorithms compute, with different procedures, the gradient
-  of a validation error with respect to hyperparameters, while the last, based on Forward-HG, 
+  of a validation error with respect to the hyperparameters - i.e. the _hypergradient_ - while the last, based on Forward-HG, 
   performs "real time" (i.e. at training time) hyperparameter updates.
+  
+![alt text](https://github.com/lucfra/RFHO/blob/master/rfho/examples/0_95_crop.png "Response surface of a small ANN 
+and optimization trajectory in the hyperparameter space. The arrows depicts
+the negative hypergradient at the current point, computed with Forward-HG algorithm.")
 
 ## Installation & Dependencies
 
@@ -35,15 +39,14 @@ Aim of this package is to implement and develop gradient-based hyperparameter op
 TensorFlow, thus making them readily applicable to deep learning systems. The package is under
 development and at the moment the code
 is not particularly optimized;
-please feel free to issues comments, suggestions and feedbacks! You can also email me at luca.franceschi@iit.it .
+please feel free to issues comments, suggestions and feedbacks! You can email me at luca.franceschi@iit.it .
 
 
 #### Quick Start 
 
-- [Self contained example](https://github.com/lucfra/RFHO/blob/master/rfho/examples/RFHO%20starting%20example.ipynb) on MNIST (!) with `ReverseHG`
-- [A module with a more complete set of examples with an `experiment` function
-full of parameters](https://github.com/lucfra/RFHO/blob/master/rfho/examples/all_methods_on_mnist.py) 
-showing all algorithms an various models (again on MNIST...)
+- [Self contained small example](https://github.com/lucfra/RFHO/blob/master/rfho/examples/RFHO%20starting%20example.ipynb) on MNIST with `ReverseHG`
+- [A module with a more complete set of examples with an `experiment` function](https://github.com/lucfra/RFHO/blob/master/rfho/examples/all_methods_on_mnist.py) 
+showcasing the behaviour of all algorithms an various models (default dataset is MNIST).
 
 #### Core Steps
 
@@ -55,12 +58,12 @@ showing all algorithms an various models (again on MNIST...)
 - create a training dynamics with a subclass of `rfho.Optimizer` (at the moment
 gradient descent,
 gradient descent with momentum and Adam algorithms are available),
-- chose and hyper-gradient computation algorithm among
+- chose an hyper-gradient computation algorithm among
 `rfho.ForwardHG` and `rfho.ReverseHG` (see next section) and 
 instantiate `rfho.HyperOptimizer`,
 - execute `rfho.HyperOptimizer.run` function inside a `tensorflow.Session`
-and optimize both the parameter and 
-hyperparameter of your model (learning rate included)!
+and optimize both parameters and 
+hyperparameters of your model.
 
 
 ```python
@@ -101,10 +104,12 @@ hyperparameters should be scalars or vectors.
 
 #### Which Algorithm Do I Choose?
 
-It's a matter of time versus memory (RAM)!
+Forward and Reverse-HG compute the same hypergradient, so
+the choice is a matter of time versus memory!
 
-![alt text](https://github.com/lucfra/RFHO/blob/master/rfho/examples/time_memory.png "mah")
+![alt text](https://github.com/lucfra/RFHO/blob/master/rfho/examples/time_memory.png "Time vs memory requirements")
 
+The real-time version of the algorithms can dramatically speed-up the optimization.
 
 #### The Idea Behind
 
@@ -117,15 +122,15 @@ The objective is to minimize some validation function _E_ with respect to
 explicitly take into account the learning dynamics used to obtain the model  
 parameters (e.g. you can think about stochastic gradient descent with momentum),
 and we formulate
-HO as a __constrained optimization__ problem. See the [paper](https://arxiv.org/abs/1703.01785) for details.
+HO as a __constrained optimization__ problem. See the [paper](http://proceedings.mlr.press/v70/franceschi17a) for details.
 
 #### Code Structure
 
 - All the hyperparameter optimization-related algorithms are implemented in the module `hyper_gradients`.
 The classes `ReverseHG` and `ForwardHG` are responsible 
 for the computation of the hyper-gradients. `HyperOptimizer` is an interface class
-that seamlessly allows for the hyperparameter optimization both in real-time (RTHO algorithm, 
-based on `ForwardHG` and _experimental (needs more testing) Truncated-Reverse based on Reverse-HG_) and in "batch"
+that seamlessly allows gradient-based optimization of continuous hyperparameters both in real-time (RTHO algorithm, 
+based on `ForwardHG` and _experimental Truncated-Reverse based on Reverse-HG_) and in "batch"
 mode.
 - The module `optimizers` contains classes that implement 
 gradient descent based iterative optimizers. Since 
@@ -134,7 +139,7 @@ a dynamical system) we haven't been able to employ TensorFlow optimizers.
 At the moment the following optimizers are implemented
     - `GradientDescentOptimizer`
     - `MomentumOptimizer`
-    - `AdamOptimizer` (now compatible with `ForwardHG`)
+    - `AdamOptimizer`
 - `models` module contains some helper function to build up models. It also 
 contains the core function `vectorize_model` which transform the computational
 graph so that all the parameters of the model are conveniently collected into 
@@ -142,7 +147,7 @@ a single vector (rank-1 tensor) of the appropriate dimension (see method doc
 for further details)
 - `utils` method contains some useful functions. Most notably `cross_entropy_loss`
  re-implements the cross entropy with softmax output. This was necessary since 
-`tensorflow.nn.softmax_cross_entropy_with_logits` function has no registered second derivative.
+`tensorflow.nn.softmax_cross_entropy_with_logits` function had no registered second derivative.
 
 ### Citing 
 
