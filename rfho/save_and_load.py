@@ -291,7 +291,7 @@ class Saver:
         else: self.directory = ''
         for name in self.experiment_names:
             self.directory = join_paths(self.directory, name)
-            check_or_create_dir(self.directory, notebook_mode=False)
+            check_or_create_dir(self.directory, notebook_mode=False, create=collect_data)
 
         self.do_print = do_print
         self.collect_data = collect_data
@@ -594,10 +594,12 @@ class Records:
             self._wrap()
 
         def __exit__(self, exc_type, exc_val, exc_tb):
-            if exc_tb:
-                self.saver.save_obj((str(exc_type), str(exc_val), str(exc_tb)),
-                                    'exception' + self.append_string)
-            self.saver.pack_save_dictionaries(append_string=self.append_string)
+            if self.collect_data:
+                if exc_tb:
+                    self.saver.save_obj((str(exc_type), str(exc_val), str(exc_tb)),
+                                        'exception' + self.append_string)
+
+                self.saver.pack_save_dictionaries(append_string=self.append_string)
 
             self._unwrap()
 
