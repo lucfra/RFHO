@@ -13,9 +13,9 @@ The first two algorithms compute, with different procedures, the gradient
   of a validation error with respect to the hyperparameters - i.e. the _hypergradient_ - while the last, based on Forward-HG, 
   performs "real time" (i.e. at training time) hyperparameter updates.
   
-![alt text](https://github.com/lucfra/RFHO/blob/master/rfho/examples/0_95_crop.png "Response surface of a small ANN 
-and optimization trajectory in the hyperparameter space. The arrows depicts
-the negative hypergradient at the current point, computed with Forward-HG algorithm.")
+![alt text](https://github.com/lucfra/RFHO/blob/master/rfho/examples/0_95_crop.png 
+"Response surface of a small ANN and optimization trajectory in the hyperparameter space.
+The arrows depicts the negative hypergradient at the current point, computed with Forward-HG algorithm.")
 
 ## Installation & Dependencies
 
