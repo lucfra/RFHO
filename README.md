@@ -2,7 +2,7 @@
 Gradient-based hyperparameter optimization package with 
 [TensorFlow](https://www.tensorflow.org/)
 
-## NOTE: new package at https://github.com/lucfra/FAR-HO
+## NOTE: this package is discontinued: please refer to the new package FARHO at https://github.com/lucfra/FAR-HO
 FAR-HO is a more complete and easier-to-use version: [this](https://github.com/lucfra/FAR-HO#new-features-and-differences-from-rfho) are the main differences and new features. This package will not be updated in the future but will be mantained for reproducibility of experiments in the paper. 
 
 The package implements the three algorithms presented in the paper
